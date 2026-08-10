@@ -1,0 +1,80 @@
+name: ${COMPOSE_PROJECT_NAME:-ai-cps-nn-runtime}
+
+# Physischer Laufzeit-Stack: Nur die drei austauschbaren NN-Dienste.
+# Node-RED, OPC UA und der MQTT-Broker laufen auf dem Projekt-PC ausserhalb
+# dieses Compose-Stacks. Alle Topicnamen entsprechen dem eingefrorenen Vertrag.
+services:
+  storage_infer:
+    image: ${STORAGE_IMAGE:-${STORAGE_IMAGE_REPOSITORY:-ft_cb_storage}:${IMAGE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: code_base_storage/Dockerfile
+    volumes:
+      - ../../../model_registry:/model_registry:ro
+    environment:
+      MQTT_HOST: ${MQTT_HOST:-host.docker.internal}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-}
+      MQTT_PASS: ${MQTT_PASS:-}
+      MQTT_QOS: 1
+      MQTT_REQ_TOPIC: ft/nn/storage/request
+      MQTT_RES_TOPIC: ft/nn/response/storage
+      MQTT_CONTRACT_TOPIC: ft/nn/storage/contract
+      MQTT_STATUS_TOPIC: ft/nn/storage/status
+      KB_PATH: ${STORAGE_MODEL_DIR:-/model_registry/storage/latest}/model.keras
+      AB_PATH: ${STORAGE_MODEL_DIR:-/model_registry/storage/latest}/activation.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  vgr_infer:
+    image: ${VGR_IMAGE:-${VGR_IMAGE_REPOSITORY:-ft_cb_vgr}:${IMAGE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: code_base_vgr/Dockerfile
+    volumes:
+      - ../../../model_registry:/model_registry:ro
+      - ./node_red/config/topics.json:/runtime_config/topics.json:ro
+    environment:
+      MQTT_HOST: ${MQTT_HOST:-host.docker.internal}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-}
+      MQTT_PASS: ${MQTT_PASS:-}
+      MQTT_QOS: 1
+      MQTT_REQ_TOPIC: ft/nn/vgr/request
+      MQTT_RES_TOPIC: ft/nn/response/vgr
+      MQTT_CONTRACT_TOPIC: ft/nn/vgr/contract
+      MQTT_STATUS_TOPIC: ft/nn/vgr/status
+      COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-false}
+      COMMAND_TOPICS_PATH: /runtime_config/topics.json
+      KB_PATH: ${VGR_MODEL_DIR:-/model_registry/vgr/latest}/model.keras
+      AB_PATH: ${VGR_MODEL_DIR:-/model_registry/vgr/latest}/activation.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  hbw_infer:
+    image: ${HBW_IMAGE:-${HBW_IMAGE_REPOSITORY:-ft_cb_hbw}:${IMAGE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: code_base_hbw/Dockerfile
+    volumes:
+      - ../../../model_registry:/model_registry:ro
+      - ./node_red/config/topics.json:/runtime_config/topics.json:ro
+    environment:
+      MQTT_HOST: ${MQTT_HOST:-host.docker.internal}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-}
+      MQTT_PASS: ${MQTT_PASS:-}
+      MQTT_QOS: 1
+      MQTT_REQ_TOPIC: ft/nn/hbw/request
+      MQTT_RES_TOPIC: ft/nn/response/hbw
+      MQTT_CONTRACT_TOPIC: ft/nn/hbw/contract
+      MQTT_STATUS_TOPIC: ft/nn/hbw/status
+      COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-false}
+      COMMAND_TOPICS_PATH: /runtime_config/topics.json
+      KB_PATH: ${HBW_MODEL_DIR:-/model_registry/hbw/latest}/model.keras
+      AB_PATH: ${HBW_MODEL_DIR:-/model_registry/hbw/latest}/activation.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

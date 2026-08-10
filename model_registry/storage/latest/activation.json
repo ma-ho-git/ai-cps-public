@@ -1,0 +1,66 @@
+{
+  "domain": "storage",
+  "model_type": "mlp",
+  "feature_cols": [
+    "storage_slot_1_occupied",
+    "storage_slot_2_occupied",
+    "storage_slot_3_occupied",
+    "storage_slot_4_occupied",
+    "storage_slot_5_occupied",
+    "storage_slot_6_occupied",
+    "storage_slot_7_occupied",
+    "storage_slot_8_occupied",
+    "storage_slot_9_occupied"
+  ],
+  "label_col": "empty_storage",
+  "class_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "input_shape": [
+    9
+  ],
+  "n_classes": 10,
+  "cmd_map": {
+    "0": "storage_full",
+    "1": "first_free_slot_1",
+    "2": "first_free_slot_2",
+    "3": "first_free_slot_3",
+    "4": "first_free_slot_4",
+    "5": "first_free_slot_5",
+    "6": "first_free_slot_6",
+    "7": "first_free_slot_7",
+    "8": "first_free_slot_8",
+    "9": "first_free_slot_9"
+  },
+  "rule_baseline": "first slot with occupied == 0, otherwise 0 for full storage",
+  "architecture": {
+    "input_shape": [
+      9
+    ],
+    "hidden_units": [
+      16,
+      16
+    ],
+    "output_units": 10,
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "loss": "sparse_categorical_crossentropy",
+    "parameter_counts": {
+      "trainable": 602,
+      "non_trainable": 0,
+      "total": 602
+    }
+  },
+  "training_data": "data/plc/training_empty_storage_truth_table.csv",
+  "seed": 42,
+  "trained_at": "2026-07-08_085429"
+}

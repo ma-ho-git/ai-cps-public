@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite this repository and the AI-CPS origin described in the references."
+title: "AI-CPS Runtime for a Hybrid fischertechnik Factory"
+type: software
+authors:
+  - family-names: "Hopka"
+    given-names: "Marcus"
+repository-code: "https://github.com/ma-ho-git/ai-cps-runtime"
+url: "https://github.com/ma-ho-git/ai-cps-runtime"
+version: "1.1.0"
+date-released: 2026-08-10
+license: AGPL-3.0-only
+references:
+  - type: software
+    title: "AI-CPS: Platform for AI-based Cyber-Physical Systems"
+    authors:
+      - family-names: "Grum"
+        given-names: "Marcus"
+    repository-code: "https://github.com/MarcusGrum/AI-CPS"
+  - type: article
+    title: "Researching Multi-Site Artificial Neural Networks' Activation Rates and Activation Cycles"
+    authors:
+      - family-names: "Grum"
+        given-names: "Marcus"
+    year: 2024

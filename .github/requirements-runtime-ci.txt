@@ -1,0 +1,5 @@
+# Nur fuer portable Runtime-, Modell- und Trainingsvertragstests.
+numpy==1.26.4
+pandas==3.0.3
+paho-mqtt==2.1.0
+scikit-learn==1.8.0

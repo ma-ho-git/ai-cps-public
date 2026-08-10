@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "release": "runtime-v1.1.0",
+  "entries": [
+    {
+      "id": "grum-ai-cps-origin",
+      "scope": "Adapted AI-CPS architecture and early container scenario structure",
+      "status": "approved",
+      "basis": "Upstream is AGPL-3.0; this release uses AGPL-3.0-only and preserves attribution"
+    },
+    {
+      "id": "project-contributors",
+      "scope": "Contributions by current project authors and collaborators",
+      "status": "approved",
+      "basis": "Project owner confirmed public AGPL-3.0-only distribution on 2026-08-10; detailed evidence is retained outside Git"
+    },
+    {
+      "id": "training-datasets",
+      "scope": "Five active training datasets under data/plc",
+      "status": "approved",
+      "basis": "Project owner confirmed public redistribution rights for all five active datasets on 2026-08-10"
+    },
+    {
+      "id": "model-artifacts",
+      "scope": "Storage, VGR and HBW latest model artifacts",
+      "status": "approved",
+      "basis": "Project owner confirmed training-data clearance and public redistribution of all three model artifact groups on 2026-08-10"
+    },
+    {
+      "id": "runtime-traces",
+      "scope": "Three virtual MQTT trace profiles",
+      "status": "approved",
+      "basis": "Project owner confirmed that all three runtime traces are synthetic or cleared for public redistribution on 2026-08-10"
+    },
+    {
+      "id": "uml-assets",
+      "scope": "Current SVG, PlantUML and draw.io diagrams",
+      "status": "approved",
+      "basis": "Project-generated diagrams; the referenced Grum paper is not redistributed"
+    }
+  ]
+}

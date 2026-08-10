@@ -1,0 +1,27 @@
+{
+  "domain": "storage",
+  "csv_path": "/data/plc/training_empty_storage_truth_table.csv",
+  "label_col": "empty_storage",
+  "feature_cols": [
+    "storage_slot_1_occupied",
+    "storage_slot_2_occupied",
+    "storage_slot_3_occupied",
+    "storage_slot_4_occupied",
+    "storage_slot_5_occupied",
+    "storage_slot_6_occupied",
+    "storage_slot_7_occupied",
+    "storage_slot_8_occupied",
+    "storage_slot_9_occupied"
+  ],
+  "class_ids": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "hidden_units": [16, 16],
+  "learning_rate": 0.001,
+  "epochs": 100,
+  "batch_size": 32,
+  "patience": 10,
+  "min_delta": 0.000001,
+  "seed": 42,
+  "activation_base_path": "/configs/storage_activation.json",
+  "experiment_name": "portable_runtime_candidate",
+  "publish_latest": false
+}

@@ -1,0 +1,27 @@
+services:
+  train_storage:
+    image: ft_train_storage
+    build: ./training/storage
+    volumes:
+      - ./data:/data:ro
+      - ./configs:/configs:ro
+      - ./model_registry:/model_registry
+    command: ["python", "/app/train.py", "--config", "/configs/train_storage.json"]
+
+  train_vgr:
+    image: ft_train_vgr
+    build: ./training/vgr
+    volumes:
+      - ./data:/data:ro
+      - ./configs:/configs:ro
+      - ./model_registry:/model_registry
+    command: ["python", "/app/train.py", "--config", "/configs/train_vgr.json"]
+
+  train_hbw:
+    image: ft_train_hbw
+    build: ./training/hbw
+    volumes:
+      - ./data:/data:ro
+      - ./configs:/configs:ro
+      - ./model_registry:/model_registry
+    command: ["python", "/app/train.py", "--config", "/configs/train_hbw.json"]

@@ -1,0 +1,262 @@
+name: Runtime portability
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "checkpoint/**"
+    tags:
+      - "runtime-v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SCENARIO_DIR: scenarios/serve_ft_nns_external_broker/x86_64
+  NODE_RED_CREDENTIAL_SECRET: ci-runtime-validation-only
+
+jobs:
+  verify:
+    name: Verify linux/amd64 runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Install pinned contract-test dependencies
+        run: python -m pip install --require-hashes --requirement .github/requirements-runtime-ci.lock
+
+      - name: Validate Python and JSON artifacts
+        run: |
+          python -m py_compile \
+            tools/check_deployment_readiness.py \
+            tools/build_runtime_release_manifest.py \
+            tools/build_source_sbom.py \
+            tools/check_public_release_readiness.py \
+            tools/setup_portable_runtime.py \
+            tools/manage_runtime_migration.py \
+            tools/check_model_compatibility.py \
+            tools/manage_model_candidates.py \
+            tools/compare_model_runs.py \
+            tools/compare_physical_mqtt_contract_captures.py \
+            tools/observe_nn_inference.py \
+            tools/analyze_full_storage_attempt_run.py \
+            tools/analyze_full_storage_process_guard_run.py \
+            tools/evaluate_full_storage_guard_models.py \
+            tools/export_nodered_ai_flow.py \
+            tools/monitor_physical_mqtt_contract.py \
+            training/storage/train.py \
+            training/vgr/train.py \
+            training/hbw/train.py \
+            "$SCENARIO_DIR/code_base_common/mqtt_runtime.py" \
+            "$SCENARIO_DIR/code_base_storage/mqtt_infer.py" \
+            "$SCENARIO_DIR/code_base_vgr/mqtt_infer.py" \
+            "$SCENARIO_DIR/code_base_hbw/mqtt_infer.py"
+          python -m json.tool model_registry/storage/latest/activation.json >/dev/null
+          python -m json.tool model_registry/vgr/latest/activation.json >/dev/null
+          python -m json.tool model_registry/hbw/latest/activation.json >/dev/null
+          python -m json.tool configs/train_storage.json >/dev/null
+          python -m json.tool configs/train_vgr.json >/dev/null
+          python -m json.tool configs/train_hbw.json >/dev/null
+
+      - name: Run portable contract tests
+        run: |
+          python -m unittest \
+            tests.test_ai_development_docs \
+            tests.test_deployment_preflight \
+            tests.test_runtime_release_manifest \
+            tests.test_source_sbom \
+            tests.test_public_release_readiness \
+            tests.test_portable_runtime_setup \
+            tests.test_runtime_migration \
+            tests.test_model_compatibility \
+            tests.test_model_candidate_management \
+            tests.test_model_selection_compose \
+            tests.test_compare_model_runs \
+            tests.test_direct_nn_command_output \
+            tests.test_mqtt_error_contracts \
+            tests.test_analyze_full_storage_attempt_run \
+            tests.test_analyze_full_storage_process_guard_run \
+            tests.test_candidate_training_registry \
+            tests.test_training_contracts \
+            tests.test_evaluate_full_storage_guard_models \
+            tests.test_nn_mqtt_runtime_contracts \
+            tests.test_nodered_flow_exports \
+            tests.test_nodered_idle_seed_templates \
+            tests.test_nodered_runtime_persistence \
+            tests.test_nodered_runtime_script \
+            tests.test_observe_nn_inference \
+            tests.test_physical_mqtt_contract_monitor \
+            tests.test_vgr_train_windowing
+
+      - name: Audit public release tree and dependency inventory
+        run: |
+          python tools/check_public_release_readiness.py
+          python tools/build_source_sbom.py --output /tmp/runtime-source-sbom.cdx.json
+          python -m json.tool /tmp/runtime-source-sbom.cdx.json >/dev/null
+
+      - name: Validate runtime helper syntax
+        run: bash -n tools/run_nodered_orchestration.sh
+
+      - name: Run Node-RED runtime tests
+        working-directory: ${{ env.SCENARIO_DIR }}/node_red
+        run: npm test
+
+      - name: Validate Compose configurations
+        run: |
+          docker compose -f "$SCENARIO_DIR/docker-compose.yml" config >/dev/null
+          docker compose \
+            -f "$SCENARIO_DIR/docker-compose.yml" \
+            -f "$SCENARIO_DIR/docker-compose.virtual.yml" \
+            config >/dev/null
+          docker compose -f docker-compose.train.yml config >/dev/null
+
+  publish-nn-images:
+    name: Publish ${{ matrix.domain }} inference image
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        domain: [storage, vgr, hbw]
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive immutable image tags
+        id: metadata
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ai-cps-runtime-${{ matrix.domain }}-infer
+          tags: |
+            type=sha,prefix=sha-,format=long
+            type=ref,event=tag
+            type=raw,value=latest-validated,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and publish linux/amd64 image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ${{ env.SCENARIO_DIR }}
+          file: ${{ env.SCENARIO_DIR }}/code_base_${{ matrix.domain }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+            RELEASE_VERSION=${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
+
+  publish-node-red-image:
+    name: Publish Node-RED runtime image
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive immutable image tags
+        id: metadata
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ai-cps-runtime-node-red
+          tags: |
+            type=sha,prefix=sha-,format=long
+            type=ref,event=tag
+            type=raw,value=latest-validated,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and publish linux/amd64 image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ${{ env.SCENARIO_DIR }}
+          file: ${{ env.SCENARIO_DIR }}/node_red/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+            RELEASE_VERSION=${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
+
+  release-manifest:
+    name: Publish portable release manifest
+    needs: [verify, publish-nn-images, publish-node-red-image]
+    if: startsWith(github.ref, 'refs/tags/runtime-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build digest-pinned release manifest
+        run: |
+          python3 tools/check_public_release_readiness.py --require-approved
+          python3 tools/build_runtime_release_manifest.py \
+            --release "$GITHUB_REF_NAME" \
+            --source-commit "$GITHUB_SHA" \
+            --resolve-images \
+            --output runtime-manifest.json
+          python3 tools/build_source_sbom.py \
+            --output runtime-source-sbom.cdx.json
+          sha256sum \
+            runtime-manifest.json \
+            runtime-source-sbom.cdx.json \
+            THIRD_PARTY_NOTICES.md \
+            CITATION.cff \
+            > SHA256SUMS
+
+      - name: Publish GitHub release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" \
+            runtime-manifest.json \
+            runtime-source-sbom.cdx.json \
+            SHA256SUMS \
+            THIRD_PARTY_NOTICES.md \
+            CITATION.cff \
+            --clobber

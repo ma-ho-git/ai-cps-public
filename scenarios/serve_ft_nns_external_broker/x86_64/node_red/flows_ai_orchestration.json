@@ -1,0 +1,1044 @@
+[
+  {
+    "id": "tab-ai-orchestration",
+    "type": "tab",
+    "label": "AI Orchestration",
+    "disabled": false,
+    "info": "Importierbarer KI-Flow. Physische Grenztopics bleiben unveraendert; aktive Buffer sind nur im Memory-Context."
+  },
+  {
+    "id": "mqtt-ai-cps",
+    "type": "mqtt-broker",
+    "name": "AI-CPS MQTT",
+    "broker": "${MQTT_HOST}",
+    "port": "${MQTT_PORT}",
+    "clientid": "ai-cps-nodered-${HOSTNAME}",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {}
+  },
+  {
+    "id": "group-ai-inputs",
+    "type": "group",
+    "z": "tab-ai-orchestration",
+    "name": "1. MQTT-Eingaenge und Ereignisse",
+    "style": {
+      "label": true
+    },
+    "nodes": [
+      "comment-ai-inputs",
+      "in-live-state",
+      "change-event-live-state",
+      "in-model-contracts",
+      "change-event-contract",
+      "in-model-status",
+      "change-event-status",
+      "in-storage-response",
+      "change-event-storage-response",
+      "in-vgr-response",
+      "change-event-vgr-response",
+      "in-hbw-response",
+      "change-event-hbw-response",
+      "in-ai-control",
+      "change-event-ai-control",
+      "inject-ai-tick",
+      "change-event-ai-tick"
+    ],
+    "x": 20,
+    "y": 20,
+    "w": 520,
+    "h": 580
+  },
+  {
+    "id": "group-ai-core",
+    "type": "group",
+    "z": "tab-ai-orchestration",
+    "name": "2. Getesteter Orchestrierungszustandskern",
+    "style": {
+      "label": true
+    },
+    "nodes": [
+      "comment-ai-core",
+      "fn-ai-runtime"
+    ],
+    "x": 560,
+    "y": 190,
+    "w": 290,
+    "h": 180
+  },
+  {
+    "id": "group-ai-actions",
+    "type": "group",
+    "z": "tab-ai-orchestration",
+    "name": "3. Requests, MPO/SLD und Status verteilen",
+    "style": {
+      "label": true
+    },
+    "nodes": [
+      "comment-ai-actions",
+      "split-ai-actions",
+      "change-ai-action",
+      "switch-ai-action-role",
+      "json-model-request",
+      "json-cycle-result",
+      "json-ai-status",
+      "out-model-requests",
+      "out-physical-commands",
+      "out-cycle-result",
+      "out-ai-status",
+      "debug-ai-unknown-role"
+    ],
+    "x": 870,
+    "y": 20,
+    "w": 930,
+    "h": 460
+  },
+  {
+    "id": "group-ai-reporting",
+    "type": "group",
+    "z": "tab-ai-orchestration",
+    "name": "4. Zyklusergebnis protokollieren",
+    "style": {
+      "label": true
+    },
+    "nodes": [
+      "comment-ai-reporting",
+      "fn-report-cycle",
+      "split-report-files",
+      "change-report-file",
+      "switch-report-file",
+      "file-report-append",
+      "file-run-summary"
+    ],
+    "x": 870,
+    "y": 500,
+    "w": 930,
+    "h": 210
+  },
+  {
+    "id": "comment-ai-inputs",
+    "type": "comment",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Jeder Eingang erhaelt hier nur Ereignistyp und optional Modelldomaene.",
+    "info": "",
+    "x": 280,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "in-live-state",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Unveraenderter PLC-Zustand",
+    "topic": "log/logging/state",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 110,
+    "wires": [
+      [
+        "change-event-live-state"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-live-state",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: live_state",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "live_state",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 110,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-model-contracts",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Retained Modellvertraege",
+    "topic": "ft/nn/+/contract",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 170,
+    "wires": [
+      [
+        "change-event-contract"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-contract",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: contract",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "contract",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "_ai_domain",
+        "pt": "msg",
+        "to": "$split(topic, '/')[2]",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 170,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-model-status",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Retained Modellstatus",
+    "topic": "ft/nn/+/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 140,
+    "y": 230,
+    "wires": [
+      [
+        "change-event-status"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-status",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: status",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "status",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "_ai_domain",
+        "pt": "msg",
+        "to": "$split(topic, '/')[2]",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 230,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-storage-response",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Storage-Response",
+    "topic": "ft/nn/response/storage",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 140,
+    "y": 290,
+    "wires": [
+      [
+        "change-event-storage-response"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-storage-response",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: storage_response",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "storage_response",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 290,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-vgr-response",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "VGR-Response",
+    "topic": "ft/nn/response/vgr",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 350,
+    "wires": [
+      [
+        "change-event-vgr-response"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-vgr-response",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: vgr_response",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "vgr_response",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 350,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-hbw-response",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "HBW-Response",
+    "topic": "ft/nn/response/hbw",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 410,
+    "wires": [
+      [
+        "change-event-hbw-response"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-hbw-response",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: hbw_response",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "hbw_response",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 410,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "in-ai-control",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Reset / Diagnose-Control",
+    "topic": "ft/ai/orchestration/control",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 470,
+    "wires": [
+      [
+        "change-event-ai-control"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-ai-control",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: control",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "control",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 470,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "inject-ai-tick",
+    "type": "inject",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Timeout-Pruefung",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "0.25",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "0.5",
+    "payload": "",
+    "payloadType": "str",
+    "x": 140,
+    "y": 530,
+    "wires": [
+      [
+        "change-event-ai-tick"
+      ]
+    ]
+  },
+  {
+    "id": "change-event-ai-tick",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-inputs",
+    "name": "Ereignis: tick",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ai_event",
+        "pt": "msg",
+        "to": "tick",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 400,
+    "y": 530,
+    "wires": [
+      [
+        "fn-ai-runtime"
+      ]
+    ]
+  },
+  {
+    "id": "comment-ai-core",
+    "type": "comment",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-core",
+    "name": "Einzige Aufgabe: Ereignis an den getesteten JS-Zustandskern uebergeben.",
+    "info": "Warum bleibt hier ein Function-Node? Rolling Windows, offene Requests, Modellvertraege und Fault-Latch muessen gemeinsam und in einer festen Reihenfolge aktualisiert werden. VGR/HBW publizieren ihre Commands direkt; die Response-Korrelation hier dient nur Report und Diagnose. Mehrere Function-, join- oder switch-Nodes wuerden diesen Zustand verteilen.",
+    "x": 705,
+    "y": 230,
+    "wires": []
+  },
+  {
+    "id": "fn-ai-runtime",
+    "type": "function",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-core",
+    "name": "Orchestrierungsereignis ausfuehren",
+    "func": "// Dieser Node ist nur die Bruecke zwischen dem sichtbaren Flow und dem getesteten JS-Kern.\n// Node-RED stellt dafuer vier Objekte bereit:\n// - msg enthaelt das aktuelle Ereignis und seine Nutzdaten.\n// - global enthaelt die in settings.js geladenen Module und Konfigurationen.\n// - context speichert den fluechtigen Zustand genau dieses Function-Nodes.\n// - env liest Laufzeiteinstellungen aus den Umgebungsvariablen.\n\n// 1. Fachmodul, MQTT-Topics und Idle-Seed-Vorlagen aus dem globalen Kontext laden.\nconst api = global.get('aiCpsOrchestration');\nconst topics = global.get('aiCpsTopics');\nconst idleSeeds = global.get('aiCpsIdleSeedTemplates');\n\n// 2. Bereits vorhandene Runtime laden. Sie enthaelt unter anderem Rolling Windows,\n// offene Requests und den Fault-Latch und wird nicht dauerhaft gespeichert.\nlet runtime = context.get('runtime');\n\n// 3. Nur fuer die erste Nachricht nach Start oder Deploy eine neue Runtime anlegen.\nif (!runtime) {\n    const enabled = String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true';\n    runtime = api.createRuntime({ topics, idleSeedTemplates: idleSeeds, commandOutputEnabled: enabled });\n    context.set('runtime', runtime);\n}\n\n// 4. Genau ein zuvor von einem change-Node klassifiziertes Ereignis verarbeiten.\n// _ai_domain ist nur bei modellbezogenen Ereignissen storage, vgr oder hbw.\nconst actions = runtime.handleEvent(msg._ai_event, msg.payload, msg._ai_domain || null);\n\n// 5. Den aktualisierten Zustand fuer die naechste Nachricht im Node-Context ablegen.\ncontext.set('runtime', runtime);\n\n// Ohne Aktion darf die Nachricht den Function-Node nicht verlassen.\nif (actions.length === 0) return null;\n\n// Die nachfolgenden split-/switch-Nodes verteilen diese Aktionsliste sichtbar.\nmsg.payload = actions;\nreturn msg;",
+    "info": "### Aufgabe\nDieser Node uebergibt genau ein bereits klassifiziertes Ereignis an den getesteten Orchestrierungszustandskern in `lib/orchestration.js`.\n\n### Eingang\n- `msg._ai_event`: `live_state`, `contract`, `status`, `storage_response`, `vgr_response`, `hbw_response`, `control` oder `tick`\n- `msg.payload`: Inhalt der MQTT-Nachricht beziehungsweise des Ticks\n- `msg._ai_domain`: optional `storage`, `vgr` oder `hbw`\n\n### Zustand\n`context.runtime` ist nur waehrend der laufenden Node-RED-Instanz vorhanden. Darin liegen Rolling Windows, offene Request-IDs, Modellvertraege, Modellstatus und Fault-Latch. Nach einem Neustart wird dieser Zustand bewusst neu aufgebaut.\n\n### Ausgang\nNach Storage entstehen zwei LSTM-Requests und im Vollbetrieb die MPO-/SLD-Idle-Commands. VGR und HBW publizieren ihre Maschinencommands direkt. Ihre JSON-Responses werden hier nur fuer Report und Diagnose korreliert. Der folgende `split`-Node zerlegt die Aktionsliste; bei keiner Aktion beendet `return null` die Nachricht.\n\n### Warum Function-Node?\nBootstrap, Rolling Windows, Requestpruefung und Fehlerverriegelung muessen atomar in derselben getesteten Runtime bleiben. Die Response-Korrelation ist keine Command-Barriere und kein Maschinensemaphor.",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 705,
+    "y": 300,
+    "wires": [
+      [
+        "split-ai-actions"
+      ]
+    ]
+  },
+  {
+    "id": "comment-ai-actions",
+    "type": "comment",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Standard-Nodes verteilen Requests, MPO/SLD-Commands und Status.",
+    "info": "Nur MPO- und SLD-Idle verlassen den KI-Flow als Command. Direkte VGR-/HBW-Commands kommen aus den NN-Diensten. Leere Payloads werden nicht durch einen JSON-Node veraendert.",
+    "x": 1160,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "split-ai-actions",
+    "type": "split",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Aktionsliste zerlegen",
+    "splt": "\\n",
+    "spltType": "str",
+    "arraySplt": 1,
+    "arraySpltType": "len",
+    "stream": false,
+    "addname": "",
+    "property": "payload",
+    "x": 980,
+    "y": 250,
+    "wires": [
+      [
+        "change-ai-action"
+      ]
+    ]
+  },
+  {
+    "id": "change-ai-action",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "MQTT-Felder uebernehmen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_action_role",
+        "pt": "msg",
+        "to": "payload.role",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "payload.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "qos",
+        "pt": "msg",
+        "to": "payload.qos",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "retain",
+        "pt": "msg",
+        "to": "payload.retain",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "payload.payload",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1170,
+    "y": 250,
+    "wires": [
+      [
+        "switch-ai-action-role"
+      ]
+    ]
+  },
+  {
+    "id": "switch-ai-action-role",
+    "type": "switch",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Aktionsrolle",
+    "property": "_action_role",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "regex",
+        "v": "_request$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "regex",
+        "v": "_command$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "eq",
+        "v": "cycle_result",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "orchestration_status",
+        "vt": "str"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 5,
+    "x": 1350,
+    "y": 250,
+    "wires": [
+      [
+        "json-model-request"
+      ],
+      [
+        "out-physical-commands"
+      ],
+      [
+        "json-cycle-result",
+        "fn-report-cycle"
+      ],
+      [
+        "json-ai-status"
+      ],
+      [
+        "debug-ai-unknown-role"
+      ]
+    ]
+  },
+  {
+    "id": "json-model-request",
+    "type": "json",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "NN-Request als JSON",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1510,
+    "y": 130,
+    "wires": [
+      [
+        "out-model-requests"
+      ]
+    ]
+  },
+  {
+    "id": "json-cycle-result",
+    "type": "json",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Zyklusergebnis als JSON",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1520,
+    "y": 250,
+    "wires": [
+      [
+        "out-cycle-result"
+      ]
+    ]
+  },
+  {
+    "id": "json-ai-status",
+    "type": "json",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Status als JSON",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1500,
+    "y": 310,
+    "wires": [
+      [
+        "out-ai-status"
+      ]
+    ]
+  },
+  {
+    "id": "out-model-requests",
+    "type": "mqtt out",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "NN-Requests (dynamisch)",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1640,
+    "y": 130,
+    "wires": []
+  },
+  {
+    "id": "out-physical-commands",
+    "type": "mqtt out",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "MPO-/SLD-Idle-Topics",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1570,
+    "y": 190,
+    "wires": []
+  },
+  {
+    "id": "out-cycle-result",
+    "type": "mqtt out",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Zyklusergebnis",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1650,
+    "y": 250,
+    "wires": []
+  },
+  {
+    "id": "out-ai-status",
+    "type": "mqtt out",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Orchestrierungsstatus retained",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1580,
+    "y": 310,
+    "wires": []
+  },
+  {
+    "id": "debug-ai-unknown-role",
+    "type": "debug",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-actions",
+    "name": "Unbekannte Aktionsrolle",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "_action_role",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1530,
+    "y": 370,
+    "wires": []
+  },
+  {
+    "id": "comment-ai-reporting",
+    "type": "comment",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Reporting formatiert fachliche Daten; File-Nodes uebernehmen das Schreiben.",
+    "info": "Der Function-Node bildet aus einem abgeschlossenen Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. split-, switch- und file-Nodes uebernehmen danach die sichtbare Dateiverteilung und das Schreiben.",
+    "x": 1160,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "fn-report-cycle",
+    "type": "function",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Zyklusergebnis formatieren",
+    "func": "// Dieser Node berechnet nur konsistente Reportinhalte. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Beim ersten abgeschlossenen Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\n\n// Den fortgeschriebenen Zustand fuer den naechsten Zyklus speichern.\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
+    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er berechnet die Inhalte fuer `events.jsonl`, `summary.csv` und `run_summary.json`; geschrieben werden sie erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis des Orchestrierungszustandskerns.\n\n### Zustand\n`context.reportState` enthaelt Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. `REPORT_ROOT` legt das Stammverzeichnis der Reports fest.\n\n### Ausgang\n`msg.payload` wird zu einer Liste aus drei Dateibeschreibungen mit Rolle, Dateiname, Inhalt und Append-/Overwrite-Angabe. Der folgende `split`-Node verarbeitet jede Beschreibung einzeln.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen. Eine Verteilung auf mehrere Standard-Nodes koennte Zeilennummern und Summen auseinanderlaufen lassen; das eigentliche Schreiben ist bereits mit Core-File-Nodes umgesetzt.",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 990,
+    "y": 610,
+    "wires": [
+      [
+        "split-report-files"
+      ]
+    ]
+  },
+  {
+    "id": "split-report-files",
+    "type": "split",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Reportdateien zerlegen",
+    "splt": "\\n",
+    "spltType": "str",
+    "arraySplt": 1,
+    "arraySpltType": "len",
+    "stream": false,
+    "addname": "",
+    "property": "payload",
+    "x": 1180,
+    "y": 610,
+    "wires": [
+      [
+        "change-report-file"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-file",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Dateiname und Inhalt",
+    "rules": [
+      {
+        "t": "set",
+        "p": "filename",
+        "pt": "msg",
+        "to": "payload.filename",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "payload.payload",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1360,
+    "y": 610,
+    "wires": [
+      [
+        "switch-report-file"
+      ]
+    ]
+  },
+  {
+    "id": "switch-report-file",
+    "type": "switch",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Append oder ersetzen",
+    "property": "filename",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "regex",
+        "v": "run_summary\\.json$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1510,
+    "y": 610,
+    "wires": [
+      [
+        "file-run-summary"
+      ],
+      [
+        "file-report-append"
+      ]
+    ]
+  },
+  {
+    "id": "file-report-append",
+    "type": "file",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "events.jsonl / summary.csv",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": false,
+    "createDir": true,
+    "overwriteFile": "false",
+    "encoding": "none",
+    "x": 1580,
+    "y": 660,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "file-run-summary",
+    "type": "file",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "run_summary.json",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": false,
+    "createDir": true,
+    "overwriteFile": "true",
+    "encoding": "none",
+    "x": 1630,
+    "y": 590,
+    "wires": [
+      []
+    ]
+  }
+]

@@ -1,0 +1,97 @@
+# Ergaenzung zum physischen Basis-Compose fuer Tests ohne Fabrik/Node-RED.
+# Start: docker compose -f docker-compose.yml -f docker-compose.virtual.yml up -d --build
+services:
+  runtime_permissions:
+    image: ${NODE_RED_IMAGE:-${NODE_RED_IMAGE_REPOSITORY:-ai-cps-node-red}:${IMAGE_TAG:-local}}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        chown -R ${AI_CPS_UID:-1000}:${AI_CPS_GID:-1000} /data /reports
+    volumes:
+      - nodered_data:/data
+      - ${REPORT_ROOT_HOST:-../../../reports}:/reports
+    restart: "no"
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./node_red/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+
+  node_red:
+    image: ${NODE_RED_IMAGE:-${NODE_RED_IMAGE_REPOSITORY:-ai-cps-node-red}:${IMAGE_TAG:-local}}
+    build:
+      context: .
+      dockerfile: node_red/Dockerfile
+    depends_on:
+      runtime_permissions:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_started
+      storage_infer:
+        condition: service_started
+      vgr_infer:
+        condition: service_started
+      hbw_infer:
+        condition: service_started
+    ports:
+      - "${NODE_RED_PORT:-1880}:1880"
+    # Der einmalige runtime_permissions-Dienst richtet Volume und Reportpfad
+    # fuer den lokalen Benutzer ein. Das vereinfacht WSL-/Linux-Migrationen.
+    user: "${AI_CPS_UID:-1000}:${AI_CPS_GID:-1000}"
+    volumes:
+      - nodered_data:/data
+      - ${REPORT_ROOT_HOST:-../../../reports}:/reports
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-true}
+      REPORT_ROOT: /reports/orchestration_simulation
+      FACTORY_SEED: ${FACTORY_SEED:-42}
+      FACTORY_VGR_BASE_RUNTIME_MS: ${FACTORY_VGR_BASE_RUNTIME_MS:-100}
+      FACTORY_HBW_BASE_RUNTIME_MS: ${FACTORY_HBW_BASE_RUNTIME_MS:-100}
+      FACTORY_MPO_BASE_RUNTIME_MS: ${FACTORY_MPO_BASE_RUNTIME_MS:-100}
+      FACTORY_SLD_BASE_RUNTIME_MS: ${FACTORY_SLD_BASE_RUNTIME_MS:-100}
+      TRACE_PROFILE: ${TRACE_PROFILE:-standard}
+      LIVE_TRACE_PAYLOADS: ${LIVE_TRACE_PAYLOADS:-/opt/ai-cps-node-red/data/live_plc_trace/payloads.jsonl}
+      NODE_RED_CREDENTIAL_SECRET: ${NODE_RED_CREDENTIAL_SECRET:?Set NODE_RED_CREDENTIAL_SECRET in .env}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:1880/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  storage_infer:
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+
+  vgr_infer:
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-true}
+
+  hbw_infer:
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-true}
+
+volumes:
+  nodered_data:
+  mosquitto_data:
+  mosquitto_log:

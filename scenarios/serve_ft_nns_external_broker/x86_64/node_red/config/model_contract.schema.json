@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-cps.local/schemas/nn-model-contract-1.0.json",
+  "title": "AI-CPS NN MQTT model contract",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "domain",
+    "model_id",
+    "model_sha256",
+    "input_shape",
+    "time_steps",
+    "feature_cols",
+    "class_ids",
+    "request_topic",
+    "response_topic"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "domain": {"enum": ["storage", "vgr", "hbw"]},
+    "model_id": {"type": "string", "minLength": 1},
+    "model_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "input_shape": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "integer", "minimum": 1}
+    },
+    "time_steps": {"type": ["integer", "null"], "minimum": 1},
+    "feature_cols": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "class_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "integer"},
+      "uniqueItems": true
+    },
+    "request_topic": {"type": "string", "minLength": 1},
+    "response_topic": {"type": "string", "minLength": 1}
+  }
+}

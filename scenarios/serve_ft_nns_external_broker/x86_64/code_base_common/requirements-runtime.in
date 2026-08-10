@@ -1,0 +1,8 @@
+# Direct dependencies of the three MQTT inference services.
+# Compile for linux/amd64 with Python 3.12 and --generate-hashes.
+tensorflow==2.16.1
+keras==3.14.1
+numpy==1.26.4
+paho-mqtt==2.1.0
+setuptools==69.5.1
+wheel==0.43.0

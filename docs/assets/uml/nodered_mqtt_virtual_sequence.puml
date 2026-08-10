@@ -1,0 +1,98 @@
+@startuml
+' Editierbar unter https://editor.plantuml.com/uml/
+
+hide footbox
+title AI-CPS-Simulationssystem - Virtuelle Simulation
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #35516e
+  ArrowFontColor #203044
+  ArrowFontSize 12
+  LifeLineBorderColor #35516e
+  LifeLineBackgroundColor white
+  ParticipantBorderColor #263746
+  ParticipantBackgroundColor white
+  ParticipantFontColor #203044
+  ParticipantFontSize 13
+  ParticipantPadding 28
+  BoxBorderColor #263746
+  BoxFontColor #203044
+  BoxFontSize 14
+  GroupBorderColor #56636f
+  GroupBackgroundColor white
+  GroupFontColor #203044
+}
+
+box "Host"
+  participant ":Startskript" as start
+end box
+
+box "Node-RED"
+  participant ":Fabrik-Flow" as factory
+  participant ":KI-Flow" as ai
+end box
+
+box "NN-Anwendungsdienste"
+  participant ":Storage-NN" as storage
+  participant ":VGR-NN" as vgr
+  participant ":HBW-NN" as hbw
+end box
+
+start ->> factory : MQTT: Simulation starten
+activate factory
+factory ->> factory : MQTT: initiales Idle-Command-Set
+factory -> factory : sent_count erhöhen + Module starten
+factory -> factory : accepted_count erhöhen + Semaphor prüfen
+deactivate factory
+
+loop 320 Trace-Zustände; nächster Zustand erst nach vier Modulabschlüssen
+  activate factory
+  factory ->> ai : MQTT: Anlagenzustand
+  note right of factory
+    Erste Trace-Zustandsmeldung: Idle
+  end note
+  activate ai
+
+  ai ->> storage : MQTT: Lagerzustand
+  activate storage
+  storage ->> ai : MQTT: freies Lagerfach
+  deactivate storage
+
+  ai -> ai : Merkmalsfenster bilden\n[bei neuer Quelle: 9 Idle-Seeds ergänzen]
+  ai ->> factory : MQTT: MPO-/SLD-Idle\n[sent_count++]
+  factory -> factory : MPO/SLD unabhängig starten
+
+  par VGR: Inferenz + Command
+    ai ->> vgr : MQTT: VGR-Fenster
+    activate vgr
+    vgr ->> factory : MQTT: VGR-Command\n[sent_count++]
+    factory -> factory : VGR-Modul starten
+    vgr ->> ai : MQTT: VGR-Ergebnis\n[nur Report/Diagnose]
+    deactivate vgr
+  else HBW: Inferenz + Command
+    ai ->> hbw : MQTT: HBW-Fenster
+    activate hbw
+    hbw ->> factory : MQTT: HBW-Command\n[sent_count++]
+    factory -> factory : HBW-Modul starten
+    hbw ->> ai : MQTT: HBW-Ergebnis\n[nur Report/Diagnose]
+    deactivate hbw
+  end
+
+  ai -> ai : Ergebnisse für Report zusammenführen\n[keine Command-Barriere]
+  deactivate ai
+
+  factory -> factory : Module unabhängig ausführen\n[Standard: 0,1 s ±50 %]
+  factory -> factory : Semaphor: alle sent_count == accepted_count
+  deactivate factory
+end
+
+legend bottom
+  |= Pfeil |= Bedeutung |
+  | ->> | asynchrone Nachricht |
+  | -> | synchroner Aufruf |
+  | -->> | Rückgabe |
+endlegend
+
+@enduml

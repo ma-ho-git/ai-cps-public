@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1880" height="1400" viewBox="0 0 1880 1400">
+<defs><marker id="arrow-filled" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#35516e" /></marker><marker id="arrow-open" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto"><path d="M1,1 L10,4 L1,7" fill="none" stroke="#35516e" stroke-width="1.7" /></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff" />
+<path class="system-group" d="M35,69 V57 Q35,45 47,45 H917 Q935,45 935,33 Q935,45 953,45 H1823 Q1835,45 1835,57 V69" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="935" y="27" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">AI-CPS-Live-System</text>
+<path class="system-group" d="M20,119 V107 Q20,95 32,95 H94 Q112,95 112,83 Q112,95 130,95 H193 Q205,95 205,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="112" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">Physische Anlage (Black Box)</text>
+<path class="system-group" d="M255,119 V107 Q255,95 267,95 H617 Q635,95 635,83 Q635,95 653,95 H1003 Q1015,95 1015,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="635" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">Node-RED (Black Box)</text>
+<path class="system-group" d="M1080,119 V107 Q1080,95 1092,95 H1437 Q1455,95 1455,83 Q1455,95 1473,95 H1818 Q1830,95 1830,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="1455" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">NN-Anwendungsdienste</text>
+<rect class="participant" x="20" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="110" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:SPS / Module</text>
+<line x1="110" y1="193" x2="110" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="275" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="365" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Command-Flows</text>
+<line x1="365" y1="193" x2="365" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="550" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="640" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Semaphor-Flow</text>
+<line x1="640" y1="193" x2="640" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="825" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="915" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:KI-Flow</text>
+<line x1="915" y1="193" x2="915" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="1100" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1190" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Storage-NN</text>
+<line x1="1190" y1="193" x2="1190" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="1375" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1465" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:VGR-NN</text>
+<line x1="1465" y1="193" x2="1465" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="1650" y="145" width="180" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1740" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:HBW-NN</text>
+<line x1="1740" y1="193" x2="1740" y2="1295" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="fragment" x="35" y="225" width="1800" height="255" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M35,225 H97 L113,245 H35 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="45" y="241" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">opt</text>
+<text x="125" y="241" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[Systemstart]</text>
+<rect class="activation" x="358" y="265" width="14" height="180" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<rect class="activation" x="633" y="265" width="14" height="205" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="640" y1="270" x2="365" y2="270" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="400" y="249" width="204" height="20" fill="#ffffff" />
+<text x="502" y="263" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: initiales Idle-Command-Set</text>
+<path d="M365,310 H447 V337 H365" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="408" y="295" width="174" height="20" fill="#ffffff" />
+<text x="495" y="309" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">sent_count je Modul erhöhen</text>
+<line x1="365" y1="350" x2="110" y2="350" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="144" y="329" width="186" height="20" fill="#ffffff" />
+<text x="237" y="343" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: Idle-Befehle aufrufen</text>
+<line x1="110" y1="385" x2="365" y2="385" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#arrow-open)" />
+<rect x="192" y="364" width="90" height="20" fill="#ffffff" />
+<text x="237" y="378" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">angenommen</text>
+<line x1="110" y1="425" x2="640" y2="425" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="300" y="404" width="150" height="34" fill="#ffffff" />
+<text x="375" y="418" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: Modulabschlüsse</text>
+<text x="375" y="432" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[accepted_count++]</text>
+<path d="M640,455 H722 V482 H640" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="698" y="440" width="144" height="20" fill="#ffffff" />
+<text x="770" y="454" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Jobcounter vergleichen</text>
+<rect class="fragment" x="35" y="500" width="1800" height="775" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M35,500 H97 L113,520 H35 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="45" y="516" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">loop</text>
+<text x="125" y="516" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[je synchronisiertem Anlagenzustand; nächster Zustand erst nach vier Modulabschlüssen]</text>
+<rect class="activation" x="358" y="540" width="14" height="585" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<rect class="activation" x="633" y="540" width="14" height="720" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="640" y1="550" x2="915" y2="550" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="711" y="529" width="132" height="20" fill="#ffffff" />
+<text x="777" y="543" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: Anlagenzustand</text>
+<path class="sequence-note" d="M665,557 H905 L915,567 V605 H665 Z" fill="#fff9e8" stroke="#8a6d3b" stroke-width="1.1" />
+<path d="M905,557 V567 H915" fill="none" stroke="#8a6d3b" stroke-width="1.1" />
+<text x="674" y="577" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="11" font-weight="400" fill="#203044" text-anchor="start">Erste Zustandsmeldung beim</text>
+<text x="674" y="592" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="11" font-weight="400" fill="#203044" text-anchor="start">Anlagenstart: Idle</text>
+<rect class="activation" x="908" y="598" width="14" height="497" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<rect class="activation" x="1183" y="610" width="14" height="45" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="915" y1="610" x2="1190" y2="610" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="992" y="589" width="120" height="20" fill="#ffffff" />
+<text x="1052" y="603" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: Lagerzustand</text>
+<line x1="1190" y1="655" x2="915" y2="655" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="980" y="634" width="144" height="20" fill="#ffffff" />
+<text x="1052" y="648" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: freies Lagerfach</text>
+<path d="M915,690 H997 V717 H915" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="916" y="675" width="258" height="34" fill="#ffffff" />
+<text x="1045" y="689" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Merkmalsfenster bilden</text>
+<text x="1045" y="703" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[bei neuer Quelle: 9 Idle-Seeds ergänzen]</text>
+<line x1="915" y1="745" x2="365" y2="745" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="577" y="724" width="126" height="34" fill="#ffffff" />
+<text x="640" y="738" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: MPO-/SLD-Idle</text>
+<text x="640" y="752" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<line x1="365" y1="775" x2="110" y2="775" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="144" y="754" width="186" height="20" fill="#ffffff" />
+<text x="237" y="768" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: MPO/SLD-Idle aufrufen</text>
+<rect class="fragment" x="70" y="795" width="1760" height="255" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M70,795 H132 L148,815 H70 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="80" y="811" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">par</text>
+<text x="160" y="811" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[VGR/HBW: unabhängige Inferenz + direkte Commands]</text>
+<line x1="70" y1="920" x2="1830" y2="920" stroke="#8a99a8" stroke-width="1.2" stroke-dasharray="7 5" />
+<rect class="activation" x="1458" y="825" width="14" height="75" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="915" y1="825" x2="1465" y2="825" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1133" y="804" width="114" height="20" fill="#ffffff" />
+<text x="1190" y="818" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Fenster</text>
+<line x1="1465" y1="860" x2="365" y2="860" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="858" y="839" width="114" height="34" fill="#ffffff" />
+<text x="915" y="853" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Command</text>
+<text x="915" y="867" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<line x1="365" y1="887" x2="110" y2="887" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="171" y="866" width="132" height="20" fill="#ffffff" />
+<text x="237" y="880" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: VGR aufrufen</text>
+<line x1="1465" y1="910" x2="915" y2="910" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1121" y="889" width="138" height="34" fill="#ffffff" />
+<text x="1190" y="903" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Ergebnis</text>
+<text x="1190" y="917" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[nur Report/Diagnose]</text>
+<rect class="activation" x="1733" y="950" width="14" height="75" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="915" y1="950" x2="1740" y2="950" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1270" y="929" width="114" height="20" fill="#ffffff" />
+<text x="1327" y="943" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Fenster</text>
+<line x1="1740" y1="985" x2="365" y2="985" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="995" y="964" width="114" height="34" fill="#ffffff" />
+<text x="1052" y="978" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Command</text>
+<text x="1052" y="992" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<line x1="365" y1="1012" x2="110" y2="1012" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="171" y="991" width="132" height="20" fill="#ffffff" />
+<text x="237" y="1005" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: HBW aufrufen</text>
+<line x1="1740" y1="1035" x2="915" y2="1035" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1258" y="1014" width="138" height="34" fill="#ffffff" />
+<text x="1327" y="1028" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Ergebnis</text>
+<text x="1327" y="1042" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[nur Report/Diagnose]</text>
+<path d="M915,1070 H997 V1097 H915" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="931" y="1055" width="228" height="34" fill="#ffffff" />
+<text x="1045" y="1069" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Ergebnisse für Report zusammenführen</text>
+<text x="1045" y="1083" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[keine Command-Barriere]</text>
+<rect class="activation" x="103" y="1070" width="14" height="185" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<path d="M110,1110 H192 V1137 H110" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="123" y="1095" width="234" height="20" fill="#ffffff" />
+<text x="240" y="1109" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Funktionsblöcke nebenläufig ausführen</text>
+<rect class="fragment" x="65" y="1148" width="625" height="110" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M65,1148 H127 L143,1168 H65 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="75" y="1164" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">par</text>
+<text x="155" y="1164" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[unabhängige Modulabschlüsse]</text>
+<line x1="65" y1="1203" x2="690" y2="1203" stroke="#8a99a8" stroke-width="1.2" stroke-dasharray="7 5" />
+<line x1="110" y1="1182" x2="640" y2="1182" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="294" y="1161" width="162" height="34" fill="#ffffff" />
+<text x="375" y="1175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: VGR/HBW-Abschluss</text>
+<text x="375" y="1189" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[accepted_count++]</text>
+<line x1="110" y1="1237" x2="640" y2="1237" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="294" y="1216" width="162" height="34" fill="#ffffff" />
+<text x="375" y="1230" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">OPC UA: MPO/SLD-Abschluss</text>
+<text x="375" y="1244" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[accepted_count++]</text>
+<path d="M640,1275 H722 V1302 H640" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="650" y="1260" width="240" height="34" fill="#ffffff" />
+<text x="770" y="1274" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Semaphor: sent_count == accepted_count</text>
+<text x="770" y="1288" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[für alle vier Module]</text>
+<text x="60" y="1332" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="start">Notation</text>
+<line x1="60" y1="1350" x2="150" y2="1350" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<text x="165" y="1355" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">asynchron</text>
+<line x1="520" y1="1350" x2="610" y2="1350" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<text x="625" y="1355" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">synchron</text>
+<line x1="950" y1="1350" x2="1040" y2="1350" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#arrow-open)" />
+<text x="1055" y="1355" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">Rückgabe</text>
+</svg>

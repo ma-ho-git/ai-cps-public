@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "live_state_topic": "log/logging/state",
+  "control_topic": "ft/ai/orchestration/control",
+  "status_topic": "ft/ai/orchestration/status",
+  "cycle_result_topic": "ft/ai/orchestration/cycle_result",
+  "factory_control_topic": "ft/sim/factory/control",
+  "factory_status_topic": "ft/sim/factory/status",
+  "model_topics": {
+    "storage": {
+      "request": "ft/nn/storage/request",
+      "response": "ft/nn/response/storage",
+      "contract": "ft/nn/storage/contract",
+      "status": "ft/nn/storage/status"
+    },
+    "vgr": {
+      "request": "ft/nn/vgr/request",
+      "response": "ft/nn/response/vgr",
+      "contract": "ft/nn/vgr/contract",
+      "status": "ft/nn/vgr/status"
+    },
+    "hbw": {
+      "request": "ft/nn/hbw/request",
+      "response": "ft/nn/response/hbw",
+      "contract": "ft/nn/hbw/contract",
+      "status": "ft/nn/hbw/status"
+    }
+  },
+  "command_topics": {
+    "vgr": {
+      "0": "ai/vgr/cmd0",
+      "101": "ai/vgr/cmd101",
+      "102": "ai/vgr/cmd102",
+      "103": "ai/vgr/cmd103",
+      "104": "ai/vgr/cmd104",
+      "105": "ai/vgr/cmd105",
+      "301": "ai/vgr/cmd301"
+    },
+    "hbw": {
+      "0": "ai/hbw/cmd000",
+      "102": "ai/hbw/cmd102",
+      "103": "ai/hbw/cmd103",
+      "104": "ai/hbw/cmd104",
+      "105": "ai/hbw/cmd105",
+      "107": "ai/hbw/cmd107",
+      "111": "ai/hbw/cmd111",
+      "116": "ai/hbw/cmd116",
+      "121": "ai/hbw/cmd121",
+      "126": "ai/hbw/cmd126",
+      "131": "ai/hbw/cmd131",
+      "136": "ai/hbw/cmd136",
+      "141": "ai/hbw/cmd141",
+      "146": "ai/hbw/cmd146",
+      "151": "ai/hbw/cmd151",
+      "156": "ai/hbw/cmd156",
+      "161": "ai/hbw/cmd161",
+      "166": "ai/hbw/cmd166",
+      "171": "ai/hbw/cmd171",
+      "176": "ai/hbw/cmd176",
+      "181": "ai/hbw/cmd181",
+      "186": "ai/hbw/cmd186",
+      "191": "ai/hbw/cmd191",
+      "196": "ai/hbw/cmd196",
+      "301": "ai/hbw/cmd301"
+    },
+    "mpo": {
+      "0": "ai/mpo/cmd0"
+    },
+    "sld": {
+      "0": "ai/sld/cmd0"
+    }
+  },
+  "mqtt": {
+    "model_qos": 1,
+    "command_qos": 2,
+    "command_retain": false
+  },
+  "request_timeout_ms": 10000
+}

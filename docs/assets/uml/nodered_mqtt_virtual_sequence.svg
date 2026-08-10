@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1250" viewBox="0 0 1720 1250">
+<defs><marker id="arrow-filled" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#35516e" /></marker><marker id="arrow-open" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto"><path d="M1,1 L10,4 L1,7" fill="none" stroke="#35516e" stroke-width="1.7" /></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff" />
+<path class="system-group" d="M45,69 V57 Q45,45 57,45 H844 Q862,45 862,33 Q862,45 880,45 H1668 Q1680,45 1680,57 V69" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="862" y="27" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">AI-CPS-Simulationssystem</text>
+<path class="system-group" d="M25,119 V107 Q25,95 37,95 H102 Q120,95 120,83 Q120,95 138,95 H203 Q215,95 215,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="120" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">Host</text>
+<path class="system-group" d="M295,119 V107 Q295,95 307,95 H532 Q550,95 550,83 Q550,95 568,95 H793 Q805,95 805,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="550" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">Node-RED</text>
+<path class="system-group" d="M910,119 V107 Q910,95 922,95 H1272 Q1290,95 1290,83 Q1290,95 1308,95 H1658 Q1670,95 1670,107 V119" fill="none" stroke="#263746" stroke-width="1.4" />
+<text x="1290" y="77" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#203044" text-anchor="middle">NN-Anwendungsdienste</text>
+<rect class="participant" x="25" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="120" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Startskript</text>
+<line x1="120" y1="193" x2="120" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="305" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="400" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Fabrik-Flow</text>
+<line x1="400" y1="193" x2="400" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="605" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="700" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:KI-Flow</text>
+<line x1="700" y1="193" x2="700" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="915" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1010" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:Storage-NN</text>
+<line x1="1010" y1="193" x2="1010" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="1205" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1300" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:VGR-NN</text>
+<line x1="1300" y1="193" x2="1300" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="participant" x="1485" y="145" width="190" height="48" fill="#ffffff" stroke="#263746" stroke-width="1.5" />
+<text x="1580" y="175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="middle">:HBW-NN</text>
+<line x1="1580" y1="193" x2="1580" y2="1140" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" />
+<rect class="activation" x="393" y="235" width="14" height="140" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="120" y1="235" x2="400" y2="235" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="182" y="214" width="156" height="20" fill="#ffffff" />
+<text x="260" y="228" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: Simulation starten</text>
+<path d="M400,280 H482 V307 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="428" y="265" width="204" height="20" fill="#ffffff" />
+<text x="530" y="279" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: initiales Idle-Command-Set</text>
+<path d="M400,325 H482 V352 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="419" y="310" width="222" height="20" fill="#ffffff" />
+<text x="530" y="324" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">sent_count erhöhen + Module starten</text>
+<path d="M400,365 H482 V392 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="404" y="350" width="252" height="20" fill="#ffffff" />
+<text x="530" y="364" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">accepted_count erhöhen + Semaphor prüfen</text>
+<rect class="fragment" x="40" y="410" width="1640" height="705" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M40,410 H102 L118,430 H40 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="50" y="426" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">loop</text>
+<text x="130" y="426" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[320 Trace-Zustände; nächster Zustand erst nach vier Modulabschlüssen]</text>
+<rect class="activation" x="393" y="435" width="14" height="670" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="400" y1="450" x2="700" y2="450" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="484" y="429" width="132" height="20" fill="#ffffff" />
+<text x="550" y="443" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: Anlagenzustand</text>
+<path class="sequence-note" d="M455,457 H675 L685,467 V505 H455 Z" fill="#fff9e8" stroke="#8a6d3b" stroke-width="1.1" />
+<path d="M675,457 V467 H685" fill="none" stroke="#8a6d3b" stroke-width="1.1" />
+<text x="464" y="477" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="11" font-weight="400" fill="#203044" text-anchor="start">Erste Trace-Zustandsmeldung:</text>
+<text x="464" y="492" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="11" font-weight="400" fill="#203044" text-anchor="start">Idle</text>
+<rect class="activation" x="693" y="498" width="14" height="497" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<rect class="activation" x="1003" y="510" width="14" height="45" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="700" y1="510" x2="1010" y2="510" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="795" y="489" width="120" height="20" fill="#ffffff" />
+<text x="855" y="503" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: Lagerzustand</text>
+<line x1="1010" y1="555" x2="700" y2="555" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="783" y="534" width="144" height="20" fill="#ffffff" />
+<text x="855" y="548" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: freies Lagerfach</text>
+<path d="M700,590 H782 V617 H700" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="701" y="575" width="258" height="34" fill="#ffffff" />
+<text x="830" y="589" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Merkmalsfenster bilden</text>
+<text x="830" y="603" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[bei neuer Quelle: 9 Idle-Seeds ergänzen]</text>
+<line x1="700" y1="645" x2="400" y2="645" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="487" y="624" width="126" height="34" fill="#ffffff" />
+<text x="550" y="638" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: MPO-/SLD-Idle</text>
+<text x="550" y="652" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<path d="M400,675 H482 V702 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="446" y="660" width="168" height="20" fill="#ffffff" />
+<text x="530" y="674" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MPO/SLD unabhängig starten</text>
+<rect class="fragment" x="360" y="695" width="1310" height="255" fill="none" stroke="#56636f" stroke-width="1.2" />
+<path d="M360,695 H422 L438,715 H360 Z" fill="#f2f3f4" stroke="#56636f" stroke-width="1.1" />
+<text x="370" y="711" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#203044" text-anchor="start">par</text>
+<text x="450" y="711" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500" fill="#203044" text-anchor="start">[VGR/HBW: unabhängige Inferenz + direkte Commands]</text>
+<line x1="360" y1="820" x2="1670" y2="820" stroke="#8a99a8" stroke-width="1.2" stroke-dasharray="7 5" />
+<rect class="activation" x="1293" y="725" width="14" height="75" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="700" y1="725" x2="1300" y2="725" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="943" y="704" width="114" height="20" fill="#ffffff" />
+<text x="1000" y="718" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Fenster</text>
+<line x1="1300" y1="760" x2="400" y2="760" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="793" y="739" width="114" height="34" fill="#ffffff" />
+<text x="850" y="753" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Command</text>
+<text x="850" y="767" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<path d="M400,787 H482 V814 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="473" y="772" width="114" height="20" fill="#ffffff" />
+<text x="530" y="786" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">VGR-Modul starten</text>
+<line x1="1300" y1="810" x2="700" y2="810" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="931" y="789" width="138" height="34" fill="#ffffff" />
+<text x="1000" y="803" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: VGR-Ergebnis</text>
+<text x="1000" y="817" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[nur Report/Diagnose]</text>
+<rect class="activation" x="1573" y="850" width="14" height="75" fill="#e7e9eb" stroke="#56636f" stroke-width="1.1" />
+<line x1="700" y1="850" x2="1580" y2="850" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1083" y="829" width="114" height="20" fill="#ffffff" />
+<text x="1140" y="843" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Fenster</text>
+<line x1="1580" y1="885" x2="400" y2="885" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="933" y="864" width="114" height="34" fill="#ffffff" />
+<text x="990" y="878" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Command</text>
+<text x="990" y="892" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[sent_count++]</text>
+<path d="M400,912 H482 V939 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="473" y="897" width="114" height="20" fill="#ffffff" />
+<text x="530" y="911" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">HBW-Modul starten</text>
+<line x1="1580" y1="935" x2="700" y2="935" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<rect x="1071" y="914" width="138" height="34" fill="#ffffff" />
+<text x="1140" y="928" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">MQTT: HBW-Ergebnis</text>
+<text x="1140" y="942" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[nur Report/Diagnose]</text>
+<path d="M700,970 H782 V997 H700" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="716" y="955" width="228" height="34" fill="#ffffff" />
+<text x="830" y="969" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Ergebnisse für Report zusammenführen</text>
+<text x="830" y="983" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">[keine Command-Barriere]</text>
+<path d="M400,1010 H482 V1037 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="371" y="995" width="318" height="20" fill="#ffffff" />
+<text x="530" y="1009" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Module unabhängig ausführen [Standard: 0,1 s ±50 %]</text>
+<path d="M400,1052 H482 V1079 H400" fill="none" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<rect x="395" y="1037" width="270" height="20" fill="#ffffff" />
+<text x="530" y="1051" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="middle">Semaphor: alle sent_count == accepted_count</text>
+<text x="60" y="1182" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#203044" text-anchor="start">Notation</text>
+<line x1="60" y1="1200" x2="150" y2="1200" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-open)" />
+<text x="165" y="1205" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">asynchron</text>
+<line x1="520" y1="1200" x2="610" y2="1200" stroke="#35516e" stroke-width="1.8" marker-end="url(#arrow-filled)" />
+<text x="625" y="1205" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">synchron</text>
+<line x1="950" y1="1200" x2="1040" y2="1200" stroke="#35516e" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#arrow-open)" />
+<text x="1055" y="1205" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12" font-weight="400" fill="#203044" text-anchor="start">Rückgabe</text>
+</svg>

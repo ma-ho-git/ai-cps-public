@@ -112,6 +112,12 @@ reports/orchestration_simulation/<run_id>/summary.csv
 reports/orchestration_simulation/<run_id>/run_summary.json
 ```
 
+Ein einzelner KI-Zyklus aktualisiert die Run-Summary mit `completed=false`.
+Erst der retained Fabrikstatus `completed` mit passender `simulation_run_id`
+schliesst den Gesamtlauf ab und ergaenzt die finalen Modulzaehler. Ein Reset
+schliesst einen offenen Report als gestoppt und trennt den folgenden Lauf in
+einen neuen Reportordner.
+
 Flowupdates erfolgen kontrolliert:
 
 ```bash

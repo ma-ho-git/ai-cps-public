@@ -83,6 +83,12 @@ Abnahme der promovierten Modelle am 2026-08-10:
   Klartextartefakt der isolierten Testumgebung und enthaelt keine Git-/SSH-/
   GitHub-/Docker-Anmeldedaten.
 - Rolling Windows, offene Zyklen und Docker-Images werden nicht migriert.
+- Ab Runtime V1.1.1 sind Standort- und Pre-Import-Bundles immer `0600`;
+  Restore-Volumes tragen Compose-Projekt- und Volume-Labels. V1.1.0-Bundles
+  bleiben fuer den V1.1.1-Importer kompatibel.
+- `run_summary.json.completed` beschreibt den gesamten virtuellen Lauf. Die
+  Markierung erfolgt erst durch den korrelierten finalen Fabrikstatus, nicht
+  durch den Abschluss eines einzelnen KI-Zyklus.
 
 ## Archiv
 

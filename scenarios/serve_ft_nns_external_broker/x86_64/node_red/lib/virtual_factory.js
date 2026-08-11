@@ -245,6 +245,7 @@ class VirtualFactory {
       }];
     }
     if (value?.cmd === "reset") {
+      const previousRunId = this.activeRunId;
       this.running = false;
       this.finished = false;
       this.startRequested = false;
@@ -262,7 +263,7 @@ class VirtualFactory {
       return [{
         channel: "status",
         role: "factory_status",
-        payload: this.statusPayload("reset"),
+        payload: this.statusPayload("reset", { run_id: previousRunId }),
       }];
     }
     return [];

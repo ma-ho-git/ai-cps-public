@@ -61,7 +61,8 @@ Aenderungen.
 
 1. CI fuer `main` vollstaendig abwarten.
 2. Alle vier GHCR-Packages auf `public` stellen und anonymen Pull pruefen.
-3. Tag `runtime-v1.1.0` erzeugen und pushen.
+3. Den zur Releasekonfiguration passenden unveraenderlichen Runtime-Tag
+   erzeugen und pushen, fuer diesen Patch `runtime-v1.1.1`.
 4. Release-Manifest, `SHA256SUMS`, Source-SBOM, Notices, Citation und
    Image-Digests pruefen.
 5. Clean-Install und Standort-Restore mit getrennten Compose-Projekten und

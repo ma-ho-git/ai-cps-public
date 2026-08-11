@@ -23,7 +23,7 @@ startet oder veraendert es nicht.
 2. Repository flach klonen:
 
    ```bash
-   git clone --depth 1 --branch runtime-v1.1.0 \
+   git clone --depth 1 --branch runtime-v1.1.1 \
      https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
    cd AI-CPS
    ```
@@ -32,7 +32,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init \
-     --mode virtual --release runtime-v1.1.0 \
+     --mode virtual --release runtime-v1.1.1 \
      --compose-project ai-cps-nn-runtime \
      --report-root "$PWD/reports"
    ```
@@ -41,7 +41,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init --mode physical \
-     --release runtime-v1.1.0 --mqtt-host 192.168.0.5
+     --release runtime-v1.1.1 --mqtt-host 192.168.0.5
    ```
 
 Das Setup erzeugt Secret, `.venv`, Reportpfad und `.env` mit Modus `0600`,
@@ -66,6 +66,12 @@ Der Import stellt `.env`, Volumes, Reports und ausgewaehlte Kandidaten wieder
 her, erzeugt zuvor ein Ruecksicherungsbundle und startet nicht automatisch.
 Das Bundle ist ein Klartextartefakt der isolierten Testumgebung. Bei spaeteren
 echten Credentials vor Weitergabe verschluesseln.
+
+Export und automatisches Ruecksicherungsbundle werden mit Dateimodus `0600`
+angelegt. `runtime-v1.1.1` importiert sowohl V1.1.0- als auch V1.1.1-Bundles.
+Mit `--force` werden vorhandene Zielvolumes nach der Ruecksicherung kontrolliert
+mit passenden Compose-Labels neu angelegt, damit spaetere Starts keine
+Fremdvolume-Warnung erzeugen.
 
 Fuer einen zweiten Teststand immer einen eigenen `--target-project` und
 `--target-report-root` verwenden. Dadurch werden weder Docker-Volumes noch
@@ -180,7 +186,9 @@ Reports:
 
 - `events.jsonl`: Ereignisse und Modellinformationen;
 - `summary.csv`: ein Datensatz pro vollstaendig korreliertem Zyklus;
-- `run_summary.json`: Gesamtstatus, Counts, Fehler und Konfiguration.
+- `run_summary.json`: Gesamtstatus, Counts, Fehler und Konfiguration. Das Feld
+  `completed` wird erst durch den korrelierten finalen Fabrikstatus gesetzt;
+  abgeschlossene einzelne KI-Zyklen markieren den Gesamtlauf nicht als fertig.
 
 ## 6. Modell Mit Gleichem Featurevertrag Testen
 

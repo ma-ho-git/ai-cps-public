@@ -59,11 +59,13 @@ test("restarting the same trace creates a fresh correlation scope", () => {
 
   const first = factory.handleControl({ cmd: "start" })
     .find((item) => item.role === "factory_status").payload.run_id;
-  factory.handleControl({ cmd: "reset" });
+  const reset = factory.handleControl({ cmd: "reset" })
+    .find((item) => item.role === "factory_status").payload;
   const second = factory.handleControl({ cmd: "start" })
     .find((item) => item.role === "factory_status").payload.run_id;
 
   assert.equal(first, "1000-1");
+  assert.equal(reset.run_id, first);
   assert.equal(second, "1000-2");
   assert.notEqual(first, second);
 });
@@ -293,6 +295,7 @@ test("reporting preserves the established filenames and key summary columns", ()
     input_metadata: {
       phase: "live_state",
       trace_profile: "standard",
+      simulation_run_id: "factory-run-1",
       factory_seed: 42,
       factory_base_runtime_ms: { vgr: 100, hbw: 100, mpo: 100, sld: 100 },
       expected_empty_storage: 1,
@@ -335,6 +338,45 @@ test("reporting preserves the established filenames and key summary columns", ()
   assert.equal(recorded.row.trace_profile, "standard");
   assert.equal(recorded.row.factory_seed, 42);
   assert.equal(recorded.run_summary.run_config.base_runtime_ms.vgr, 100);
+  assert.equal(recorded.run_summary.completed, false);
+  assert.equal(recorded.run_summary.stop_reason, "running");
+  assert.equal(recorded.run_summary.last_cycle_status, "completed");
+
+  const wrongRun = reporting.finalizeRun(recorded.state, {
+    state: "completed",
+    run_id: "another-run",
+  }, 1100);
+  assert.equal(wrongRun, null);
+
+  const finalized = reporting.finalizeRun(recorded.state, {
+    state: "completed",
+    run_id: "factory-run-1",
+    trace_total: 1,
+    payloads_sent: 1,
+    progress_percent: 100,
+    sent_counts: { vgr: 2, hbw: 2, mpo: 2, sld: 2 },
+    accepted_counts: { vgr: 2, hbw: 2, mpo: 2, sld: 2 },
+  }, 1200);
+  assert.equal(finalized.run_summary.completed, true);
+  assert.equal(finalized.run_summary.stop_reason, "completed");
+  assert.equal(finalized.run_summary.factory_status.payloads_sent, 1);
+  assert.deepEqual(finalized.files.map((item) => item.role), ["run_summary"]);
+});
+
+test("reporting closes a reset run without marking it completed", () => {
+  const state = reporting.createReportState("/reports/orchestration_simulation", 0);
+  const recorded = reporting.recordCycle(state, {
+    status: "completed",
+    input_metadata: { simulation_run_id: "factory-run-1" },
+  }, 1000);
+
+  const finalized = reporting.finalizeRun(recorded.state, {
+    state: "reset",
+    run_id: "factory-run-1",
+  }, 1100);
+  assert.equal(finalized.run_summary.completed, false);
+  assert.equal(finalized.run_summary.stopped, true);
+  assert.equal(finalized.run_summary.stop_reason, "reset");
 });
 
 test("reporting does not count a fault as a replacement idle command set", () => {

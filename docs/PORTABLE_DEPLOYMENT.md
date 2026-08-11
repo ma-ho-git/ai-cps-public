@@ -20,11 +20,11 @@ sind der Betriebsstandard; lokale Builds bleiben der Entwicklungsweg.
 Empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.1.0 \
+git clone --depth 1 --branch runtime-v1.1.1 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.1.0 \
+  --mode virtual --release runtime-v1.1.1 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -87,6 +87,12 @@ Reportpfad, ausgewaehlte Kandidaten sowie Auswahlzustand und -historie. Images,
 Git-/SSH-/Docker-Zugangsdaten und unbenutzte Modellversionen sind ausgeschlossen.
 Der Import prueft alle Hashes, erzeugt bei vorhandenem Zielstand ein
 `pre-import-*.tar.gz` und startet den Stack nicht.
+
+Bundle und Pre-Import-Backup erhalten immer Dateimodus `0600`. Der
+V1.1.1-Importer akzeptiert V1.1.0- und V1.1.1-Bundles. Vorhandene Zielvolumes
+werden nach dem Backup mit dem Zielprojektnamen und den von Compose erwarteten
+Labels neu angelegt; ihre Daten stammen anschliessend ausschliesslich aus dem
+geprueften Bundle.
 
 `--target-project` und `--target-report-root` ueberschreiben nur den
 Docker-Namensraum und den Reportpfad. Alle weiteren Standortwerte und das

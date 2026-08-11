@@ -98,6 +98,7 @@ class NodeRedFlowExportTests(unittest.TestCase):
 
         reporting_code = nodes["fn-report-cycle"]["func"]
         self.assertIn("reporting.recordCycle", reporting_code)
+        self.assertIn("reporting.finalizeRun", reporting_code)
         self.assertNotIn("JSON.stringify", reporting_code)
 
         hmi_code = nodes["fn-hmi-view-model"]["func"]
@@ -175,7 +176,7 @@ class NodeRedFlowExportTests(unittest.TestCase):
             )
         source_meta = nodes["ui-hmi-source-meta"]["format"]
         self.assertIn("https://github.com/ma-ho-git/ai-cps-runtime", source_meta)
-        self.assertIn("runtime-v1.1.0", source_meta)
+        self.assertIn("runtime-v1.1.1", source_meta)
         self.assertIn("AGPL-3.0", source_meta)
 
     def test_dashboard_dependency_is_pinned_outside_persistent_data(self):
@@ -274,6 +275,16 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(nodes["file-report-append"]["overwriteFile"], "false")
         self.assertEqual(nodes["file-run-summary"]["overwriteFile"], "true")
         self.assertEqual(nodes["switch-report-file"]["outputs"], 2)
+        self.assertEqual(nodes["in-report-factory-status"]["topic"], "ft/sim/factory/status")
+        self.assertEqual(nodes["in-report-factory-status"]["qos"], "1")
+        self.assertEqual(
+            nodes["in-report-factory-status"]["wires"],
+            [["switch-report-factory-status"]],
+        )
+        self.assertEqual(
+            nodes["change-report-factory-status"]["wires"],
+            [["fn-report-cycle"]],
+        )
 
         for group in (node for node in flows if node["type"] == "group"):
             for member_id in group["nodes"]:

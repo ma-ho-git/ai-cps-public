@@ -23,11 +23,11 @@ Docker Engine oder Docker Desktop im Linux-Container-Modus, Compose und
 Python 3.12. Betriebsrechner verwenden den freigegebenen Release:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.1.0 \
+git clone --depth 1 --branch runtime-v1.1.1 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.1.0 \
+  --mode virtual --release runtime-v1.1.1 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -39,7 +39,7 @@ Physischer Schnellstart:
 
 ```bash
 python3 tools/setup_portable_runtime.py init --mode physical \
-  --release runtime-v1.1.0 --mqtt-host 192.168.0.5
+  --release runtime-v1.1.1 --mqtt-host 192.168.0.5
 ./tools/run_nodered_orchestration.sh physical-up --images
 ```
 

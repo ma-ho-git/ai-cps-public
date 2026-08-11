@@ -110,6 +110,10 @@ function createReportState(reportRoot, nowMs = Date.now()) {
     faults: 0,
     command_rows: 0,
     idle_fallback_rows: 0,
+    factory_run_id: null,
+    last_cycle_status: null,
+    model_ids: {},
+    run_config: {},
   };
 }
 
@@ -215,14 +219,59 @@ function recordCycle(state, result, nowMs = Date.now()) {
   if (result.status === "fault_latched") state.faults += 1;
   if (row.control_published) state.command_rows += 1;
   if (result.idle_set_published) state.idle_fallback_rows += 1;
+  state.factory_run_id = state.factory_run_id
+    || result.input_metadata?.simulation_run_id
+    || result.input_metadata?.correlation_id
+    || null;
+  state.last_cycle_status = result.status || null;
+  state.model_ids = result.model_ids || state.model_ids;
+  state.run_config = {
+    trace_profile: row.trace_profile,
+    seed: row.factory_seed,
+    base_runtime_ms: {
+      vgr: row.factory_base_runtime_vgr_ms,
+      hbw: row.factory_base_runtime_hbw_ms,
+      mpo: row.factory_base_runtime_mpo_ms,
+      sld: row.factory_base_runtime_sld_ms,
+    },
+  };
 
   const header = SUMMARY_COLUMNS.join(",") + "\n";
   const csv = SUMMARY_COLUMNS.map((column) => csvValue(row[column])).join(",") + "\n";
-  const runSummary = {
+  const runSummary = buildRunSummary(state, {
+    completed: false,
+    stopped: result.status === "fault_latched",
+    stopReason: result.status === "fault_latched" ? "fault_latched" : "running",
+    nowMs,
+  });
+  return {
+    state,
+    files: [
+      { role: "events", filename: path.join(state.run_dir, "events.jsonl"), payload: JSON.stringify(result) + "\n", append: true },
+      { role: "summary", filename: path.join(state.run_dir, "summary.csv"), payload: (state.rows === 1 ? header : "") + csv, append: true },
+      runSummaryFile(state, runSummary),
+    ],
+    row,
+    run_summary: runSummary,
+  };
+}
+
+function buildRunSummary(
+  state,
+  {
+    completed = false,
+    stopped = false,
+    stopReason = "running",
+    factoryStatus = null,
+    nowMs = Date.now(),
+  } = {},
+) {
+  const summary = {
     mode: "live_mqtt_nodered",
-    completed: result.status === "completed",
-    stopped: false,
-    stop_reason: result.status,
+    completed,
+    stopped,
+    stop_reason: stopReason,
+    last_cycle_status: state.last_cycle_status,
     rows_completed: state.rows,
     control_published_rows: state.command_rows,
     control_published_commands: state.command_rows * 4,
@@ -232,32 +281,67 @@ function recordCycle(state, result, nowMs = Date.now()) {
     storage_matches_hbw: state.matches.storage,
     vgr_matches: state.matches.vgr,
     hbw_matches: state.matches.hbw,
-    model_ids: result.model_ids || {},
-    run_config: {
-      trace_profile: row.trace_profile,
-      seed: row.factory_seed,
-      base_runtime_ms: {
-        vgr: row.factory_base_runtime_vgr_ms,
-        hbw: row.factory_base_runtime_hbw_ms,
-        mpo: row.factory_base_runtime_mpo_ms,
-        sld: row.factory_base_runtime_sld_ms,
-      },
-    },
+    model_ids: state.model_ids,
+    run_config: state.run_config,
     started_at: state.started_at,
     updated_at: new Date(nowMs).toISOString(),
     events_path: path.join(state.run_dir, "events.jsonl"),
     summary_path: path.join(state.run_dir, "summary.csv"),
   };
+  if (factoryStatus) {
+    summary.factory_status = {
+      run_id: factoryStatus.run_id,
+      trace_total: factoryStatus.trace_total,
+      payloads_sent: factoryStatus.payloads_sent,
+      progress_percent: factoryStatus.progress_percent,
+      sent_counts: factoryStatus.sent_counts,
+      accepted_counts: factoryStatus.accepted_counts,
+    };
+  }
+  return summary;
+}
+
+function runSummaryFile(state, runSummary) {
+  return {
+    role: "run_summary",
+    filename: path.join(state.run_dir, "run_summary.json"),
+    payload: JSON.stringify(runSummary, null, 2) + "\n",
+    append: false,
+  };
+}
+
+function finalizeRun(state, factoryStatus, nowMs = Date.now()) {
+  if (!state || !factoryStatus || !["completed", "reset"].includes(factoryStatus.state)) {
+    return null;
+  }
+  if (
+    !state.factory_run_id
+    || !factoryStatus.run_id
+    || String(factoryStatus.run_id) !== String(state.factory_run_id)
+  ) {
+    return null;
+  }
+  const completed = factoryStatus.state === "completed";
+  const runSummary = buildRunSummary(state, {
+    completed,
+    stopped: !completed,
+    stopReason: completed ? "completed" : "reset",
+    factoryStatus,
+    nowMs,
+  });
   return {
     state,
-    files: [
-      { role: "events", filename: path.join(state.run_dir, "events.jsonl"), payload: JSON.stringify(result) + "\n", append: true },
-      { role: "summary", filename: path.join(state.run_dir, "summary.csv"), payload: (state.rows === 1 ? header : "") + csv, append: true },
-      { role: "run_summary", filename: path.join(state.run_dir, "run_summary.json"), payload: JSON.stringify(runSummary, null, 2) + "\n", append: false },
-    ],
-    row,
+    files: [runSummaryFile(state, runSummary)],
     run_summary: runSummary,
   };
 }
 
-module.exports = { SUMMARY_COLUMNS, createReportState, makeRunId, recordCycle, summaryRow };
+module.exports = {
+  SUMMARY_COLUMNS,
+  buildRunSummary,
+  createReportState,
+  finalizeRun,
+  makeRunId,
+  recordCycle,
+  summaryRow,
+};

@@ -65,7 +65,7 @@ Virtual HMI:
 
 Portable release setup:
   python3 tools/setup_portable_runtime.py init --mode virtual \
-    --release runtime-v1.1.0
+    --release runtime-v1.1.1
   Danach mit `virtual-hmi --images` starten. COMPOSE_PROJECT_NAME trennt
   mehrere lokale Standortinstallationen voneinander.
 

@@ -1,0 +1,1344 @@
+[
+    {
+        "id": "846734d2.2f94a8",
+        "type": "tab",
+        "label": "AI Logger",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "cbbf7309.5137a",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read AI state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\nmsg.addressSpaceItems = [\n  // ---- VGR ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchVerticalAxis_I1\"',              datatypeName: 'Boolean' }, // idx 0\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchHorizontalAxis_I2\"',            datatypeName: 'Boolean' }, // idx 1\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchRotate_I3\"',                    datatypeName: 'Boolean' }, // idx 2\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderVerticalAxisImp1_B1\"',            datatypeName: 'Boolean' }, // idx 3\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderVerticalAxisImp2_B2\"',            datatypeName: 'Boolean' }, // idx 4\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderHorizontalAxisImp1_B3\"',          datatypeName: 'Boolean' }, // idx 5\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderHorizontalAxisImp2_B4\"',          datatypeName: 'Boolean' }, // idx 6\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderRotateImp1_B5\"',                 datatypeName: 'Boolean' }, // idx 7\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderRotateImp2_B6\"',                 datatypeName: 'Boolean' }, // idx 8\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M1_VerticalAxisUp_Q1\"',                 datatypeName: 'Boolean' }, // idx 9\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M1_VerticalAxisDown_Q2\"',               datatypeName: 'Boolean' }, // idx 10\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M2_HorizontalAxisBackward_Q3\"',         datatypeName: 'Boolean' }, // idx 11\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M2_HorizontalAxisForward_Q4\"',          datatypeName: 'Boolean' }, // idx 12\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M3_RotateClockwise_Q5\"',                datatypeName: 'Boolean' }, // idx 13\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M3_RotateCounterclockwise_Q6\"',         datatypeName: 'Boolean' }, // idx 14\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_Compressor_Q7\"',                        datatypeName: 'Boolean' }, // idx 15\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_ValveVacuum_Q8\"',                       datatypeName: 'Boolean' }, // idx 16\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Vertical_M1\"',                      datatypeName: 'UInt16'  }, // idx 17\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Horizontal_M2\"',                    datatypeName: 'UInt16'  }, // idx 18\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Rotate_M3\"',                        datatypeName: 'UInt16'  }, // idx 19\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"vertical_Axis\".\"di_Actual_Position\"',   datatypeName: 'Int16' }, // idx 20\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"horizontal_Axis\".\"di_Actual_Position\"', datatypeName: 'Int16' }, // idx 21\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"rotate_Axis\".\"di_Actual_Position\"',     datatypeName: 'Int16' }, // idx 22\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"Workpiece\".\"s_type\"',                   datatypeName: 'String' }, // idx 23\n\n  // ---- SSC ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_RefSwitchVerticalAxis_I1\"',             datatypeName: 'Boolean' }, // idx 24\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_RefSwitchHorizontalAxis_I2\"',           datatypeName: 'Boolean' }, // idx 25\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_LightBarrierStorage_I3\"',               datatypeName: 'Boolean' }, // idx 26\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_LightBarrierOutsourcing_I4\"',           datatypeName: 'Boolean' }, // idx 27\n  { name: \"\", nodeId: 'ns=3;s=\"IW_SSC_ColorSensor_A1\"',                       datatypeName: 'Int16'   }, // idx 28\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderVerticalAxisImp1_B1\"',           datatypeName: 'Boolean' }, // idx 29\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderVerticalAxisImp2_B2\"',           datatypeName: 'Boolean' }, // idx 30\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderHorizontalAxisImp1_B3\"',         datatypeName: 'Boolean' }, // idx 31\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderHorizontalAxisImp2_B4\"',         datatypeName: 'Boolean' }, // idx 32\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M1_VerticalAxisUp_Q1\"',                 datatypeName: 'Boolean' }, // idx 33\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M1_VerticalAxisDown_Q2\"',               datatypeName: 'Boolean' }, // idx 34\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M2_HorizontalAxisClockwise_Q3\"',        datatypeName: 'Boolean' }, // idx 35\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M2_HorizontalAxisCounterclockwise_Q4\"', datatypeName: 'Boolean' }, // idx 36\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Green_Q5\"',                        datatypeName: 'Boolean' }, // idx 37\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Yellow_Q6\"',                       datatypeName: 'Boolean' }, // idx 38\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Red_Q7\"',                          datatypeName: 'Boolean' }, // idx 39\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Red_Online_Q8\"',                   datatypeName: 'Boolean' }, // idx 40\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_SSC_PWM_Vertical_M1\"',                     datatypeName: 'UInt16'  }, // idx 41\n  { name: \"\", nodeId: 'ns=3;s=\"QW_SSC_PWM_Horizontal_M2\"',                   datatypeName: 'UInt16'  }, // idx 42\n\n  // ---- HBW ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_RefSwitchHorizontalAxis_I1\"',          datatypeName: 'Boolean' }, // idx 43\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_LightBarrierInside_I2\"',               datatypeName: 'Boolean' }, // idx 44\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_LightBarrierOutside_I3\"',              datatypeName: 'Boolean' }, // idx 45\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_RefSwitchVerticalAxis_I4\"',            datatypeName: 'Boolean' }, // idx 46\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_TrailSensor1Lower_A1\"',                datatypeName: 'Boolean' }, // idx 47\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_TrailSensor2Upper_A2\"',                datatypeName: 'Boolean' }, // idx 48\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderVerticalAxisImp1_B3\"',          datatypeName: 'Boolean' }, // idx 49\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderVerticalAxisImp2_B4\"',          datatypeName: 'Boolean' }, // idx 50\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderHorizontalAxisImp1_B1\"',        datatypeName: 'Boolean' }, // idx 51\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderHorizontalAxisImp2_B2\"',        datatypeName: 'Boolean' }, // idx 52\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_SwitchCantileverFront_I5\"',            datatypeName: 'Boolean' }, // idx 53\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_SwitchCantileverBack_I6\"',             datatypeName: 'Boolean' }, // idx 54\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M1_ConveyorBeltForward_Q1\"',           datatypeName: 'Boolean' }, // idx 55\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M1_ConveyorBeltBackward_Q2\"',          datatypeName: 'Boolean' }, // idx 56\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M2_HorizontalTowardsRack_Q3\"',         datatypeName: 'Boolean' }, // idx 57\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M2_HorizontalTowardsConveyorBelt_Q4\"', datatypeName: 'Boolean' }, // idx 58\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M3_VerticalAxisDownward_Q5\"',          datatypeName: 'Boolean' }, // idx 59\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M3_VerticalAxisUpward_Q6\"',            datatypeName: 'Boolean' }, // idx 60\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M4_CantileverForward_Q7\"',             datatypeName: 'Boolean' }, // idx 61\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M4_CantileverBackward_Q8\"',            datatypeName: 'Boolean' }, // idx 62\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_ConveyorBelt_M1\"',                 datatypeName: 'UInt16'  }, // idx 63\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_HorizontalAxis_M2\"',               datatypeName: 'UInt16'  }, // idx 64\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_VerticalAxis_M3\"',                 datatypeName: 'UInt16'  }, // idx 65\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_Cantilever_M4\"',                   datatypeName: 'UInt16'  }, // idx 66\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Vertical_Axis\".\"di_Actual_Position\"',   datatypeName: 'Int16' }, // idx 67\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Horizontal_Axis\".\"di_Actual_Position\"', datatypeName: 'Int16' }, // idx 68\n\n  // ---- MPO ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosVac_I1\"',        datatypeName: 'Boolean' }, // idx 69\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosBelt_I2\"',       datatypeName: 'Boolean' }, // idx 70\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_LightBarrierEndOfConBelt_I3\"',         datatypeName: 'Boolean' }, // idx 71\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosSaw_I4\"',        datatypeName: 'Boolean' }, // idx 72\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchVac_PosTurnTable_I5\"',        datatypeName: 'Boolean' }, // idx 73\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchOvenFeederInside_I6\"',        datatypeName: 'Boolean' }, // idx 74\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchOvenFeederOutside_I7\"',       datatypeName: 'Boolean' }, // idx 75\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchVac_PosOven_I8\"',             datatypeName: 'Boolean' }, // idx 76\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_LightBarrierOven_I9\"',                 datatypeName: 'Boolean' }, // idx 77\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M1_TurnTableClockwise_Q1\"',            datatypeName: 'Boolean' }, // idx 78\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M1_TurnTableCounterclockwise_Q2\"',     datatypeName: 'Boolean' }, // idx 79\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M2_ConveyorBeltForward_Q3\"',           datatypeName: 'Boolean' }, // idx 80\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M3_Saw_Q4\"',                           datatypeName: 'Boolean' }, // idx 81\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M4_OvenFeederRetract_Q5\"',             datatypeName: 'Boolean' }, // idx 82\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M4_OvenFeederExtend_Q6\"',              datatypeName: 'Boolean' }, // idx 83\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M5_VacuumTowardsOven_Q7\"',             datatypeName: 'Boolean' }, // idx 84\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M5_VacuumTowardsTurnTable_Q8\"',        datatypeName: 'Boolean' }, // idx 85\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_LightOven_Q9\"',                        datatypeName: 'Boolean' }, // idx 86\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_Compressor_Q10\"',                      datatypeName: 'Boolean' }, // idx 87\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveVacuum_Q11\"',                     datatypeName: 'Boolean' }, // idx 88\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveLowering_Q12\"',                   datatypeName: 'Boolean' }, // idx 89\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveOvenDoor_Q13\"',                   datatypeName: 'Boolean' }, // idx 90\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveFeeder_Q14\"',                     datatypeName: 'Boolean' }, // idx 91\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_MPO_PWM_TurnTable_M1\"',                    datatypeName: 'UInt16'  }, // idx 92\n  { name: \"\", nodeId: 'ns=3;s=\"QW_MPO_PWM_Vacuum_M5\"',                       datatypeName: 'UInt16'  }, // idx 93\n\n  // ---- SLD ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_PulseCounter_I1\"',                     datatypeName: 'Boolean' }, // idx 94\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierInlet_I2\"',                datatypeName: 'Boolean' }, // idx 95\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierBehindColorSensor_I3\"',    datatypeName: 'Boolean' }, // idx 96\n  { name: \"\", nodeId: 'ns=3;s=\"IW_SLD_ColorSensor_A4\"',                      datatypeName: 'Int16'   }, // idx 97\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierWhite_I5\"',                datatypeName: 'Boolean' }, // idx 98\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierRed_I6\"',                  datatypeName: 'Boolean' }, // idx 99\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierBlue_I7\"',                 datatypeName: 'Boolean' }, // idx 100\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_M1_ConveyorBelt_Q1\"',                  datatypeName: 'Boolean' }, // idx 101\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_Compressor_Q2\"',                       datatypeName: 'Boolean' }, // idx 102\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveFirstEjectorWhite_Q3\"',           datatypeName: 'Boolean' }, // idx 103\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveSecondEjectorRed_Q4\"',            datatypeName: 'Boolean' }, // idx 104\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveThirdEjectorBlue_Q5\"',            datatypeName: 'Boolean' }, // idx 105\n\n  // ---- Global / system inputs ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_Set_Park_Position\"',                       datatypeName: 'Boolean' }, // idx 106\n  { name: \"\", nodeId: 'ns=3;s=\"IX_Fill_HBW\"',                                datatypeName: 'Boolean' }, // idx 107\n\n  // ---- HBW storage: s_state + s_type ----\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,0].\"s_state\"', datatypeName: 'String' }, // idx 108 slot 1 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,0].\"s_type\"',  datatypeName: 'String' }, // idx 109 slot 1 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,0].\"s_state\"', datatypeName: 'String' }, // idx 110 slot 2 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,0].\"s_type\"',  datatypeName: 'String' }, // idx 111 slot 2 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,0].\"s_state\"', datatypeName: 'String' }, // idx 112 slot 3 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,0].\"s_type\"',  datatypeName: 'String' }, // idx 113 slot 3 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,1].\"s_state\"', datatypeName: 'String' }, // idx 114 slot 4 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,1].\"s_type\"',  datatypeName: 'String' }, // idx 115 slot 4 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,1].\"s_state\"', datatypeName: 'String' }, // idx 116 slot 5 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,1].\"s_type\"',  datatypeName: 'String' }, // idx 117 slot 5 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,1].\"s_state\"', datatypeName: 'String' }, // idx 118 slot 6 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,1].\"s_type\"',  datatypeName: 'String' }, // idx 119 slot 6 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,2].\"s_state\"', datatypeName: 'String' }, // idx 120 slot 7 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,2].\"s_type\"',  datatypeName: 'String' }, // idx 121 slot 7 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,2].\"s_state\"', datatypeName: 'String' }, // idx 122 slot 8 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,2].\"s_type\"',  datatypeName: 'String' }, // idx 123 slot 8 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,2].\"s_state\"', datatypeName: 'String' }, // idx 124 slot 9 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,2].\"s_type\"',  datatypeName: 'String' }, // idx 125 slot 9 color\n];\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 550,
+        "y": 300,
+        "wires": [
+            [
+                "c4319c43.fa7508"
+            ]
+        ]
+    },
+    {
+        "id": "c4319c43.fa7508",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 790,
+        "y": 300,
+        "wires": [
+            [
+                "6ed70044.a74818",
+                "8069cb72.324058"
+            ]
+        ]
+    },
+    {
+        "id": "6ed70044.a74818",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "const v = msg.payload;\n\nfunction val(i) {\n  try { return v[i].value.value; } catch (e) { return null; }\n}\n\nconst ai_state = {\n  ts: new Date().toISOString(),\n  ts_ms: Date.now(),\n\n  // ---- VGR ----\n  IX_VGR_RefSwitchVerticalAxis_I1:         val(0),\n  IX_VGR_RefSwitchHorizontalAxis_I2:       val(1),\n  IX_VGR_RefSwitchRotate_I3:               val(2),\n\n  IX_VGR_EncoderVerticalAxisImp1_B1:       val(3),\n  IX_VGR_EncoderVerticalAxisImp2_B2:       val(4),\n  IX_VGR_EncoderHorizontalAxisImp1_B3:     val(5),\n  IX_VGR_EncoderHorizontalAxisImp2_B4:     val(6),\n  IX_VGR_EncoderRotateImp1_B5:             val(7),\n  IX_VGR_EncoderRotateImp2_B6:             val(8),\n\n  QX_VGR_M1_VerticalAxisUp_Q1:             val(9),\n  QX_VGR_M1_VerticalAxisDown_Q2:           val(10),\n  QX_VGR_M2_HorizontalAxisBackward_Q3:     val(11),\n  QX_VGR_M2_HorizontalAxisForward_Q4:      val(12),\n  QX_VGR_M3_RotateClockwise_Q5:            val(13),\n  QX_VGR_M3_RotateCounterclockwise_Q6:     val(14),\n  QX_VGR_Compressor_Q7:                    val(15),\n  QX_VGR_ValveVacuum_Q8:                   val(16),\n\n  QW_VGR_PWM_Vertical_M1:                  val(17),\n  QW_VGR_PWM_Horizontal_M2:                val(18),\n  QW_VGR_PWM_Rotate_M3:                    val(19),\n\n  VGR_vertical_position:                   val(20),\n  VGR_horizontal_position:                 val(21),\n  VGR_rotate_position:                     val(22),\n  detected_color:                          val(23),\n\n  // ---- SSC ----\n  IX_SSC_RefSwitchVerticalAxis_I1:         val(24),\n  IX_SSC_RefSwitchHorizontalAxis_I2:       val(25),\n  IX_SSC_LightBarrierStorage_I3:           val(26),\n  IX_SSC_LightBarrierOutsourcing_I4:       val(27),\n  IW_SSC_ColorSensor_A1:                   val(28),\n\n  IX_SSC_EncoderVerticalAxisImp1_B1:       val(29),\n  IX_SSC_EncoderVerticalAxisImp2_B2:       val(30),\n  IX_SSC_EncoderHorizontalAxisImp1_B3:     val(31),\n  IX_SSC_EncoderHorizontalAxisImp2_B4:     val(32),\n\n  QX_SSC_M1_VerticalAxisUp_Q1:             val(33),\n  QX_SSC_M1_VerticalAxisDown_Q2:           val(34),\n  QX_SSC_M2_HorizontalAxisClockwise_Q3:    val(35),\n  QX_SSC_M2_HorizontalAxisCounterclockwise_Q4: val(36),\n  QX_SSC_LED_Green_Q5:                     val(37),\n  QX_SSC_LED_Yellow_Q6:                    val(38),\n  QX_SSC_LED_Red_Q7:                       val(39),\n  QX_SSC_LED_Red_Online_Q8:                val(40),\n\n  QW_SSC_PWM_Vertical_M1:                  val(41),\n  QW_SSC_PWM_Horizontal_M2:                val(42),\n\n  // ---- HBW ----\n  IX_HBW_RefSwitchHorizontalAxis_I1:       val(43),\n  IX_HBW_LightBarrierInside_I2:            val(44),\n  IX_HBW_LightBarrierOutside_I3:           val(45),\n  IX_HBW_RefSwitchVerticalAxis_I4:         val(46),\n  IX_HBW_TrailSensor1Lower_A1:             val(47),\n  IX_HBW_TrailSensor2Upper_A2:             val(48),\n\n  IX_HBW_EncoderVerticalAxisImp1_B3:       val(49),\n  IX_HBW_EncoderVerticalAxisImp2_B4:       val(50),\n  IX_HBW_EncoderHorizontalAxisImp1_B1:     val(51),\n  IX_HBW_EncoderHorizontalAxisImp2_B2:     val(52),\n\n  IX_HBW_SwitchCantileverFront_I5:         val(53),\n  IX_HBW_SwitchCantileverBack_I6:          val(54),\n\n  QX_HBW_M1_ConveyorBeltForward_Q1:        val(55),\n  QX_HBW_M1_ConveyorBeltBackward_Q2:       val(56),\n  QX_HBW_M2_HorizontalTowardsRack_Q3:      val(57),\n  QX_HBW_M2_HorizontalTowardsConveyorBelt_Q4: val(58),\n  QX_HBW_M3_VerticalAxisDownward_Q5:       val(59),\n  QX_HBW_M3_VerticalAxisUpward_Q6:         val(60),\n  QX_HBW_M4_CantileverForward_Q7:          val(61),\n  QX_HBW_M4_CantileverBackward_Q8:         val(62),\n\n  QW_HBW_PWM_ConveyorBelt_M1:              val(63),\n  QW_HBW_PWM_HorizontalAxis_M2:            val(64),\n  QW_HBW_PWM_VerticalAxis_M3:              val(65),\n  QW_HBW_PWM_Cantilever_M4:                val(66),\n\n  HBW_vertical_position:                   val(67),\n  HBW_horizontal_position:                 val(68),\n\n  // ---- MPO ----\n  IX_MPO_RefSwitchTurnTable_PosVac_I1:     val(69),\n  IX_MPO_RefSwitchTurnTable_PosBelt_I2:    val(70),\n  IX_MPO_LightBarrierEndOfConBelt_I3:      val(71),\n  IX_MPO_RefSwitchTurnTable_PosSaw_I4:     val(72),\n  IX_MPO_RefSwitchVac_PosTurnTable_I5:     val(73),\n  IX_MPO_RefSwitchOvenFeederInside_I6:     val(74),\n  IX_MPO_RefSwitchOvenFeederOutside_I7:    val(75),\n  IX_MPO_RefSwitchVac_PosOven_I8:          val(76),\n  IX_MPO_LightBarrierOven_I9:              val(77),\n\n  QX_MPO_M1_TurnTableClockwise_Q1:         val(78),\n  QX_MPO_M1_TurnTableCounterclockwise_Q2:  val(79),\n  QX_MPO_M2_ConveyorBeltForward_Q3:        val(80),\n  QX_MPO_M3_Saw_Q4:                        val(81),\n  QX_MPO_M4_OvenFeederRetract_Q5:          val(82),\n  QX_MPO_M4_OvenFeederExtend_Q6:           val(83),\n  QX_MPO_M5_VacuumTowardsOven_Q7:          val(84),\n  QX_MPO_M5_VacuumTowardsTurnTable_Q8:     val(85),\n  QX_MPO_LightOven_Q9:                     val(86),\n  QX_MPO_Compressor_Q10:                   val(87),\n  QX_MPO_ValveVacuum_Q11:                  val(88),\n  QX_MPO_ValveLowering_Q12:                val(89),\n  QX_MPO_ValveOvenDoor_Q13:                val(90),\n  QX_MPO_ValveFeeder_Q14:                  val(91),\n\n  QW_MPO_PWM_TurnTable_M1:                 val(92),\n  QW_MPO_PWM_Vacuum_M5:                    val(93),\n\n  // ---- SLD ----\n  IX_SLD_PulseCounter_I1:                  val(94),\n  IX_SLD_LightBarrierInlet_I2:             val(95),\n  IX_SLD_LightBarrierBehindColorSensor_I3: val(96),\n  IW_SLD_ColorSensor_A4:                   val(97),\n  IX_SLD_LightBarrierWhite_I5:             val(98),\n  IX_SLD_LightBarrierRed_I6:               val(99),\n  IX_SLD_LightBarrierBlue_I7:              val(100),\n\n  QX_SLD_M1_ConveyorBelt_Q1:               val(101),\n  QX_SLD_Compressor_Q2:                    val(102),\n  QX_SLD_ValveFirstEjectorWhite_Q3:        val(103),\n  QX_SLD_ValveSecondEjectorRed_Q4:         val(104),\n  QX_SLD_ValveThirdEjectorBlue_Q5:         val(105),\n\n  // ---- Global / system inputs ----\n  IX_Set_Park_Position:                    val(106),\n  IX_Fill_HBW:                             val(107),\n\n    // ---- HBW storage occupancy + color ----\n    // occupied is derived directly from s_state:\n    // RAW / anything non-empty -> 1\n    // empty / 0 / null -> 0\n    \n    storage_slot_1_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(108) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_1_color:    val(109),\n    \n    storage_slot_2_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(110) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_2_color:    val(111),\n    \n    storage_slot_3_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(112) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_3_color:    val(113),\n    \n    storage_slot_4_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(114) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_4_color:    val(115),\n    \n    storage_slot_5_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(116) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_5_color:    val(117),\n    \n    storage_slot_6_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(118) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_6_color:    val(119),\n    \n    storage_slot_7_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(120) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_7_color:    val(121),\n    \n    storage_slot_8_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(122) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_8_color:    val(123),\n    \n    storage_slot_9_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(124) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_9_color:    val(125),\n};\n\nreturn { payload: JSON.stringify(ai_state) };",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1010,
+        "y": 300,
+        "wires": [
+            [
+                "a8140628.9a9b4",
+                "c65c1c94.480c5"
+            ]
+        ]
+    },
+    {
+        "id": "a8140628.9a9b4",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "log/logging/state",
+        "qos": "0",
+        "retain": "",
+        "broker": "788959e0.92f718",
+        "x": 1240,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "c65c1c94.480c5",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "log/logging/state",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1240,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "8069cb72.324058",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "ai/logging",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 980,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "72cc1e04.e7b108",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "read",
+        "payloadType": "date",
+        "topic": "",
+        "repeat": "2",
+        "crontab": "",
+        "once": true,
+        "startDelay": "",
+        "name": "",
+        "payload": "",
+        "addressSpaceItems": [],
+        "x": 330,
+        "y": 300,
+        "wires": [
+            [
+                "cbbf7309.5137a"
+            ]
+        ]
+    },
+    {
+        "id": "8baccf09.6c939",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read AI state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\nmsg.addressSpaceItems = [\n  // ---- VGR ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchVerticalAxis_I1\"',              datatypeName: 'Boolean' }, // idx 0\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchHorizontalAxis_I2\"',            datatypeName: 'Boolean' }, // idx 1\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_RefSwitchRotate_I3\"',                    datatypeName: 'Boolean' }, // idx 2\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderVerticalAxisImp1_B1\"',            datatypeName: 'Boolean' }, // idx 3\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderVerticalAxisImp2_B2\"',            datatypeName: 'Boolean' }, // idx 4\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderHorizontalAxisImp1_B3\"',          datatypeName: 'Boolean' }, // idx 5\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderHorizontalAxisImp2_B4\"',          datatypeName: 'Boolean' }, // idx 6\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderRotateImp1_B5\"',                 datatypeName: 'Boolean' }, // idx 7\n  { name: \"\", nodeId: 'ns=3;s=\"IX_VGR_EncoderRotateImp2_B6\"',                 datatypeName: 'Boolean' }, // idx 8\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M1_VerticalAxisUp_Q1\"',                 datatypeName: 'Boolean' }, // idx 9\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M1_VerticalAxisDown_Q2\"',               datatypeName: 'Boolean' }, // idx 10\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M2_HorizontalAxisBackward_Q3\"',         datatypeName: 'Boolean' }, // idx 11\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M2_HorizontalAxisForward_Q4\"',          datatypeName: 'Boolean' }, // idx 12\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M3_RotateClockwise_Q5\"',                datatypeName: 'Boolean' }, // idx 13\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_M3_RotateCounterclockwise_Q6\"',         datatypeName: 'Boolean' }, // idx 14\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_Compressor_Q7\"',                        datatypeName: 'Boolean' }, // idx 15\n  { name: \"\", nodeId: 'ns=3;s=\"QX_VGR_ValveVacuum_Q8\"',                       datatypeName: 'Boolean' }, // idx 16\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Vertical_M1\"',                      datatypeName: 'UInt16'  }, // idx 17\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Horizontal_M2\"',                    datatypeName: 'UInt16'  }, // idx 18\n  { name: \"\", nodeId: 'ns=3;s=\"QW_VGR_PWM_Rotate_M3\"',                        datatypeName: 'UInt16'  }, // idx 19\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"vertical_Axis\".\"di_Actual_Position\"',   datatypeName: 'Int16' }, // idx 20\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"horizontal_Axis\".\"di_Actual_Position\"', datatypeName: 'Int16' }, // idx 21\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"rotate_Axis\".\"di_Actual_Position\"',     datatypeName: 'Int16' }, // idx 22\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_VGR\".\"Workpiece\".\"s_type\"',                   datatypeName: 'String' }, // idx 23\n\n  // ---- SSC ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_RefSwitchVerticalAxis_I1\"',             datatypeName: 'Boolean' }, // idx 24\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_RefSwitchHorizontalAxis_I2\"',           datatypeName: 'Boolean' }, // idx 25\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_LightBarrierStorage_I3\"',               datatypeName: 'Boolean' }, // idx 26\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_LightBarrierOutsourcing_I4\"',           datatypeName: 'Boolean' }, // idx 27\n  { name: \"\", nodeId: 'ns=3;s=\"IW_SSC_ColorSensor_A1\"',                       datatypeName: 'Int16'   }, // idx 28\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderVerticalAxisImp1_B1\"',           datatypeName: 'Boolean' }, // idx 29\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderVerticalAxisImp2_B2\"',           datatypeName: 'Boolean' }, // idx 30\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderHorizontalAxisImp1_B3\"',         datatypeName: 'Boolean' }, // idx 31\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SSC_EncoderHorizontalAxisImp2_B4\"',         datatypeName: 'Boolean' }, // idx 32\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M1_VerticalAxisUp_Q1\"',                 datatypeName: 'Boolean' }, // idx 33\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M1_VerticalAxisDown_Q2\"',               datatypeName: 'Boolean' }, // idx 34\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M2_HorizontalAxisClockwise_Q3\"',        datatypeName: 'Boolean' }, // idx 35\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_M2_HorizontalAxisCounterclockwise_Q4\"', datatypeName: 'Boolean' }, // idx 36\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Green_Q5\"',                        datatypeName: 'Boolean' }, // idx 37\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Yellow_Q6\"',                       datatypeName: 'Boolean' }, // idx 38\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Red_Q7\"',                          datatypeName: 'Boolean' }, // idx 39\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SSC_LED_Red_Online_Q8\"',                   datatypeName: 'Boolean' }, // idx 40\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_SSC_PWM_Vertical_M1\"',                     datatypeName: 'UInt16'  }, // idx 41\n  { name: \"\", nodeId: 'ns=3;s=\"QW_SSC_PWM_Horizontal_M2\"',                   datatypeName: 'UInt16'  }, // idx 42\n\n  // ---- HBW ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_RefSwitchHorizontalAxis_I1\"',          datatypeName: 'Boolean' }, // idx 43\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_LightBarrierInside_I2\"',               datatypeName: 'Boolean' }, // idx 44\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_LightBarrierOutside_I3\"',              datatypeName: 'Boolean' }, // idx 45\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_RefSwitchVerticalAxis_I4\"',            datatypeName: 'Boolean' }, // idx 46\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_TrailSensor1Lower_A1\"',                datatypeName: 'Boolean' }, // idx 47\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_TrailSensor2Upper_A2\"',                datatypeName: 'Boolean' }, // idx 48\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderVerticalAxisImp1_B3\"',          datatypeName: 'Boolean' }, // idx 49\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderVerticalAxisImp2_B4\"',          datatypeName: 'Boolean' }, // idx 50\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderHorizontalAxisImp1_B1\"',        datatypeName: 'Boolean' }, // idx 51\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_EncoderHorizontalAxisImp2_B2\"',        datatypeName: 'Boolean' }, // idx 52\n\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_SwitchCantileverFront_I5\"',            datatypeName: 'Boolean' }, // idx 53\n  { name: \"\", nodeId: 'ns=3;s=\"IX_HBW_SwitchCantileverBack_I6\"',             datatypeName: 'Boolean' }, // idx 54\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M1_ConveyorBeltForward_Q1\"',           datatypeName: 'Boolean' }, // idx 55\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M1_ConveyorBeltBackward_Q2\"',          datatypeName: 'Boolean' }, // idx 56\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M2_HorizontalTowardsRack_Q3\"',         datatypeName: 'Boolean' }, // idx 57\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M2_HorizontalTowardsConveyorBelt_Q4\"', datatypeName: 'Boolean' }, // idx 58\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M3_VerticalAxisDownward_Q5\"',          datatypeName: 'Boolean' }, // idx 59\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M3_VerticalAxisUpward_Q6\"',            datatypeName: 'Boolean' }, // idx 60\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M4_CantileverForward_Q7\"',             datatypeName: 'Boolean' }, // idx 61\n  { name: \"\", nodeId: 'ns=3;s=\"QX_HBW_M4_CantileverBackward_Q8\"',            datatypeName: 'Boolean' }, // idx 62\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_ConveyorBelt_M1\"',                 datatypeName: 'UInt16'  }, // idx 63\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_HorizontalAxis_M2\"',               datatypeName: 'UInt16'  }, // idx 64\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_VerticalAxis_M3\"',                 datatypeName: 'UInt16'  }, // idx 65\n  { name: \"\", nodeId: 'ns=3;s=\"QW_HBW_PWM_Cantilever_M4\"',                   datatypeName: 'UInt16'  }, // idx 66\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Vertical_Axis\".\"di_Actual_Position\"',   datatypeName: 'Int16' }, // idx 67\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Horizontal_Axis\".\"di_Actual_Position\"', datatypeName: 'Int16' }, // idx 68\n\n  // ---- MPO ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosVac_I1\"',        datatypeName: 'Boolean' }, // idx 69\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosBelt_I2\"',       datatypeName: 'Boolean' }, // idx 70\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_LightBarrierEndOfConBelt_I3\"',         datatypeName: 'Boolean' }, // idx 71\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchTurnTable_PosSaw_I4\"',        datatypeName: 'Boolean' }, // idx 72\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchVac_PosTurnTable_I5\"',        datatypeName: 'Boolean' }, // idx 73\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchOvenFeederInside_I6\"',        datatypeName: 'Boolean' }, // idx 74\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchOvenFeederOutside_I7\"',       datatypeName: 'Boolean' }, // idx 75\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_RefSwitchVac_PosOven_I8\"',             datatypeName: 'Boolean' }, // idx 76\n  { name: \"\", nodeId: 'ns=3;s=\"IX_MPO_LightBarrierOven_I9\"',                 datatypeName: 'Boolean' }, // idx 77\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M1_TurnTableClockwise_Q1\"',            datatypeName: 'Boolean' }, // idx 78\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M1_TurnTableCounterclockwise_Q2\"',     datatypeName: 'Boolean' }, // idx 79\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M2_ConveyorBeltForward_Q3\"',           datatypeName: 'Boolean' }, // idx 80\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M3_Saw_Q4\"',                           datatypeName: 'Boolean' }, // idx 81\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M4_OvenFeederRetract_Q5\"',             datatypeName: 'Boolean' }, // idx 82\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M4_OvenFeederExtend_Q6\"',              datatypeName: 'Boolean' }, // idx 83\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M5_VacuumTowardsOven_Q7\"',             datatypeName: 'Boolean' }, // idx 84\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_M5_VacuumTowardsTurnTable_Q8\"',        datatypeName: 'Boolean' }, // idx 85\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_LightOven_Q9\"',                        datatypeName: 'Boolean' }, // idx 86\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_Compressor_Q10\"',                      datatypeName: 'Boolean' }, // idx 87\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveVacuum_Q11\"',                     datatypeName: 'Boolean' }, // idx 88\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveLowering_Q12\"',                   datatypeName: 'Boolean' }, // idx 89\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveOvenDoor_Q13\"',                   datatypeName: 'Boolean' }, // idx 90\n  { name: \"\", nodeId: 'ns=3;s=\"QX_MPO_ValveFeeder_Q14\"',                     datatypeName: 'Boolean' }, // idx 91\n\n  { name: \"\", nodeId: 'ns=3;s=\"QW_MPO_PWM_TurnTable_M1\"',                    datatypeName: 'UInt16'  }, // idx 92\n  { name: \"\", nodeId: 'ns=3;s=\"QW_MPO_PWM_Vacuum_M5\"',                       datatypeName: 'UInt16'  }, // idx 93\n\n  // ---- SLD ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_PulseCounter_I1\"',                     datatypeName: 'Boolean' }, // idx 94\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierInlet_I2\"',                datatypeName: 'Boolean' }, // idx 95\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierBehindColorSensor_I3\"',    datatypeName: 'Boolean' }, // idx 96\n  { name: \"\", nodeId: 'ns=3;s=\"IW_SLD_ColorSensor_A4\"',                      datatypeName: 'Int16'   }, // idx 97\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierWhite_I5\"',                datatypeName: 'Boolean' }, // idx 98\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierRed_I6\"',                  datatypeName: 'Boolean' }, // idx 99\n  { name: \"\", nodeId: 'ns=3;s=\"IX_SLD_LightBarrierBlue_I7\"',                 datatypeName: 'Boolean' }, // idx 100\n\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_M1_ConveyorBelt_Q1\"',                  datatypeName: 'Boolean' }, // idx 101\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_Compressor_Q2\"',                       datatypeName: 'Boolean' }, // idx 102\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveFirstEjectorWhite_Q3\"',           datatypeName: 'Boolean' }, // idx 103\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveSecondEjectorRed_Q4\"',            datatypeName: 'Boolean' }, // idx 104\n  { name: \"\", nodeId: 'ns=3;s=\"QX_SLD_ValveThirdEjectorBlue_Q5\"',            datatypeName: 'Boolean' }, // idx 105\n\n  // ---- Global / system inputs ----\n  { name: \"\", nodeId: 'ns=3;s=\"IX_Set_Park_Position\"',                       datatypeName: 'Boolean' }, // idx 106\n  { name: \"\", nodeId: 'ns=3;s=\"IX_Fill_HBW\"',                                datatypeName: 'Boolean' }, // idx 107\n\n  // ---- HBW storage: s_state + s_type ----\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,0].\"s_state\"', datatypeName: 'String' }, // idx 108 slot 1 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,0].\"s_type\"',  datatypeName: 'String' }, // idx 109 slot 1 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,0].\"s_state\"', datatypeName: 'String' }, // idx 110 slot 2 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,0].\"s_type\"',  datatypeName: 'String' }, // idx 111 slot 2 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,0].\"s_state\"', datatypeName: 'String' }, // idx 112 slot 3 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,0].\"s_type\"',  datatypeName: 'String' }, // idx 113 slot 3 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,1].\"s_state\"', datatypeName: 'String' }, // idx 114 slot 4 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,1].\"s_type\"',  datatypeName: 'String' }, // idx 115 slot 4 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,1].\"s_state\"', datatypeName: 'String' }, // idx 116 slot 5 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,1].\"s_type\"',  datatypeName: 'String' }, // idx 117 slot 5 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,1].\"s_state\"', datatypeName: 'String' }, // idx 118 slot 6 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,1].\"s_type\"',  datatypeName: 'String' }, // idx 119 slot 6 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,2].\"s_state\"', datatypeName: 'String' }, // idx 120 slot 7 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[0,2].\"s_type\"',  datatypeName: 'String' }, // idx 121 slot 7 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,2].\"s_state\"', datatypeName: 'String' }, // idx 122 slot 8 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[1,2].\"s_type\"',  datatypeName: 'String' }, // idx 123 slot 8 color\n\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,2].\"s_state\"', datatypeName: 'String' }, // idx 124 slot 9 state\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_HBW\".\"Rack_Workpiece\"[2,2].\"s_type\"',  datatypeName: 'String' }, // idx 125 slot 9 color\n  \n  // ---- Order Notices ----\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_Interface_Dashboard\".\"Publish\".\"OrderWorkpieceButton\".\"s_type\"', datatypeName: 'String' }, // idx 126\n  { name: \"\", nodeId: 'ns=3;s=\"gtyp_Interface_Dashboard\".\"Publish\".\"OrderWorkpieceButton\".\"ldt_ts\"',  datatypeName: 'DateTime' }, // idx 127\n  \n];\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 570,
+        "y": 1400,
+        "wires": [
+            [
+                "aa126be8.f9ee78"
+            ]
+        ]
+    },
+    {
+        "id": "aa126be8.f9ee78",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 810,
+        "y": 1400,
+        "wires": [
+            [
+                "a7970095.0867c",
+                "2c3ed1c4.be9206"
+            ]
+        ]
+    },
+    {
+        "id": "a7970095.0867c",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "const v = msg.payload;\n\nfunction val(i) {\n  try { return v[i].value.value; } catch (e) { return null; }\n}\n\nconst ai_state = {\n  ts: new Date().toISOString(),\n  ts_ms: Date.now(),\n\n  // ---- VGR ----\n  IX_VGR_RefSwitchVerticalAxis_I1:         val(0),\n  IX_VGR_RefSwitchHorizontalAxis_I2:       val(1),\n  IX_VGR_RefSwitchRotate_I3:               val(2),\n\n  IX_VGR_EncoderVerticalAxisImp1_B1:       val(3),\n  IX_VGR_EncoderVerticalAxisImp2_B2:       val(4),\n  IX_VGR_EncoderHorizontalAxisImp1_B3:     val(5),\n  IX_VGR_EncoderHorizontalAxisImp2_B4:     val(6),\n  IX_VGR_EncoderRotateImp1_B5:             val(7),\n  IX_VGR_EncoderRotateImp2_B6:             val(8),\n\n  QX_VGR_M1_VerticalAxisUp_Q1:             val(9),\n  QX_VGR_M1_VerticalAxisDown_Q2:           val(10),\n  QX_VGR_M2_HorizontalAxisBackward_Q3:     val(11),\n  QX_VGR_M2_HorizontalAxisForward_Q4:      val(12),\n  QX_VGR_M3_RotateClockwise_Q5:            val(13),\n  QX_VGR_M3_RotateCounterclockwise_Q6:     val(14),\n  QX_VGR_Compressor_Q7:                    val(15),\n  QX_VGR_ValveVacuum_Q8:                   val(16),\n\n  QW_VGR_PWM_Vertical_M1:                  val(17),\n  QW_VGR_PWM_Horizontal_M2:                val(18),\n  QW_VGR_PWM_Rotate_M3:                    val(19),\n\n  VGR_vertical_position:                   val(20),\n  VGR_horizontal_position:                 val(21),\n  VGR_rotate_position:                     val(22),\n  detected_color:                          val(23),\n\n  // ---- SSC ----\n  IX_SSC_RefSwitchVerticalAxis_I1:         val(24),\n  IX_SSC_RefSwitchHorizontalAxis_I2:       val(25),\n  IX_SSC_LightBarrierStorage_I3:           val(26),\n  IX_SSC_LightBarrierOutsourcing_I4:       val(27),\n  IW_SSC_ColorSensor_A1:                   val(28),\n\n  IX_SSC_EncoderVerticalAxisImp1_B1:       val(29),\n  IX_SSC_EncoderVerticalAxisImp2_B2:       val(30),\n  IX_SSC_EncoderHorizontalAxisImp1_B3:     val(31),\n  IX_SSC_EncoderHorizontalAxisImp2_B4:     val(32),\n\n  QX_SSC_M1_VerticalAxisUp_Q1:             val(33),\n  QX_SSC_M1_VerticalAxisDown_Q2:           val(34),\n  QX_SSC_M2_HorizontalAxisClockwise_Q3:    val(35),\n  QX_SSC_M2_HorizontalAxisCounterclockwise_Q4: val(36),\n  QX_SSC_LED_Green_Q5:                     val(37),\n  QX_SSC_LED_Yellow_Q6:                    val(38),\n  QX_SSC_LED_Red_Q7:                       val(39),\n  QX_SSC_LED_Red_Online_Q8:                val(40),\n\n  QW_SSC_PWM_Vertical_M1:                  val(41),\n  QW_SSC_PWM_Horizontal_M2:                val(42),\n\n  // ---- HBW ----\n  IX_HBW_RefSwitchHorizontalAxis_I1:       val(43),\n  IX_HBW_LightBarrierInside_I2:            val(44),\n  IX_HBW_LightBarrierOutside_I3:           val(45),\n  IX_HBW_RefSwitchVerticalAxis_I4:         val(46),\n  IX_HBW_TrailSensor1Lower_A1:             val(47),\n  IX_HBW_TrailSensor2Upper_A2:             val(48),\n\n  IX_HBW_EncoderVerticalAxisImp1_B3:       val(49),\n  IX_HBW_EncoderVerticalAxisImp2_B4:       val(50),\n  IX_HBW_EncoderHorizontalAxisImp1_B1:     val(51),\n  IX_HBW_EncoderHorizontalAxisImp2_B2:     val(52),\n\n  IX_HBW_SwitchCantileverFront_I5:         val(53),\n  IX_HBW_SwitchCantileverBack_I6:          val(54),\n\n  QX_HBW_M1_ConveyorBeltForward_Q1:        val(55),\n  QX_HBW_M1_ConveyorBeltBackward_Q2:       val(56),\n  QX_HBW_M2_HorizontalTowardsRack_Q3:      val(57),\n  QX_HBW_M2_HorizontalTowardsConveyorBelt_Q4: val(58),\n  QX_HBW_M3_VerticalAxisDownward_Q5:       val(59),\n  QX_HBW_M3_VerticalAxisUpward_Q6:         val(60),\n  QX_HBW_M4_CantileverForward_Q7:          val(61),\n  QX_HBW_M4_CantileverBackward_Q8:         val(62),\n\n  QW_HBW_PWM_ConveyorBelt_M1:              val(63),\n  QW_HBW_PWM_HorizontalAxis_M2:            val(64),\n  QW_HBW_PWM_VerticalAxis_M3:              val(65),\n  QW_HBW_PWM_Cantilever_M4:                val(66),\n\n  HBW_vertical_position:                   val(67),\n  HBW_horizontal_position:                 val(68),\n\n  // ---- MPO ----\n  IX_MPO_RefSwitchTurnTable_PosVac_I1:     val(69),\n  IX_MPO_RefSwitchTurnTable_PosBelt_I2:    val(70),\n  IX_MPO_LightBarrierEndOfConBelt_I3:      val(71),\n  IX_MPO_RefSwitchTurnTable_PosSaw_I4:     val(72),\n  IX_MPO_RefSwitchVac_PosTurnTable_I5:     val(73),\n  IX_MPO_RefSwitchOvenFeederInside_I6:     val(74),\n  IX_MPO_RefSwitchOvenFeederOutside_I7:    val(75),\n  IX_MPO_RefSwitchVac_PosOven_I8:          val(76),\n  IX_MPO_LightBarrierOven_I9:              val(77),\n\n  QX_MPO_M1_TurnTableClockwise_Q1:         val(78),\n  QX_MPO_M1_TurnTableCounterclockwise_Q2:  val(79),\n  QX_MPO_M2_ConveyorBeltForward_Q3:        val(80),\n  QX_MPO_M3_Saw_Q4:                        val(81),\n  QX_MPO_M4_OvenFeederRetract_Q5:          val(82),\n  QX_MPO_M4_OvenFeederExtend_Q6:           val(83),\n  QX_MPO_M5_VacuumTowardsOven_Q7:          val(84),\n  QX_MPO_M5_VacuumTowardsTurnTable_Q8:     val(85),\n  QX_MPO_LightOven_Q9:                     val(86),\n  QX_MPO_Compressor_Q10:                   val(87),\n  QX_MPO_ValveVacuum_Q11:                  val(88),\n  QX_MPO_ValveLowering_Q12:                val(89),\n  QX_MPO_ValveOvenDoor_Q13:                val(90),\n  QX_MPO_ValveFeeder_Q14:                  val(91),\n\n  QW_MPO_PWM_TurnTable_M1:                 val(92),\n  QW_MPO_PWM_Vacuum_M5:                    val(93),\n\n  // ---- SLD ----\n  IX_SLD_PulseCounter_I1:                  val(94),\n  IX_SLD_LightBarrierInlet_I2:             val(95),\n  IX_SLD_LightBarrierBehindColorSensor_I3: val(96),\n  IW_SLD_ColorSensor_A4:                   val(97),\n  IX_SLD_LightBarrierWhite_I5:             val(98),\n  IX_SLD_LightBarrierRed_I6:               val(99),\n  IX_SLD_LightBarrierBlue_I7:              val(100),\n\n  QX_SLD_M1_ConveyorBelt_Q1:               val(101),\n  QX_SLD_Compressor_Q2:                    val(102),\n  QX_SLD_ValveFirstEjectorWhite_Q3:        val(103),\n  QX_SLD_ValveSecondEjectorRed_Q4:         val(104),\n  QX_SLD_ValveThirdEjectorBlue_Q5:         val(105),\n\n  // ---- Global / system inputs ----\n  IX_Set_Park_Position:                    val(106),\n  IX_Fill_HBW:                             val(107),\n\n    // ---- HBW storage occupancy + color ----\n    // occupied is derived directly from s_state:\n    // RAW / anything non-empty -> 1\n    // empty / 0 / null -> 0\n    \n    storage_slot_1_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(108) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_1_color:    val(109),\n    \n    storage_slot_2_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(110) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_2_color:    val(111),\n    \n    storage_slot_3_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(112) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_3_color:    val(113),\n    \n    storage_slot_4_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(114) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_4_color:    val(115),\n    \n    storage_slot_5_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(116) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_5_color:    val(117),\n    \n    storage_slot_6_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(118) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_6_color:    val(119),\n    \n    storage_slot_7_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(120) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_7_color:    val(121),\n    \n    storage_slot_8_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(122) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_8_color:    val(123),\n    \n    storage_slot_9_occupied: Number([\"\", \"0\", \"EMPTY\", \"NONE\", \"NULL\"].indexOf(String(val(124) || \"\").trim().toUpperCase()) === -1),\n    storage_slot_9_color:    val(125),\n    \n  // ---- Order Button ----\n  ordered_color:            val(126),\n  order_ts:               val(127),\n};\n\nreturn { payload: JSON.stringify(ai_state) };",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1030,
+        "y": 1400,
+        "wires": [
+            [
+                "2c9faa03.6e7136",
+                "a7c5ada5.aa4e2"
+            ]
+        ]
+    },
+    {
+        "id": "5a3746ea.4dbe5",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "state/X",
+        "qos": "2",
+        "retain": "true",
+        "broker": "788959e0.92f718",
+        "x": 2000,
+        "y": 1500,
+        "wires": []
+    },
+    {
+        "id": "fd7e661f.ea9358",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "log/logging/state",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1760,
+        "y": 1340,
+        "wires": []
+    },
+    {
+        "id": "2c3ed1c4.be9206",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "ai/logging",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 1000,
+        "y": 1260,
+        "wires": []
+    },
+    {
+        "id": "3d237ac4.5f8056",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "read",
+        "payloadType": "date",
+        "topic": "",
+        "repeat": "2",
+        "crontab": "",
+        "once": true,
+        "startDelay": "1",
+        "name": "",
+        "payload": "",
+        "addressSpaceItems": [],
+        "x": 350,
+        "y": 1400,
+        "wires": [
+            [
+                "8baccf09.6c939"
+            ]
+        ]
+    },
+    {
+        "id": "7ec58900.8fe8c8",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "Jobcounts Global (VGR_accepted_n)",
+        "rules": [
+            {
+                "t": "set",
+                "p": "VGR_accepted_n",
+                "pt": "global",
+                "to": "1",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1830,
+        "y": 840,
+        "wires": [
+            [
+                "68d1ba15.9bb9bc"
+            ]
+        ]
+    },
+    {
+        "id": "c3d7d2e5.8d72d",
+        "type": "inject",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "x": 290,
+        "y": 760,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "817f5177.bbdd2",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "listen",
+        "payloadType": "num",
+        "topic": "",
+        "repeat": "7",
+        "crontab": "",
+        "once": true,
+        "startDelay": "8",
+        "name": "listen",
+        "payload": "1000",
+        "addressSpaceItems": [
+            {
+                "name": "",
+                "nodeId": "ns=3;s=\"VGR_Actions_DB\".\"jobCount\"",
+                "datatypeName": ""
+            }
+        ],
+        "x": 280,
+        "y": 840,
+        "wires": [
+            [
+                "50b7110a.fd9128"
+            ]
+        ]
+    },
+    {
+        "id": "50b7110a.fd9128",
+        "type": "OPCUA-IIoT-Listener",
+        "z": "846734d2.2f94a8",
+        "connector": "e7236339.0390f",
+        "action": "subscribe",
+        "queueSize": "5",
+        "name": "",
+        "topic": "",
+        "justValue": true,
+        "useGroupItems": false,
+        "showStatusActivities": false,
+        "showErrors": true,
+        "x": 420,
+        "y": 840,
+        "wires": [
+            [
+                "91c5b34a.7484c",
+                "7768c87.9a66a38"
+            ]
+        ]
+    },
+    {
+        "id": "91c5b34a.7484c",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read busy state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\n//Items for state MPO\nmsg.addressSpaceItems = [\n    {   \"name\":\"\",\n        \"nodeId\":'ns=3;s=\"VGR_Actions_DB\".\"jobCount\"',\n        \"datatypeName\":'Boolean'},\n        ]\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 600,
+        "y": 840,
+        "wires": [
+            [
+                "db481f96.cf962"
+            ]
+        ]
+    },
+    {
+        "id": "db481f96.cf962",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 770,
+        "y": 840,
+        "wires": [
+            [
+                "2b196cf5.56f824"
+            ]
+        ]
+    },
+    {
+        "id": "2b196cf5.56f824",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "var new_msg = { payload: \"\" };\nvar vgr_jobCount = {\n    jobCount: true}\n\n\nvgr_jobCount.jobCount = msg.payload[0].value.value[1];            //[0] = code\n\nnew_msg.payload = vgr_jobCount\n\nreturn new_msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 990,
+        "y": 840,
+        "wires": [
+            [
+                "f188e1.85e9072"
+            ]
+        ]
+    },
+    {
+        "id": "82998133.610d8",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "listen",
+        "payloadType": "num",
+        "topic": "",
+        "repeat": "7",
+        "crontab": "",
+        "once": true,
+        "startDelay": "8",
+        "name": "listen",
+        "payload": "1000",
+        "addressSpaceItems": [
+            {
+                "name": "",
+                "nodeId": "ns=3;s=\"HBW_Actions_DB\".\"jobCount\"",
+                "datatypeName": ""
+            }
+        ],
+        "x": 280,
+        "y": 900,
+        "wires": [
+            [
+                "d3a3b9dc.bba7f"
+            ]
+        ]
+    },
+    {
+        "id": "d3a3b9dc.bba7f",
+        "type": "OPCUA-IIoT-Listener",
+        "z": "846734d2.2f94a8",
+        "connector": "e7236339.0390f",
+        "action": "subscribe",
+        "queueSize": "5",
+        "name": "",
+        "topic": "",
+        "justValue": true,
+        "useGroupItems": false,
+        "showStatusActivities": false,
+        "showErrors": true,
+        "x": 420,
+        "y": 900,
+        "wires": [
+            [
+                "972b983f.852048"
+            ]
+        ]
+    },
+    {
+        "id": "972b983f.852048",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read busy state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\n//Items for state MPO\nmsg.addressSpaceItems = [\n    {   \"name\":\"\",\n        \"nodeId\":'ns=3;s=\"HBW_Actions_DB\".\"jobCount\"',\n        \"datatypeName\":'Boolean'},\n        ]\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 600,
+        "y": 900,
+        "wires": [
+            [
+                "d735785a.b8dc78"
+            ]
+        ]
+    },
+    {
+        "id": "d735785a.b8dc78",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 770,
+        "y": 900,
+        "wires": [
+            [
+                "de7de1c6.639298"
+            ]
+        ]
+    },
+    {
+        "id": "de7de1c6.639298",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "var new_msg = { payload: \"\" };\nvar vgr_jobCount = {\n    jobCount: true}\n\n\nvgr_jobCount.jobCount = msg.payload[0].value.value[1];            //[0] = code\n\nnew_msg.payload = vgr_jobCount\n\nreturn new_msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 990,
+        "y": 900,
+        "wires": [
+            [
+                "554e48fb.27d8e8"
+            ]
+        ]
+    },
+    {
+        "id": "97b4fe53.aee088",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "listen",
+        "payloadType": "num",
+        "topic": "",
+        "repeat": "7",
+        "crontab": "",
+        "once": true,
+        "startDelay": "8",
+        "name": "listen",
+        "payload": "1000",
+        "addressSpaceItems": [
+            {
+                "name": "",
+                "nodeId": "ns=3;s=\"MPO_Actions_DB\".\"jobCount\"",
+                "datatypeName": ""
+            }
+        ],
+        "x": 280,
+        "y": 960,
+        "wires": [
+            [
+                "a370913c.0338d8"
+            ]
+        ]
+    },
+    {
+        "id": "a370913c.0338d8",
+        "type": "OPCUA-IIoT-Listener",
+        "z": "846734d2.2f94a8",
+        "connector": "e7236339.0390f",
+        "action": "subscribe",
+        "queueSize": "5",
+        "name": "",
+        "topic": "",
+        "justValue": true,
+        "useGroupItems": false,
+        "showStatusActivities": false,
+        "showErrors": true,
+        "x": 420,
+        "y": 960,
+        "wires": [
+            [
+                "20d9207b.d7512"
+            ]
+        ]
+    },
+    {
+        "id": "20d9207b.d7512",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read busy state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\n//Items for state MPO\nmsg.addressSpaceItems = [\n    {   \"name\":\"\",\n        \"nodeId\":'ns=3;s=\"MPO_Actions_DB\".\"jobCount\"',\n        \"datatypeName\":'Boolean'},\n        ]\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 600,
+        "y": 960,
+        "wires": [
+            [
+                "293b53ed.344094"
+            ]
+        ]
+    },
+    {
+        "id": "293b53ed.344094",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 770,
+        "y": 960,
+        "wires": [
+            [
+                "43e2c2ec.953f74"
+            ]
+        ]
+    },
+    {
+        "id": "43e2c2ec.953f74",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "var new_msg = { payload: \"\" };\nvar vgr_jobCount = {\n    jobCount: true}\n\n\nvgr_jobCount.jobCount = msg.payload[0].value.value[1];            //[0] = code\n\nnew_msg.payload = vgr_jobCount\n\nreturn new_msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 990,
+        "y": 960,
+        "wires": [
+            [
+                "6ad6de24.06b348"
+            ]
+        ]
+    },
+    {
+        "id": "abe9d56d.8fbae",
+        "type": "OPCUA-IIoT-Inject",
+        "z": "846734d2.2f94a8",
+        "injectType": "listen",
+        "payloadType": "num",
+        "topic": "",
+        "repeat": "7",
+        "crontab": "",
+        "once": true,
+        "startDelay": "12",
+        "name": "listen",
+        "payload": "1000",
+        "addressSpaceItems": [
+            {
+                "name": "",
+                "nodeId": "ns=3;s=\"SLD_Actions_DB\".\"jobCount\"",
+                "datatypeName": ""
+            }
+        ],
+        "x": 280,
+        "y": 1020,
+        "wires": [
+            [
+                "9c423251.717058"
+            ]
+        ]
+    },
+    {
+        "id": "9c423251.717058",
+        "type": "OPCUA-IIoT-Listener",
+        "z": "846734d2.2f94a8",
+        "connector": "e7236339.0390f",
+        "action": "subscribe",
+        "queueSize": "5",
+        "name": "",
+        "topic": "",
+        "justValue": true,
+        "useGroupItems": false,
+        "showStatusActivities": false,
+        "showErrors": true,
+        "x": 420,
+        "y": 1020,
+        "wires": [
+            [
+                "86b87a4d.21afd8",
+                "f3b48a60.63238"
+            ]
+        ]
+    },
+    {
+        "id": "86b87a4d.21afd8",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "read busy state",
+        "func": "msg.nodetype = \"inject\";\nmsg.injectType = \"read\";\n\n//Items for state MPO\nmsg.addressSpaceItems = [\n    {   \"name\":\"\",\n        \"nodeId\":'ns=3;s=\"SLD_Actions_DB\".\"jobCount\"',\n        \"datatypeName\":'Boolean'},\n        ]\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 600,
+        "y": 1020,
+        "wires": [
+            [
+                "c2df41a3.b579d"
+            ]
+        ]
+    },
+    {
+        "id": "c2df41a3.b579d",
+        "type": "OPCUA-IIoT-Read",
+        "z": "846734d2.2f94a8",
+        "attributeId": "13",
+        "maxAge": 1,
+        "depth": 1,
+        "connector": "74a7d84.2350d28",
+        "name": "",
+        "justValue": true,
+        "showStatusActivities": false,
+        "showErrors": false,
+        "parseStrings": false,
+        "historyDays": "",
+        "serverMaxItemsToRead": "",
+        "x": 770,
+        "y": 1020,
+        "wires": [
+            [
+                "14365821.56fde"
+            ]
+        ]
+    },
+    {
+        "id": "14365821.56fde",
+        "type": "function",
+        "z": "846734d2.2f94a8",
+        "name": "Format Output Message",
+        "func": "var new_msg = { payload: \"\" };\nvar vgr_jobCount = {\n    jobCount: true}\n\n\nvgr_jobCount.jobCount = msg.payload[0].value.value[1]        //[0] = code\n\nnew_msg.payload = vgr_jobCount\n\nreturn new_msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 990,
+        "y": 1020,
+        "wires": [
+            [
+                "69d4ed9.8482014"
+            ]
+        ]
+    },
+    {
+        "id": "f188e1.85e9072",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "VGR_jobcount",
+                "pt": "flow",
+                "to": "payload.jobCount",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1270,
+        "y": 840,
+        "wires": [
+            [
+                "35c8f0b8.47746"
+            ]
+        ]
+    },
+    {
+        "id": "2a994abd.277366",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "##VGRjobcounT###",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1780,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "554e48fb.27d8e8",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "HBW_jobcount",
+                "pt": "flow",
+                "to": "payload.jobCount",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1270,
+        "y": 900,
+        "wires": [
+            [
+                "a02129ae.5550c8"
+            ]
+        ]
+    },
+    {
+        "id": "6ad6de24.06b348",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "MPO_jobcount",
+                "pt": "flow",
+                "to": "payload.jobCount",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1270,
+        "y": 960,
+        "wires": [
+            [
+                "e80ef7a0.4f2f7"
+            ]
+        ]
+    },
+    {
+        "id": "69d4ed9.8482014",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "SLD_jobcount",
+                "pt": "flow",
+                "to": "payload.jobCount",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1270,
+        "y": 1020,
+        "wires": [
+            [
+                "2f76ba82.3a30ae"
+            ]
+        ]
+    },
+    {
+        "id": "68d1ba15.9bb9bc",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "ai/vgr/cmd0",
+        "qos": "",
+        "retain": "",
+        "broker": "788959e0.92f718",
+        "x": 2130,
+        "y": 840,
+        "wires": []
+    },
+    {
+        "id": "35c8f0b8.47746",
+        "type": "switch",
+        "z": "846734d2.2f94a8",
+        "name": "Neustart CMD0",
+        "property": "VGR_jobcount",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "4294967295",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1540,
+        "y": 840,
+        "wires": [
+            [
+                "2a994abd.277366",
+                "7ec58900.8fe8c8"
+            ]
+        ]
+    },
+    {
+        "id": "a02129ae.5550c8",
+        "type": "switch",
+        "z": "846734d2.2f94a8",
+        "name": "Neustart CMD0",
+        "property": "HBW_jobcount",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "4294967295",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1540,
+        "y": 900,
+        "wires": [
+            [
+                "73584617.80577"
+            ]
+        ]
+    },
+    {
+        "id": "e80ef7a0.4f2f7",
+        "type": "switch",
+        "z": "846734d2.2f94a8",
+        "name": "Neustart CMD0",
+        "property": "MPO_jobcount",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "4294967295",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1540,
+        "y": 960,
+        "wires": [
+            [
+                "246d20b7.cc048"
+            ]
+        ]
+    },
+    {
+        "id": "2f76ba82.3a30ae",
+        "type": "switch",
+        "z": "846734d2.2f94a8",
+        "name": "Neustart CMD0",
+        "property": "SLD_jobcount",
+        "propertyType": "flow",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "4294967295",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1540,
+        "y": 1020,
+        "wires": [
+            [
+                "d30e3ac4.7c4ab8"
+            ]
+        ]
+    },
+    {
+        "id": "8feddb8e.967b1",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "ai/hbw/cmd0",
+        "qos": "",
+        "retain": "",
+        "broker": "788959e0.92f718",
+        "x": 2130,
+        "y": 900,
+        "wires": []
+    },
+    {
+        "id": "a4744ef8.fadc4",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "ai/mpo/cmd0",
+        "qos": "",
+        "retain": "",
+        "broker": "788959e0.92f718",
+        "x": 2130,
+        "y": 960,
+        "wires": []
+    },
+    {
+        "id": "da582152.332bc8",
+        "type": "mqtt out",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "topic": "ai/sld/cmd0",
+        "qos": "",
+        "retain": "",
+        "broker": "788959e0.92f718",
+        "x": 2130,
+        "y": 1020,
+        "wires": []
+    },
+    {
+        "id": "73584617.80577",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "Jobcounts Global (HBW_accepted_n)",
+        "rules": [
+            {
+                "t": "set",
+                "p": "HBW_accepted_n",
+                "pt": "global",
+                "to": "1",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1830,
+        "y": 900,
+        "wires": [
+            [
+                "8feddb8e.967b1"
+            ]
+        ]
+    },
+    {
+        "id": "d30e3ac4.7c4ab8",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "Jobcounts Global (SLD_accepted_n)",
+        "rules": [
+            {
+                "t": "set",
+                "p": "SLD_accepted_n",
+                "pt": "global",
+                "to": "1",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1830,
+        "y": 1020,
+        "wires": [
+            [
+                "da582152.332bc8"
+            ]
+        ]
+    },
+    {
+        "id": "8e7e8aef.42c82",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "HBW_accepted_n",
+                "pt": "global",
+                "to": "($v := $globalContext(\"HBW_accepted_n\"); ($exists($v) and $v != -1) ? $v + 1 : 1)",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1730,
+        "y": 1540,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "32c83b4c.1e277c",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "VGR_accepted_n",
+                "pt": "global",
+                "to": "($v := $globalContext(\"VGR_accepted_n\"); ($exists($v) and $v != -1) ? $v + 1 : 1)",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1730,
+        "y": 1500,
+        "wires": [
+            [
+                "5a3746ea.4dbe5"
+            ]
+        ]
+    },
+    {
+        "id": "e5f9f72e.4f3c18",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "MPO_accepted_n",
+                "pt": "global",
+                "to": "($v := $globalContext(\"MPO_accepted_n\"); ($exists($v) and $v != -1) ? $v + 1 : 1)",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1730,
+        "y": 1580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "46460fd8.f7e09",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "SLD_accepted_n",
+                "pt": "global",
+                "to": "($v := $globalContext(\"SLD_accepted_n\"); ($exists($v) and $v != -1) ? $v + 1 : 1)",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1730,
+        "y": 1620,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "2c9faa03.6e7136",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "###Before Semaphore###",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1290,
+        "y": 1320,
+        "wires": []
+    },
+    {
+        "id": "7768c87.9a66a38",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "### VGR MESSAGE ###",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 630,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "246d20b7.cc048",
+        "type": "change",
+        "z": "846734d2.2f94a8",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "MPO_accepted_n",
+                "pt": "global",
+                "to": "1",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1810,
+        "y": 960,
+        "wires": [
+            [
+                "a4744ef8.fadc4"
+            ]
+        ]
+    },
+    {
+        "id": "4bb33099.1e91f",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "FALSE",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1430,
+        "y": 1580,
+        "wires": []
+    },
+    {
+        "id": "a7c5ada5.aa4e2",
+        "type": "switch",
+        "z": "846734d2.2f94a8",
+        "name": "Semaphor",
+        "property": "$globalContext(\"VGR_accepted_n\") = $flowContext(\"VGR_jobcount\")\tand\t$globalContext(\"HBW_accepted_n\") = $flowContext(\"HBW_jobcount\")\tand\t$globalContext(\"MPO_accepted_n\") = $flowContext(\"MPO_jobcount\")\tand\t$globalContext(\"SLD_accepted_n\") = $flowContext(\"SLD_jobcount\")",
+        "propertyType": "jsonata",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "false"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1370,
+        "y": 1400,
+        "wires": [
+            [
+                "fd7e661f.ea9358",
+                "8e7e8aef.42c82",
+                "32c83b4c.1e277c",
+                "e5f9f72e.4f3c18",
+                "46460fd8.f7e09"
+            ],
+            [
+                "4bb33099.1e91f"
+            ]
+        ]
+    },
+    {
+        "id": "f3b48a60.63238",
+        "type": "debug",
+        "z": "846734d2.2f94a8",
+        "name": "### SLD MESSAGE ###",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 630,
+        "y": 1100,
+        "wires": []
+    },
+    {
+        "id": "74a7d84.2350d28",
+        "type": "OPCUA-IIoT-Connector",
+        "z": "",
+        "discoveryUrl": "",
+        "endpoint": "opc.tcp://192.168.0.1:4840",
+        "keepSessionAlive": true,
+        "loginEnabled": false,
+        "securityPolicy": "None",
+        "securityMode": "NONE",
+        "name": "SIEMENS PLC@192.168.0.1",
+        "showErrors": true,
+        "individualCerts": false,
+        "publicCertificateFile": "",
+        "privateKeyFile": "",
+        "defaultSecureTokenLifetime": "",
+        "endpointMustExist": false,
+        "autoSelectRightEndpoint": false,
+        "strategyMaxRetry": "",
+        "strategyInitialDelay": "",
+        "strategyMaxDelay": "",
+        "strategyRandomisationFactor": "",
+        "requestedSessionTimeout": "",
+        "connectionStartDelay": "",
+        "reconnectDelay": "",
+        "maxBadSessionRequests": ""
+    },
+    {
+        "id": "788959e0.92f718",
+        "type": "mqtt-broker",
+        "z": "",
+        "name": "",
+        "broker": "192.168.0.10",
+        "port": "1883",
+        "clientid": "Node-RED",
+        "usetls": false,
+        "compatmode": true,
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": ""
+    },
+    {
+        "id": "e7236339.0390f",
+        "type": "OPCUA-IIoT-Connector",
+        "z": "",
+        "discoveryUrl": "",
+        "endpoint": "opc.tcp://192.168.0.1:4840",
+        "keepSessionAlive": true,
+        "loginEnabled": false,
+        "securityPolicy": "None",
+        "securityMode": "NONE",
+        "name": "SIEMENS PLC@192.168.0.1 II",
+        "showErrors": false,
+        "individualCerts": false,
+        "publicCertificateFile": "",
+        "privateKeyFile": "",
+        "defaultSecureTokenLifetime": "",
+        "endpointMustExist": false,
+        "autoSelectRightEndpoint": false,
+        "strategyMaxRetry": "",
+        "strategyInitialDelay": "",
+        "strategyMaxDelay": "",
+        "strategyRandomisationFactor": "",
+        "requestedSessionTimeout": "",
+        "connectionStartDelay": "",
+        "reconnectDelay": "",
+        "maxBadSessionRequests": "10"
+    }
+]

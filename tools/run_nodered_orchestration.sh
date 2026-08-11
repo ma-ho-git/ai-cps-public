@@ -13,7 +13,7 @@ usage() {
 Usage: ./tools/run_nodered_orchestration.sh <command> [options]
 
 Commands:
-  physical-up     Startet nur Storage-, VGR- und HBW-Inferenzcontainer.
+  physical-up     Startet Storage, VGR und HBW und wartet auf MQTT-Bereitschaft.
   virtual-up      Startet Mosquitto, Node-RED und die drei NN-Container.
   virtual-hmi     Startet den virtuellen Stack, wartet auf `ready` und oeffnet keinen Lauf.
   virtual-run     Startet/resetet den virtuellen Stack, wartet auf frisches `ready` und zuendet einmal.
@@ -325,6 +325,90 @@ pull_virtual_images() {
   virtual_compose pull storage_infer vgr_infer hbw_infer node_red
 }
 
+physical_nn_instance_map() {
+  local domain service container_id instance_id
+  for domain in storage vgr hbw; do
+    service="${domain}_infer"
+    container_id="$(base_compose ps -q "$service" 2>/dev/null || true)"
+    [[ -n "$container_id" ]] || return 1
+    instance_id="$(docker inspect --format '{{.Config.Hostname}}' "$container_id" 2>/dev/null || true)"
+    [[ -n "$instance_id" ]] || return 1
+    printf '%s=%s\n' "$domain" "$instance_id"
+  done
+}
+
+physical_nn_statuses_match() {
+  local payload_lines="$1"
+  local expected_instances="$2"
+  local python_bin="$REPO_ROOT/.venv/bin/python"
+  [[ -x "$python_bin" ]] || python_bin="$(command -v python3 || true)"
+  [[ -n "$python_bin" ]] || return 1
+
+  PHYSICAL_NN_STATUS_LINES="$payload_lines" EXPECTED_NN_INSTANCES="$expected_instances" \
+    "$python_bin" -c '
+import json
+import os
+import sys
+
+expected = {}
+for line in os.environ["EXPECTED_NN_INSTANCES"].splitlines():
+    domain, separator, instance_id = line.partition("=")
+    if separator and domain and instance_id:
+        expected[domain] = instance_id
+
+ready = set()
+for line in os.environ["PHYSICAL_NN_STATUS_LINES"].splitlines():
+    topic, separator, raw_payload = line.partition(" ")
+    if not separator:
+        continue
+    parts = topic.split("/")
+    if len(parts) != 4 or parts[:2] != ["ft", "nn"] or parts[3] != "status":
+        continue
+    domain = parts[2]
+    try:
+        status = json.loads(raw_payload)
+    except (TypeError, json.JSONDecodeError):
+        continue
+    if (
+        domain in expected
+        and status.get("state") == "online"
+        and status.get("detail") == "model_loaded"
+        and str(status.get("instance_id", "")) == expected[domain]
+    ):
+        ready.add(domain)
+
+sys.exit(0 if ready == set(expected) == {"storage", "vgr", "hbw"} else 1)
+' >/dev/null 2>&1
+}
+
+read_physical_nn_statuses() {
+  mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" "${MQTT_AUTH_ARGS[@]}" -v \
+    -t 'ft/nn/+/status' -C 3 -W 2 2>/dev/null || true
+}
+
+wait_physical_nn_ready() {
+  local expected_instances="$1"
+  local first_payload second_payload
+  require_command mosquitto_sub
+  info "Warte auf Storage, VGR und HBW: aktuelle Containerinstanz, Modell geladen und MQTT online."
+  local deadline=$((SECONDS + READY_TIMEOUT_S))
+  while (( SECONDS < deadline )); do
+    first_payload="$(read_physical_nn_statuses)"
+    if physical_nn_statuses_match "$first_payload" "$expected_instances"; then
+      # runtime-v1.2.0 publiziert den Online-Status unmittelbar vor subscribe().
+      # Eine zweite identische Sicht nach kurzer Stabilisierung schliesst diese
+      # kleine Start-Race auch fuer bereits veroeffentlichte Images praktisch aus.
+      sleep 1
+      second_payload="$(read_physical_nn_statuses)"
+      if physical_nn_statuses_match "$second_payload" "$expected_instances"; then
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  die "NN-Dienste wurden innerhalb von ${READY_TIMEOUT_S}s nicht MQTT-ready. Pruefe: docker compose logs storage_infer vgr_infer hbw_infer"
+}
+
 physical_up() {
   require_docker
   if [[ "$USE_IMAGES" == "1" ]]; then
@@ -343,6 +427,16 @@ physical_up() {
   info "Starte ausschliesslich die drei NN-Anwendungscontainer gegen ${MQTT_HOST}:${MQTT_PORT} (Command-Output=${COMMAND_OUTPUT_ENABLED})."
   MQTT_HOST="$MQTT_HOST" MQTT_PORT="$MQTT_PORT" COMMAND_OUTPUT_ENABLED="$COMMAND_OUTPUT_ENABLED" \
     base_compose up "${options[@]}"
+  local expected_instances
+  if ! expected_instances="$(physical_nn_instance_map)"; then
+    die "Die drei gestarteten NN-Containerinstanzen konnten nicht eindeutig bestimmt werden."
+  fi
+  wait_physical_nn_ready "$expected_instances"
+  if [[ "${COMMAND_OUTPUT_ENABLED,,}" == "true" ]]; then
+    info "[BEREIT] Storage, VGR und HBW sind MQTT-ready; Command-Ausgabe ist aktiv. Die Anlage kann jetzt eingeschaltet werden."
+  else
+    info "[BEREIT] Storage, VGR und HBW sind MQTT-ready. Diagnosebetrieb: VGR-/HBW-Commands bleiben deaktiviert."
+  fi
 }
 
 physical_status() {

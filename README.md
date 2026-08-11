@@ -112,7 +112,11 @@ Repository nutzt nur den eingefrorenen MQTT-Grenzvertrag.
 ```
 
 `physical-up` startet nur die drei NN-Container und sendet standardmaessig
-keine Maschinenbefehle. Erst nach kontrollierter Diagnose freigeben:
+keine Maschinenbefehle. Der Befehl endet erst, wenn Storage, VGR und HBW fuer
+die jeweils aktuelle Containerinstanz `online/model_loaded` melden und dieser
+Zustand nach einer kurzen MQTT-Stabilisierung bestaetigt wurde. Erst nach der
+abschliessenden `[BEREIT]`-Meldung die physische Anlage einschalten. Fuer die
+kontrollierte Command-Freigabe gilt:
 
 ```bash
 ./tools/run_nodered_orchestration.sh physical-up --command-output-enabled

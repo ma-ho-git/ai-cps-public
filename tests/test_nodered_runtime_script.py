@@ -90,12 +90,24 @@ class NodeRedRuntimeScriptTests(unittest.TestCase):
             (fake_bin / "docker").write_text(
                 "#!/usr/bin/env bash\n"
                 f"printf '%s|%s\\n' \"${{COMMAND_OUTPUT_ENABLED:-unset}}\" \"$*\" >> {docker_log!s}\n"
-                "if [[ \"$1\" == \"ps\" ]]; then exit 0; fi\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q storage_infer\"* ]]; then printf 'storage-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q vgr_infer\"* ]]; then printf 'vgr-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q hbw_infer\"* ]]; then printf 'hbw-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"inspect\" ]]; then last=\"${@: -1}\"; printf '%s-host\\n' \"${last%-container}\"; exit 0; fi\n"
                 "exit 0\n",
                 encoding="utf-8",
             )
+            (fake_bin / "mosquitto_sub").write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' "
+                "'ft/nn/storage/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"storage-host\"}' "
+                "'ft/nn/vgr/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"vgr-host\"}' "
+                "'ft/nn/hbw/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"hbw-host\"}'\n",
+                encoding="utf-8",
+            )
             (fake_bin / "docker").chmod(0o755)
-            env = {"PATH": f"{fake_bin}:/usr/bin:/bin"}
+            (fake_bin / "mosquitto_sub").chmod(0o755)
+            env = {"PATH": f"{fake_bin}:/usr/bin:/bin", "READY_TIMEOUT_S": "5"}
 
             result = subprocess.run(
                 [
@@ -117,7 +129,55 @@ class NodeRedRuntimeScriptTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Command-Output=true", result.stdout)
+        self.assertIn("[BEREIT]", result.stdout)
+        self.assertIn("Die Anlage kann jetzt eingeschaltet werden", result.stdout)
         self.assertIn("true|compose", docker_calls)
+
+    def test_physical_up_rejects_retained_status_from_old_container_instances(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_bin = Path(tmp_dir)
+            (fake_bin / "docker").write_text(
+                "#!/usr/bin/env bash\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q storage_infer\"* ]]; then printf 'storage-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q vgr_infer\"* ]]; then printf 'vgr-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"compose\" && \"$*\" == *\"ps -q hbw_infer\"* ]]; then printf 'hbw-container\\n'; exit 0; fi\n"
+                "if [[ \"$1\" == \"inspect\" ]]; then last=\"${@: -1}\"; printf '%s-host\\n' \"${last%-container}\"; exit 0; fi\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "mosquitto_sub").write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' "
+                "'ft/nn/storage/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"old-storage\"}' "
+                "'ft/nn/vgr/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"old-vgr\"}' "
+                "'ft/nn/hbw/status {\"state\":\"online\",\"detail\":\"model_loaded\",\"instance_id\":\"old-hbw\"}'\n",
+                encoding="utf-8",
+            )
+            for executable in ("docker", "mosquitto_sub"):
+                (fake_bin / executable).chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    str(SCRIPT),
+                    "physical-up",
+                    "--skip-preflight",
+                    "--no-build",
+                    "--env-file",
+                    str(fake_bin / "missing.env"),
+                ],
+                cwd=ROOT,
+                env={
+                    "PATH": f"{fake_bin}:/usr/bin:/bin",
+                    "READY_TIMEOUT_S": "1",
+                },
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("[BEREIT]", result.stdout)
+        self.assertIn("nicht MQTT-ready", result.stderr)
 
     def test_complete_image_reference_requires_explicit_images_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

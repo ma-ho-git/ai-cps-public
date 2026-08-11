@@ -159,8 +159,11 @@ COMMAND_OUTPUT_ENABLED=false
 ./tools/run_nodered_orchestration.sh physical-up
 ```
 
-Jetzt NN-Status, Requests und Responses beobachten. Es werden noch keine
-VGR-/HBW-Commands erzeugt.
+`physical-up` wartet auf retained `online/model_loaded`-Statusmeldungen, die
+ueber `instance_id` exakt zu den aktuell gestarteten Storage-, VGR- und
+HBW-Containern gehoeren. Nach einer zweiten stabilen MQTT-Sicht meldet das
+Skript `[BEREIT]`. Erst danach die physische Anlage einschalten. Im hier
+gezeigten Diagnosebetrieb werden weiterhin keine VGR-/HBW-Commands erzeugt.
 
 ### Kontrollierte Freigabe
 
@@ -170,6 +173,11 @@ Nur wenn Broker, physische Black Box, Safety und Topics geprueft sind:
 ./tools/run_nodered_orchestration.sh physical-down
 ./tools/run_nodered_orchestration.sh physical-up --command-output-enabled
 ```
+
+Auch bei aktiver Command-Ausgabe gilt die abschliessende `[BEREIT]`-Meldung als
+Einschaltfreigabe. Bleibt sie aus, die Anlage nicht starten und die im Fehler
+genannten Containerlogs pruefen. Das verhindert, dass nicht-retained
+NN-Requests vor den MQTT-Subscriptions publiziert werden.
 
 Die physischen Grenzschnittstellen bleiben unveraendert: Live-Zustand auf
 `log/logging/state`, leere Command-Payloads, QoS 2 und `retain=false`.

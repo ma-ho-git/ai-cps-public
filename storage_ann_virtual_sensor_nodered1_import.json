@@ -1,0 +1,165 @@
+[
+  {
+    "id": "a1c50000.00000001",
+    "type": "tab",
+    "label": "Storage ANN Virtual Sensor",
+    "disabled": false,
+    "info": "Minimaler Produktivpfad: True-Ausgang des bestehenden CPAI-II-Semaphors -> Storage-ANN -> empty_storage_0..9 -> rollierendes 10x29-Fenster -> VGR/HBW-Requests. VGR/HBW publizieren ihre Commands direkt; Node-RED sendet MPO/SLD cmd0. accepted_n/jobCount bleibt im Bestandsflow."
+  },
+  {
+    "id": "a1c50000.00000004",
+    "type": "mqtt in",
+    "z": "a1c50000.00000001",
+    "name": "Freigegebener Anlagenzustand",
+    "topic": "ft/ai/storage/input",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "788959e0.92f718",
+    "x": 180,
+    "y": 220,
+    "wires": [
+      [
+        "a1c50000.00000005"
+      ]
+    ]
+  },
+  {
+    "id": "a1c50000.00000005",
+    "type": "function",
+    "z": "a1c50000.00000001",
+    "name": "Storage zuerst anfragen",
+    "func": "var state = msg.payload;\nif (typeof state === 'string') {\n    try { state = JSON.parse(state); } catch (err) { node.error('Anlagenzustand ist kein gueltiges JSON', msg); return null; }\n}\nif (!state || typeof state !== 'object' || Array.isArray(state)) {\n    node.error('Anlagenzustand muss ein JSON-Objekt sein', msg);\n    return null;\n}\n\nvar features = {};\nfor (var slot = 1; slot <= 9; slot += 1) {\n    var key = 'storage_slot_' + slot + '_occupied';\n    var value = Number(state[key]);\n    if (value !== 0 && value !== 1) {\n        node.error('Storage-Feature fehlt oder ist nicht binaer: ' + key, msg);\n        return null;\n    }\n    features[key] = value;\n}\n\nvar sequence = Number(flow.get('storage_request_sequence') || 0) + 1;\nflow.set('storage_request_sequence', sequence);\nvar requestId = 'plc-storage-' + Date.now() + '-' + sequence;\nflow.set('storage_pending', { request_id: requestId, state: JSON.parse(JSON.stringify(state)) });\n\nmsg.payload = JSON.stringify({\n    request_id: requestId,\n    source_id: 'plc_live',\n    features: features\n});\nmsg.qos = 1;\nmsg.retain = false;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 490,
+    "y": 220,
+    "wires": [
+      [
+        "a1c50000.00000006"
+      ]
+    ]
+  },
+  {
+    "id": "a1c50000.00000006",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "Storage-ANN Request",
+    "topic": "ft/nn/storage/request",
+    "qos": "1",
+    "retain": "false",
+    "broker": "788959e0.92f718",
+    "x": 780,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "a1c50000.00000007",
+    "type": "mqtt in",
+    "z": "a1c50000.00000001",
+    "name": "Storage-ANN Response",
+    "topic": "ft/nn/response/storage",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "788959e0.92f718",
+    "x": 180,
+    "y": 340,
+    "wires": [
+      [
+        "a1c50000.00000008"
+      ]
+    ]
+  },
+  {
+    "id": "a1c50000.00000008",
+    "type": "function",
+    "z": "a1c50000.00000001",
+    "name": "Storage ergaenzen + 10er-Fenster",
+    "func": "var response = msg.payload;\nif (typeof response === 'string') {\n    try { response = JSON.parse(response); } catch (err) { node.error('Storage-Response ist kein gueltiges JSON', msg); return null; }\n}\n\nvar pending = flow.get('storage_pending');\nif (!pending || !response || response.request_id !== pending.request_id) return null;\nif (response.error) { node.error('Storage-ANN: ' + response.error, msg); return null; }\n\nvar emptyStorage = Number(response.empty_storage);\nif (emptyStorage % 1 !== 0 || emptyStorage < 0 || emptyStorage > 9) {\n    node.error('Ungueltiges Storage-Ergebnis: ' + response.empty_storage, msg);\n    return null;\n}\n\nvar state = pending.state;\nstate.empty_storage = emptyStorage;\nfor (var slot = 0; slot <= 9; slot += 1) {\n    state['empty_storage_' + slot] = slot === emptyStorage ? 1 : 0;\n}\n\nvar featureCols = [\n    \"IX_VGR_RefSwitchVerticalAxis_I1\",\n    \"IX_VGR_RefSwitchHorizontalAxis_I2\",\n    \"IX_VGR_RefSwitchRotate_I3\",\n    \"QX_VGR_M2_HorizontalAxisBackward_Q3\",\n    \"QX_VGR_M2_HorizontalAxisForward_Q4\",\n    \"QX_VGR_Compressor_Q7\",\n    \"QX_VGR_ValveVacuum_Q8\",\n    \"VGR_vertical_position\",\n    \"VGR_horizontal_position\",\n    \"VGR_rotate_position\",\n    \"IX_HBW_RefSwitchHorizontalAxis_I1\",\n    \"IX_HBW_LightBarrierInside_I2\",\n    \"IX_HBW_LightBarrierOutside_I3\",\n    \"IX_HBW_RefSwitchVerticalAxis_I4\",\n    \"IX_HBW_SwitchCantileverFront_I5\",\n    \"IX_HBW_SwitchCantileverBack_I6\",\n    \"HBW_vertical_position\",\n    \"HBW_horizontal_position\",\n    \"IX_SSC_LightBarrierStorage_I3\",\n    \"empty_storage_0\",\n    \"empty_storage_1\",\n    \"empty_storage_2\",\n    \"empty_storage_3\",\n    \"empty_storage_4\",\n    \"empty_storage_5\",\n    \"empty_storage_6\",\n    \"empty_storage_7\",\n    \"empty_storage_8\",\n    \"empty_storage_9\"\n];\nvar idleState = {\n    \"IX_VGR_RefSwitchVerticalAxis_I1\": 1,\n    \"IX_VGR_RefSwitchHorizontalAxis_I2\": 1,\n    \"IX_VGR_RefSwitchRotate_I3\": 1,\n    \"QX_VGR_M2_HorizontalAxisBackward_Q3\": 0,\n    \"QX_VGR_M2_HorizontalAxisForward_Q4\": 0,\n    \"QX_VGR_Compressor_Q7\": 0,\n    \"QX_VGR_ValveVacuum_Q8\": 0,\n    \"VGR_vertical_position\": 0,\n    \"VGR_horizontal_position\": 0,\n    \"VGR_rotate_position\": 0,\n    \"IX_HBW_RefSwitchHorizontalAxis_I1\": 1,\n    \"IX_HBW_LightBarrierInside_I2\": 1,\n    \"IX_HBW_LightBarrierOutside_I3\": 1,\n    \"IX_HBW_RefSwitchVerticalAxis_I4\": 1,\n    \"IX_HBW_SwitchCantileverFront_I5\": 0,\n    \"IX_HBW_SwitchCantileverBack_I6\": 1,\n    \"HBW_vertical_position\": 0,\n    \"HBW_horizontal_position\": 0,\n    \"IX_SSC_LightBarrierStorage_I3\": 1\n};\n\nfunction featureVector(source) {\n    var vector = [];\n    for (var index = 0; index < featureCols.length; index += 1) {\n        var feature = featureCols[index];\n        var value;\n        if (feature.indexOf('empty_storage_') === 0) {\n            value = feature === 'empty_storage_' + emptyStorage ? 1 : 0;\n        } else {\n            if (!Object.prototype.hasOwnProperty.call(source, feature)) {\n                throw new Error('LSTM-Feature fehlt: ' + feature);\n            }\n            value = Number(source[feature]);\n            if (!isFinite(value)) {\n                throw new Error('LSTM-Feature ist nicht numerisch: ' + feature);\n            }\n        }\n        vector.push(value);\n    }\n    return vector;\n}\n\nvar windowRows = flow.get('lstm_window');\ntry {\n    if (!Array.isArray(windowRows) || windowRows.length === 0) {\n        windowRows = [];\n        for (var seed = 0; seed < 9; seed += 1) {\n            windowRows.push(featureVector(idleState));\n        }\n    }\n    windowRows.push(featureVector(state));\n    windowRows = windowRows.slice(-10);\n} catch (err) {\n    node.error(err.message, msg);\n    return null;\n}\n\nif (windowRows.length !== 10 || windowRows[0].length !== 29) {\n    node.error('Ungueltiges LSTM-Fenster: erwartet 10x29', msg);\n    return null;\n}\n\nflow.set('lstm_window', windowRows);\nflow.set('storage_pending', null);\n\nvar cycleId = pending.request_id;\nvar commonRequest = {\n    cycle_id: cycleId,\n    parent_request_id: cycleId,\n    source_id: 'plc_live',\n    sequence: windowRows\n};\n\nvar stateMessage = {\n    payload: JSON.stringify(state),\n    qos: 2,\n    retain: true\n};\nvar vgrMessage = {\n    payload: JSON.stringify(Object.assign({}, commonRequest, { request_id: cycleId + ':vgr' })),\n    qos: 1,\n    retain: false\n};\nvar hbwMessage = {\n    payload: JSON.stringify(Object.assign({}, commonRequest, { request_id: cycleId + ':hbw' })),\n    qos: 1,\n    retain: false\n};\nvar mpoMessage = { payload: '', qos: 2, retain: false };\nvar sldMessage = { payload: '', qos: 2, retain: false };\n\nnode.status({ fill: 'green', shape: 'dot', text: 'Fenster 10x29, Fach ' + emptyStorage });\nreturn [stateMessage, vgrMessage, hbwMessage, mpoMessage, sldMessage];",
+    "outputs": 5,
+    "noerr": 0,
+    "x": 500,
+    "y": 380,
+    "wires": [
+      [
+        "a1c50000.00000009"
+      ],
+      [
+        "a1c50000.00000010"
+      ],
+      [
+        "a1c50000.00000011"
+      ],
+      [
+        "a1c50000.00000012"
+      ],
+      [
+        "a1c50000.00000013"
+      ]
+    ]
+  },
+  {
+    "id": "a1c50000.00000009",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "Bestehender KI-Zustand state/X",
+    "topic": "state/X",
+    "qos": "2",
+    "retain": "true",
+    "broker": "788959e0.92f718",
+    "x": 850,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "a1c50000.00000010",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "VGR-LSTM Request",
+    "topic": "ft/nn/vgr/request",
+    "qos": "1",
+    "retain": "false",
+    "broker": "788959e0.92f718",
+    "x": 820,
+    "y": 350,
+    "wires": []
+  },
+  {
+    "id": "a1c50000.00000011",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "HBW-LSTM Request",
+    "topic": "ft/nn/hbw/request",
+    "qos": "1",
+    "retain": "false",
+    "broker": "788959e0.92f718",
+    "x": 820,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "a1c50000.00000012",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "MPO Idle",
+    "topic": "ai/mpo/cmd0",
+    "qos": "2",
+    "retain": "false",
+    "broker": "788959e0.92f718",
+    "x": 800,
+    "y": 450,
+    "wires": []
+  },
+  {
+    "id": "a1c50000.00000013",
+    "type": "mqtt out",
+    "z": "a1c50000.00000001",
+    "name": "SLD Idle",
+    "topic": "ai/sld/cmd0",
+    "qos": "2",
+    "retain": "false",
+    "broker": "788959e0.92f718",
+    "x": 800,
+    "y": 500,
+    "wires": []
+  }
+]

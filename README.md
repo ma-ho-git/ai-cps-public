@@ -23,11 +23,11 @@ Docker Engine oder Docker Desktop im Linux-Container-Modus, Compose und
 Python 3.12. Betriebsrechner verwenden den freigegebenen Release:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.1.0 \
+git clone --depth 1 --branch runtime-v1.2.0 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.1.0 \
+  --mode virtual --release runtime-v1.2.0 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -39,7 +39,7 @@ Physischer Schnellstart:
 
 ```bash
 python3 tools/setup_portable_runtime.py init --mode physical \
-  --release runtime-v1.1.0 --mqtt-host 192.168.0.5
+  --release runtime-v1.2.0 --mqtt-host 192.168.0.5
 ./tools/run_nodered_orchestration.sh physical-up --images
 ```
 
@@ -63,13 +63,33 @@ Vollstaendigen Standardlauf direkt starten:
 ./tools/run_nodered_orchestration.sh virtual-run
 ```
 
-Verfuegbare Profile:
+Verfuegbare Testszenarien:
 
 ```bash
 ./tools/run_nodered_orchestration.sh virtual-run --trace-profile standard
 ./tools/run_nodered_orchestration.sh virtual-run --trace-profile full-storage-attempt
 ./tools/run_nodered_orchestration.sh virtual-run --trace-profile full-storage-process-guard
 ```
+
+| Interne ID | Bedeutung |
+|---|---|
+| `standard` | Normalbetrieb mit Einlagerungen und Idle-Phasen (320 Zustaende) |
+| `full-storage-attempt` | Vollspeicher mit 20 wiederholten Einlagerungsversuchen (157 Zustaende) |
+| `full-storage-process-guard` | Vollspeicher mit 9 vollstaendigen Prozesssequenzen (308 Zustaende) |
+
+Im Dashboard kann pro Lauf zwischen dem aktuellen Deploymentstand und dem
+historischen VGR-/HBW-Modellpaar gewaehlt werden. Das historische Profil dient
+ausschliesslich dazu, den frueheren Vollspeicherfehler virtuell zu
+reproduzieren:
+
+```bash
+./tools/run_nodered_orchestration.sh virtual-run \
+  --model-profile historical-full-storage-error \
+  --trace-profile full-storage-attempt
+```
+
+Ohne `--model-profile` wird unveraendert `deployment-current` verwendet. Der
+physische Betrieb bietet das historische Profil nicht an.
 
 Status und Stopp:
 

@@ -144,6 +144,40 @@ class DirectCommandOutputTests(unittest.TestCase):
                 self.assertIn("error", response)
                 self.assertFalse(any(item[0].startswith("ai/") for item in client.published))
 
+    def test_profile_error_response_names_the_selected_historical_model(self):
+        for domain in ("vgr", "hbw"):
+            with self.subTest(domain=domain):
+                service = load_service(domain)
+                historical_id = f"{domain}:historical"
+                service.CONTRACT = {"model_id": f"{domain}:current"}
+                service.ACTIVE_MODEL_PROFILE = "deployment-current"
+                service.LOADED_PROFILES = {
+                    "deployment-current": {
+                        "contract": {"model_id": f"{domain}:current"},
+                    },
+                    "historical-full-storage-error": {
+                        "contract": {"model_id": historical_id},
+                    },
+                }
+                service.RESPONSE_CACHE = service.ResponseCache()
+                request = {
+                    "cycle_id": "cycle-error",
+                    "request_id": f"cycle-error:{domain}",
+                    "source_id": "factory-a",
+                    "model_profile": "historical-full-storage-error",
+                    "model_id": historical_id,
+                }
+                message = types.SimpleNamespace(payload=json.dumps(request).encode("utf-8"))
+                client = FakeClient()
+
+                service.on_message(client, None, message)
+
+                response = json.loads(client.published[0][1])
+                self.assertEqual(response["model_profile"], "historical-full-storage-error")
+                self.assertEqual(response["model_id"], historical_id)
+                self.assertIn("error", response)
+                self.assertFalse(any(item[0].startswith("ai/") for item in client.published))
+
 
 if __name__ == "__main__":
     unittest.main()

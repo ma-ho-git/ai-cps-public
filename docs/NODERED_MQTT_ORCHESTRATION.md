@@ -57,11 +57,25 @@ durchgehend `cmd=0`.
 
 ## Virtuelle Fabrik
 
-Der Fabrik-Flow laedt eines von drei Profilen:
+Der Fabrik-Flow laedt eines von drei Testszenarien:
 
-- `standard`: 320 Zustaende;
-- `full-storage-attempt`: stationaere Ueberfuellversuche;
-- `full-storage-process-guard`: prozessartige Ueberfuellversuche.
+- `standard`: Normalbetrieb mit Einlagerungen und Idle-Phasen (320 Zustaende);
+- `full-storage-attempt`: Vollspeicher mit 20 wiederholten
+  Einlagerungsversuchen (157 Zustaende);
+- `full-storage-process-guard`: Vollspeicher mit 9 vollstaendigen
+  Prozesssequenzen (308 Zustaende).
+
+Im virtuellen Betrieb stehen zwei feste Modellprofile zur Verfuegung:
+
+- `deployment-current`: der ueber `.env` ausgewaehlte Deploymentstand;
+- `historical-full-storage-error`: das historische VGR-/HBW-Modellpaar vor
+  der Vollspeicherkorrektur.
+
+Das Profil wird atomar mit dem Startbefehl festgelegt und an jeden VGR-/HBW-
+Request weitergegeben. Ohne Feld gilt `deployment-current`. Requests und
+Responses nennen additiv Profil und tatsaechliche Modell-ID. Ein Profilwechsel
+beginnt nach Reset mit neuen Rolling Windows. Der physische Stack erhaelt den
+historischen Katalog nicht und behaelt seinen bisherigen Modellvertrag.
 
 Jedes Modul besitzt eine Basiszeit. Pro Command wird daraus mit dem durch
 `FACTORY_SEED` reproduzierbaren Faktor `0,5..1,5` eine Laufzeit erzeugt.
@@ -71,9 +85,10 @@ Standard sind 100 ms pro Modul.
 
 Das Dashboard liegt unter `/dashboard/betrieb` und steuert ausschliesslich den
 virtuellen Fabrik-Control-Topic. Es zeigt Betriebszustand, Fortschritt,
-Vorhersagen, Konfidenzen, Modulcounter und Fehler. Einstellbar sind Trace,
-Seed und vier Modulbasiszeiten. Broker, Modelle und physische Freigabe bleiben
-bewusst ausserhalb des HMI.
+Vorhersagen, Konfidenzen, Modulcounter, Modellprofil und Fehler. Einstellbar
+sind Testszenario, eines der zwei freigegebenen virtuellen Modellprofile, Seed
+und vier Modulbasiszeiten. Beliebige lokale Modellkandidaten, Broker und
+physische Freigabe bleiben bewusst ausserhalb des HMI.
 
 Das Paket `@flowfuse/node-red-dashboard` ist exakt gepinnt und image-lokal
 installiert. `settings.js` registriert das explizite `nodesDir`, sodass ein
@@ -111,6 +126,12 @@ reports/orchestration_simulation/<run_id>/events.jsonl
 reports/orchestration_simulation/<run_id>/summary.csv
 reports/orchestration_simulation/<run_id>/run_summary.json
 ```
+
+Ein einzelner KI-Zyklus aktualisiert die Run-Summary mit `completed=false`.
+Erst der retained Fabrikstatus `completed` mit passender `simulation_run_id`
+schliesst den Gesamtlauf ab und ergaenzt die finalen Modulzaehler. Ein Reset
+schliesst einen offenen Report als gestoppt und trennt den folgenden Lauf in
+einen neuen Reportordner.
 
 Flowupdates erfolgen kontrolliert:
 

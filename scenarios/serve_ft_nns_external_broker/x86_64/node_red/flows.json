@@ -97,13 +97,14 @@
     "name": "4. Zyklusergebnis protokollieren",
     "style": {"label": true},
     "nodes": [
-      "comment-ai-reporting", "fn-report-cycle", "split-report-files", "change-report-file",
+      "comment-ai-reporting", "in-report-factory-status", "switch-report-factory-status",
+      "change-report-factory-status", "fn-report-cycle", "split-report-files", "change-report-file",
       "switch-report-file", "file-report-append", "file-run-summary"
     ],
     "x": 870,
     "y": 500,
     "w": 930,
-    "h": 210
+    "h": 270
   },
   {
     "id": "comment-ai-inputs",
@@ -639,19 +640,73 @@
     "z": "tab-ai-orchestration",
     "g": "group-ai-reporting",
     "name": "Reporting formatiert fachliche Daten; File-Nodes uebernehmen das Schreiben.",
-    "info": "Der Function-Node bildet aus einem abgeschlossenen Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. split-, switch- und file-Nodes uebernehmen danach die sichtbare Dateiverteilung und das Schreiben.",
+    "info": "Der Function-Node bildet aus jedem KI-Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. Erst der korrelierte Fabrikstatus completed schliesst den Gesamtlauf ab. split-, switch- und file-Nodes uebernehmen die sichtbare Dateiverteilung und das Schreiben.",
     "x": 1160,
     "y": 540,
     "wires": []
+  },
+  {
+    "id": "in-report-factory-status",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Fabrikstatus fuer Laufabschluss",
+    "topic": "ft/sim/factory/status",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 1010,
+    "y": 680,
+    "wires": [["switch-report-factory-status"]]
+  },
+  {
+    "id": "switch-report-factory-status",
+    "type": "switch",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Abschluss oder Reset",
+    "property": "payload.state",
+    "propertyType": "msg",
+    "rules": [
+      {"t": "regex", "v": "^(completed|reset)$", "vt": "str", "case": false}
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 1220,
+    "y": 680,
+    "wires": [["change-report-factory-status"]]
+  },
+  {
+    "id": "change-report-factory-status",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Ereignis: Fabrikstatus",
+    "rules": [
+      {"t": "set", "p": "_report_event", "pt": "msg", "to": "factory_status", "tot": "str"}
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 680,
+    "wires": [["fn-report-cycle"]]
   },
   {
     "id": "fn-report-cycle",
     "type": "function",
     "z": "tab-ai-orchestration",
     "g": "group-ai-reporting",
-    "name": "Zyklusergebnis formatieren",
-    "func": "// Dieser Node berechnet nur konsistente Reportinhalte. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Beim ersten abgeschlossenen Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\n\n// Den fortgeschriebenen Zustand fuer den naechsten Zyklus speichern.\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
-    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er berechnet die Inhalte fuer `events.jsonl`, `summary.csv` und `run_summary.json`; geschrieben werden sie erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis des Orchestrierungszustandskerns.\n\n### Zustand\n`context.reportState` enthaelt Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. `REPORT_ROOT` legt das Stammverzeichnis der Reports fest.\n\n### Ausgang\n`msg.payload` wird zu einer Liste aus drei Dateibeschreibungen mit Rolle, Dateiname, Inhalt und Append-/Overwrite-Angabe. Der folgende `split`-Node verarbeitet jede Beschreibung einzeln.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen. Eine Verteilung auf mehrere Standard-Nodes koennte Zeilennummern und Summen auseinanderlaufen lassen; das eigentliche Schreiben ist bereits mit Core-File-Nodes umgesetzt.",
+    "name": "Laufreport aktualisieren",
+    "func": "// Dieser Node aktualisiert nur den konsistenten Reportzustand. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Ein Fabrikstatus darf nur einen bereits begonnenen und passend korrelierten Lauf abschliessen.\nif (msg._report_event === 'factory_status') {\n  if (!state) return null;\n  const finalized = reporting.finalizeRun(state, msg.payload);\n  if (!finalized) return null;\n  context.set('reportState', null);\n  msg.payload = finalized.files;\n  return msg;\n}\n\n// Beim ersten abgeschlossenen KI-Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und laufende Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
+    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er protokolliert KI-Zyklen und schliesst den Gesamtlauf erst mit einem korrelierten Fabrikstatus `completed` oder `reset` ab. Geschrieben wird erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist entweder ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis oder ein durch Standard-Nodes gefilterter Fabrikstatus.\n\n### Zustand\n`context.reportState` enthaelt Report- und Fabrik-Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. Retained Statusmeldungen anderer Laeufe werden durch die Run-ID-Korrelation ignoriert. `REPORT_ROOT` legt das Stammverzeichnis fest.\n\n### Ausgang\nBei einem Zyklus entstehen Beschreibungen fuer Event, CSV-Zeile und laufende Run-Summary. Bei Abschluss oder Reset wird nur die finale Run-Summary erzeugt. Danach zerlegt ein `split`-Node die Dateibeschreibungen.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen; auch der Fabrikabschluss muss genau diesem Lauf zugeordnet werden. Der getestete Kern haelt diese Konsistenz, waehrend Standard-Nodes Ereignisse filtern und Dateien schreiben.",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -1003,7 +1058,7 @@
     "z": "tab-virtual-factory",
     "g": "group-factory-core",
     "name": "Fabrikereignis ausfuehren",
-    "func": "// Dieser Node ist nur die Bruecke zum getesteten virtuellen Fabrikzustandskern.\n// global enthaelt Modul, Topics und alle versionierten Payload-Traces.\nconst api = global.get('aiCpsVirtualFactory');\nconst topics = global.get('aiCpsTopics');\n\n// context speichert den fluechtigen Semaphorzustand genau dieses Function-Nodes.\nlet factory = context.get('factory');\n\n// Beim ersten Ereignis nach Start oder Deploy die virtuelle Fabrik initialisieren.\n// Der vorherige change-Node ordnet die vier Environment-Basiszeiten den Modulen zu.\n// FACTORY_SEED macht die Variation jeder Basiszeit um -50 bis +50 Prozent reproduzierbar.\nif (!factory) {\n    factory = new api.VirtualFactory({\n        topics,\n        payloads: global.get('aiCpsTracePayloads'),\n        payloadCatalog: global.get('aiCpsTraceCatalog'),\n        traceProfile: global.get('aiCpsDefaultTraceProfile') || 'standard',\n        seed: Number(env.get('FACTORY_SEED') || 42),\n        baseRuntimeMs: msg._factory_base_runtime_ms,\n    });\n    context.set('factory', factory);\n}\n\n// Jedes von einem change-Node markierte Ereignis hat genau eine Kernmethode.\nconst handlers = {\n    control: () => factory.handleControl(msg.payload),\n    status: () => factory.handleOrchestrationStatus(msg.payload),\n    tick: () => factory.tick(),\n    command: () => factory.handleCommand(msg.topic),\n};\n\n// Unbekannte Ereignisse sichtbar warnen und nicht weiterleiten.\nconst handler = handlers[msg._factory_event];\nif (!handler) { node.warn('Ignored unknown factory event: ' + msg._factory_event); return null; }\n\n// Das Ereignis aktualisiert Commands, Einzelmodul-Laufzeiten und Jobcounter gemeinsam.\nconst actions = handler();\n\n// Den aktualisierten Semaphorzustand fuer das naechste Ereignis speichern.\ncontext.set('factory', factory);\n\n// Ein einzelner Command oder Tick erzeugt haeufig noch keine ausgehende Aktion.\nif (actions.length === 0) return null;\n\n// Die folgenden split-/switch-Nodes verteilen MQTT- und Statusaktionen sichtbar.\nmsg.payload = actions;\nreturn msg;",
+    "func": "// Dieser Node ist nur die Bruecke zum getesteten virtuellen Fabrikzustandskern.\n// global enthaelt Modul, Topics, Experimentkatalog und alle versionierten Payload-Traces.\nconst api = global.get('aiCpsVirtualFactory');\nconst topics = global.get('aiCpsTopics');\nconst experimentCatalog = global.get('aiCpsExperimentCatalog');\n\n// context speichert den fluechtigen Semaphorzustand genau dieses Function-Nodes.\nlet factory = context.get('factory');\n\n// Beim ersten Ereignis nach Start oder Deploy die virtuelle Fabrik initialisieren.\n// Der vorherige change-Node ordnet die vier Environment-Basiszeiten den Modulen zu.\n// FACTORY_SEED macht die Variation jeder Basiszeit um -50 bis +50 Prozent reproduzierbar.\nif (!factory) {\n    factory = new api.VirtualFactory({\n        topics,\n        payloads: global.get('aiCpsTracePayloads'),\n        payloadCatalog: global.get('aiCpsTraceCatalog'),\n        experimentCatalog,\n        traceProfile: global.get('aiCpsDefaultTraceProfile') || 'standard',\n        modelProfile: global.get('aiCpsDefaultModelProfile') || 'deployment-current',\n        seed: Number(env.get('FACTORY_SEED') || 42),\n        baseRuntimeMs: msg._factory_base_runtime_ms,\n    });\n    context.set('factory', factory);\n}\n\n// Jedes von einem change-Node markierte Ereignis hat genau eine Kernmethode.\nconst handlers = {\n    control: () => factory.handleControl(msg.payload),\n    status: () => factory.handleOrchestrationStatus(msg.payload),\n    tick: () => factory.tick(),\n    command: () => factory.handleCommand(msg.topic),\n};\n\n// Unbekannte Ereignisse sichtbar warnen und nicht weiterleiten.\nconst handler = handlers[msg._factory_event];\nif (!handler) { node.warn('Ignored unknown factory event: ' + msg._factory_event); return null; }\n\n// Das Ereignis aktualisiert Commands, Einzelmodul-Laufzeiten und Jobcounter gemeinsam.\nconst actions = handler();\n\n// Den aktualisierten Semaphorzustand fuer das naechste Ereignis speichern.\ncontext.set('factory', factory);\n\n// Ein einzelner Command oder Tick erzeugt haeufig noch keine ausgehende Aktion.\nif (actions.length === 0) return null;\n\n// Die folgenden split-/switch-Nodes verteilen MQTT- und Statusaktionen sichtbar.\nmsg.payload = actions;\nreturn msg;",
     "info": "### Aufgabe\nDieser Node uebergibt ein vorbereitetes Ereignis an die getestete virtuelle Fabrik in `lib/virtual_factory.js`.\n\n### Eingang\n- `msg._factory_event`: `control`, `status`, `command` oder `tick`\n- `msg._factory_base_runtime_ms`: vom vorherigen Standard-`change`-Node zugeordnete Basiszeiten fuer VGR, HBW, MPO und SLD\n- `msg.payload`: Control- oder Orchestrierungsstatus\n- `msg.topic`: bei `command` das unabhaengig eingetroffene Modul-Command-Topic\n\n### Zustand\n`context.factory` enthaelt Traceposition, Basiszeiten, gesendete und akzeptierte Jobcounter je Modul, reproduzierbare Einzelmodul-Laufzeiten sowie Reset-/Fertigstatus. Der Zustand ist absichtlich nur waehrend der laufenden Node-RED-Instanz vorhanden.\n\n### Ausgang\nStatusaktionen machen Basis- und Einzelmodulzeiten sichtbar. Ein neuer Anlagenzustand entsteht erst, wenn fuer VGR, HBW, MPO und SLD jeweils `sent_count == accepted_count` gilt.\n\n### Warum Function-Node?\nPRNG, Duplikaterkennung, vier unabhaengige Laufzeiten, Jobcounter, Reset und Semaphorbarriere muessen denselben Zustand verwenden. Eine Zerlegung auf mehrere Function-, `delay`- oder `join`-Nodes wuerde Reihenfolge und reproduzierbares Verhalten veraendern.",
     "outputs": 1,
     "timeout": 0,
@@ -1645,7 +1700,7 @@
     "z": "tab-virtual-hmi",
     "g": "group-hmi-widgets",
     "name": "Tracefortschritt",
-    "rules": [{"t": "set", "p": "payload", "pt": "msg", "to": "$string(payload.payloads_sent) & ' / ' & $string(payload.trace_total) & ' | ' & payload.trace_profile", "tot": "jsonata"}],
+    "rules": [{"t": "set", "p": "payload", "pt": "msg", "to": "$string(payload.payloads_sent) & ' / ' & $string(payload.trace_total) & ' | ' & payload.trace_profile_name & ' | ' & payload.model_profile_name", "tot": "jsonata"}],
     "x": 1180,
     "y": 120,
     "wires": [["ui-hmi-trace"]]
@@ -1733,8 +1788,8 @@
     "order": 2,
     "width": 4,
     "height": 2,
-    "name": "Trace",
-    "label": "Trace",
+    "name": "Lauf",
+    "label": "Lauf",
     "format": "{{msg.payload}}",
     "layout": "col-center",
     "style": false,
@@ -1804,7 +1859,7 @@
     "width": 12,
     "height": 1,
     "head": "",
-    "format": "<div style=\"display:flex;gap:12px;align-items:center;justify-content:flex-end;font-size:12px;min-height:100%\"><a href=\"https://github.com/ma-ho-git/ai-cps-runtime\" target=\"_blank\" rel=\"noopener noreferrer\">Quellcode und Lizenz</a><span>runtime-v1.1.0 | AGPL-3.0</span></div>",
+    "format": "<div style=\"display:flex;gap:12px;align-items:center;justify-content:flex-end;font-size:12px;min-height:100%\"><a href=\"https://github.com/ma-ho-git/ai-cps-runtime\" target=\"_blank\" rel=\"noopener noreferrer\">Quellcode und Lizenz</a><span>runtime-v1.2.0 | AGPL-3.0</span></div>",
     "storeOutMessages": false,
     "passthru": false,
     "resendOnRefresh": false,
@@ -2078,9 +2133,10 @@
     "label": "",
     "order": 1,
     "width": 12,
-    "height": 8,
+    "height": 10,
     "options": [
-      {"label": "Trace-Profil (Standard: 320 Zustaende)", "key": "trace_profile", "type": "dropdown", "required": false, "rows": null},
+      {"label": "Modellprofil", "key": "model_profile", "type": "dropdown", "required": false, "rows": null},
+      {"label": "Testszenario", "key": "trace_profile", "type": "dropdown", "required": false, "rows": null},
       {"label": "Zufalls-Seed (Standard: 42)", "key": "seed", "type": "number", "required": false, "rows": null},
       {"label": "VGR-Basiszeit (ms, Standard: 100)", "key": "vgr_base_runtime_ms", "type": "number", "required": false, "rows": null},
       {"label": "HBW-Basiszeit (ms, Standard: 100)", "key": "hbw_base_runtime_ms", "type": "number", "required": false, "rows": null},
@@ -2088,6 +2144,7 @@
       {"label": "SLD-Basiszeit (ms, Standard: 100)", "key": "sld_base_runtime_ms", "type": "number", "required": false, "rows": null}
     ],
     "formValue": {
+      "model_profile": "deployment-current",
       "trace_profile": "standard",
       "seed": 42,
       "vgr_base_runtime_ms": 100,
@@ -2105,9 +2162,11 @@
     "className": "",
     "passthru": false,
     "dropdownOptions": [
-      {"dropdown": "trace_profile", "value": "standard", "label": "Standard (320 Zustaende)"},
-      {"dropdown": "trace_profile", "value": "full-storage-attempt", "label": "Vollspeicher-Versuch (157)"},
-      {"dropdown": "trace_profile", "value": "full-storage-process-guard", "label": "Vollspeicher-Prozess (308)"}
+      {"dropdown": "model_profile", "value": "deployment-current", "label": "Aktueller Modellstand"},
+      {"dropdown": "model_profile", "value": "historical-full-storage-error", "label": "Historischer Stand - reproduziert Vollspeicherfehler"},
+      {"dropdown": "trace_profile", "value": "standard", "label": "Normalbetrieb - Einlagerungen und Idle-Phasen (320 Zustaende)"},
+      {"dropdown": "trace_profile", "value": "full-storage-attempt", "label": "Vollspeicher - 20 wiederholte Einlagerungsversuche (157 Zustaende)"},
+      {"dropdown": "trace_profile", "value": "full-storage-process-guard", "label": "Vollspeicher - 9 vollstaendige Prozesssequenzen (308 Zustaende)"}
     ],
     "x": 180,
     "y": 420,
@@ -2123,7 +2182,7 @@
       {"t": "set", "p": "topic", "pt": "msg", "to": "ft/sim/factory/control", "tot": "str"},
       {"t": "set", "p": "qos", "pt": "msg", "to": "1", "tot": "num"},
       {"t": "set", "p": "retain", "pt": "msg", "to": "false", "tot": "bool"},
-      {"t": "set", "p": "payload", "pt": "msg", "to": "{'cmd':'start','config':{'trace_profile':payload.trace_profile ? payload.trace_profile : 'standard','seed':$number(payload.seed ? payload.seed : 42),'base_runtime_ms':{'vgr':$number(payload.vgr_base_runtime_ms ? payload.vgr_base_runtime_ms : 100),'hbw':$number(payload.hbw_base_runtime_ms ? payload.hbw_base_runtime_ms : 100),'mpo':$number(payload.mpo_base_runtime_ms ? payload.mpo_base_runtime_ms : 100),'sld':$number(payload.sld_base_runtime_ms ? payload.sld_base_runtime_ms : 100)}}}", "tot": "jsonata"}
+      {"t": "set", "p": "payload", "pt": "msg", "to": "{'cmd':'start','config':{'model_profile':payload.model_profile ? payload.model_profile : 'deployment-current','trace_profile':payload.trace_profile ? payload.trace_profile : 'standard','seed':$number(payload.seed ? payload.seed : 42),'base_runtime_ms':{'vgr':$number(payload.vgr_base_runtime_ms ? payload.vgr_base_runtime_ms : 100),'hbw':$number(payload.hbw_base_runtime_ms ? payload.hbw_base_runtime_ms : 100),'mpo':$number(payload.mpo_base_runtime_ms ? payload.mpo_base_runtime_ms : 100),'sld':$number(payload.sld_base_runtime_ms ? payload.sld_base_runtime_ms : 100)}}}", "tot": "jsonata"}
     ],
     "action": "",
     "property": "",

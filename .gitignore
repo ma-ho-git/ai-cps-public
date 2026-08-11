@@ -15,6 +15,13 @@ model_registry/vgr/latest/*
 !model_registry/vgr/latest/model.keras
 !model_registry/vgr/latest/activation.json
 !model_registry/vgr/latest/metrics.json
+!model_registry/vgr/historical/
+model_registry/vgr/historical/*
+!model_registry/vgr/historical/full-storage-error/
+model_registry/vgr/historical/full-storage-error/*
+!model_registry/vgr/historical/full-storage-error/model.keras
+!model_registry/vgr/historical/full-storage-error/activation.json
+!model_registry/vgr/historical/full-storage-error/metrics.json
 !model_registry/hbw/
 model_registry/hbw/*
 !model_registry/hbw/latest/
@@ -22,6 +29,13 @@ model_registry/hbw/latest/*
 !model_registry/hbw/latest/model.keras
 !model_registry/hbw/latest/activation.json
 !model_registry/hbw/latest/metrics.json
+!model_registry/hbw/historical/
+model_registry/hbw/historical/*
+!model_registry/hbw/historical/full-storage-error/
+model_registry/hbw/historical/full-storage-error/*
+!model_registry/hbw/historical/full-storage-error/model.keras
+!model_registry/hbw/historical/full-storage-error/activation.json
+!model_registry/hbw/historical/full-storage-error/metrics.json
 reports/
 .env
 !.env.example

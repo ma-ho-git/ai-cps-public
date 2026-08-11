@@ -40,6 +40,24 @@ class RuntimeReleaseManifestTests(unittest.TestCase):
                 json.dumps({"trained_at": "2026-test"}), encoding="utf-8"
             )
             (model / "metrics.json").write_text("{}", encoding="utf-8")
+        catalog = root / (
+            "scenarios/serve_ft_nns_external_broker/x86_64/"
+            "node_red/config/virtual_experiment_catalog.json"
+        )
+        catalog.write_text(json.dumps({
+            "schema_version": "1.0",
+            "default_model_profile": "deployment-current",
+            "model_profiles": {
+                "deployment-current": {
+                    "display_name": "Current",
+                    "virtual_only": False,
+                    "domains": {
+                        "vgr": {"source": "active"},
+                        "hbw": {"source": "active"},
+                    },
+                },
+            },
+        }), encoding="utf-8")
 
     def test_manifest_contains_models_images_and_protected_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -62,6 +80,10 @@ class RuntimeReleaseManifestTests(unittest.TestCase):
             set(manifest["protected_files"]), set(release_manifest.PROTECTED_FILES)
         )
         self.assertTrue(manifest["models"]["vgr"]["model_id"].startswith("vgr:2026-test:"))
+        self.assertEqual(
+            manifest["model_profiles"]["deployment-current"]["models"]["vgr"],
+            manifest["models"]["vgr"],
+        )
 
     def test_explicit_images_require_all_domains_and_digests(self) -> None:
         with self.assertRaises(release_manifest.ManifestError):

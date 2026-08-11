@@ -58,6 +58,7 @@ services:
       FACTORY_MPO_BASE_RUNTIME_MS: ${FACTORY_MPO_BASE_RUNTIME_MS:-100}
       FACTORY_SLD_BASE_RUNTIME_MS: ${FACTORY_SLD_BASE_RUNTIME_MS:-100}
       TRACE_PROFILE: ${TRACE_PROFILE:-standard}
+      MODEL_PROFILE: ${MODEL_PROFILE:-deployment-current}
       LIVE_TRACE_PAYLOADS: ${LIVE_TRACE_PAYLOADS:-/opt/ai-cps-node-red/data/live_plc_trace/payloads.jsonl}
       NODE_RED_CREDENTIAL_SECRET: ${NODE_RED_CREDENTIAL_SECRET:?Set NODE_RED_CREDENTIAL_SECRET in .env}
     healthcheck:
@@ -82,6 +83,9 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-true}
+      MODEL_PROFILES_PATH: /runtime_config/virtual_experiment_catalog.json
+    volumes:
+      - ./node_red/config/virtual_experiment_catalog.json:/runtime_config/virtual_experiment_catalog.json:ro
 
   hbw_infer:
     depends_on:
@@ -90,6 +94,9 @@ services:
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
       COMMAND_OUTPUT_ENABLED: ${COMMAND_OUTPUT_ENABLED:-true}
+      MODEL_PROFILES_PATH: /runtime_config/virtual_experiment_catalog.json
+    volumes:
+      - ./node_red/config/virtual_experiment_catalog.json:/runtime_config/virtual_experiment_catalog.json:ro
 
 volumes:
   nodered_data:

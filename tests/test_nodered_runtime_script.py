@@ -224,7 +224,8 @@ class NodeRedRuntimeScriptTests(unittest.TestCase):
             self.assertEqual(counter.read_text(encoding="utf-8"), "2")
             published = publish_log.read_text(encoding="utf-8")
             self.assertGreaterEqual(published.count('{"cmd":"reset"}'), 2)
-            self.assertEqual(published.count('{"cmd":"start"}'), 1)
+            self.assertEqual(published.count('"cmd":"start"'), 1)
+            self.assertIn('"model_profile":"deployment-current"', published)
 
     def test_virtual_hmi_waits_for_ready_without_starting_a_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -411,8 +412,41 @@ class NodeRedRuntimeScriptTests(unittest.TestCase):
             docker_calls = docker_log.read_text(encoding="utf-8")
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Trace-Profil=full-storage-attempt", result.stdout)
+        self.assertIn("Testszenario=full-storage-attempt", result.stdout)
         self.assertIn("/opt/ai-cps-node-red/data/live_plc_full_storage_attempt/payloads.jsonl", docker_calls)
+
+    def test_historical_model_profile_is_forwarded_only_in_virtual_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_bin = Path(tmp_dir)
+            docker_log = fake_bin / "docker.log"
+            (fake_bin / "docker").write_text(
+                "#!/usr/bin/env bash\n"
+                f"printf '%s|%s\\n' \"${{MODEL_PROFILE:-unset}}\" \"$*\" >> {docker_log!s}\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            (fake_bin / "docker").chmod(0o755)
+            result = subprocess.run(
+                [
+                    str(SCRIPT), "virtual-up", "--skip-preflight", "--no-build",
+                    "--model-profile", "historical-full-storage-error",
+                    "--env-file", str(fake_bin / "missing.env"),
+                ],
+                cwd=ROOT,
+                env={"PATH": f"{fake_bin}:/usr/bin:/bin", "REPORT_ROOT_HOST": str(fake_bin / "reports")},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("historical-full-storage-error", docker_log.read_text(encoding="utf-8"))
+
+            physical = self.run_script(
+                "physical-up", "--model-profile", "historical-full-storage-error",
+                "--skip-preflight", "--env-file", str(fake_bin / "missing.env"),
+            )
+            self.assertNotEqual(physical.returncode, 0)
+            self.assertIn("gilt nur fuer virtual-up/virtual-hmi/virtual-run", physical.stderr)
 
     def test_trace_profile_is_rejected_for_physical_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

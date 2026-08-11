@@ -26,6 +26,7 @@ PROTECTED_FILES = (
     "scenarios/serve_ft_nns_external_broker/x86_64/node_red/flows_ai_orchestration.json",
     "scenarios/serve_ft_nns_external_broker/x86_64/node_red/config/topics.json",
     "scenarios/serve_ft_nns_external_broker/x86_64/node_red/config/idle_seed_templates.json",
+    "scenarios/serve_ft_nns_external_broker/x86_64/node_red/config/virtual_experiment_catalog.json",
     "scenarios/serve_ft_nns_external_broker/x86_64/test_payloads/live_plc_trace/payloads.jsonl",
     "scenarios/serve_ft_nns_external_broker/x86_64/test_payloads/live_plc_full_storage_attempt/payloads.jsonl",
     "scenarios/serve_ft_nns_external_broker/x86_64/test_payloads/live_plc_full_storage_process_guard/payloads.jsonl",
@@ -68,8 +69,7 @@ def git_head(root: Path = PROJECT_ROOT) -> str:
     return process.stdout.strip()
 
 
-def model_record(domain: str, root: Path = PROJECT_ROOT) -> dict[str, Any]:
-    model_dir = root / "model_registry" / domain / "latest"
+def model_record_at(domain: str, model_dir: Path) -> dict[str, Any]:
     activation = load_object(model_dir / "activation.json")
     files = {
         name: sha256_file(model_dir / name)
@@ -77,6 +77,35 @@ def model_record(domain: str, root: Path = PROJECT_ROOT) -> dict[str, Any]:
     }
     model_id = f"{domain}:{activation.get('trained_at', 'unknown')}:{files['model.keras'][:12]}"
     return {"model_id": model_id, "files": files}
+
+
+def model_record(domain: str, root: Path = PROJECT_ROOT) -> dict[str, Any]:
+    return model_record_at(domain, root / "model_registry" / domain / "latest")
+
+
+def model_profile_records(root: Path = PROJECT_ROOT) -> dict[str, Any]:
+    catalog = load_object(
+        root
+        / "scenarios/serve_ft_nns_external_broker/x86_64/"
+        "node_red/config/virtual_experiment_catalog.json"
+    )
+    records: dict[str, Any] = {}
+    for profile_id, profile in catalog.get("model_profiles", {}).items():
+        models = {}
+        for domain in ("vgr", "hbw"):
+            domain_config = profile["domains"][domain]
+            model_dir = (
+                root / "model_registry" / domain / "latest"
+                if domain_config["source"] == "active"
+                else root / "model_registry" / domain_config["model_dir"]
+            )
+            models[domain] = model_record_at(domain, model_dir)
+        records[profile_id] = {
+            "display_name": profile.get("display_name", profile_id),
+            "virtual_only": bool(profile.get("virtual_only", False)),
+            "models": models,
+        }
+    return records
 
 
 def parse_image_assignments(values: list[str]) -> dict[str, str]:
@@ -168,6 +197,7 @@ def build_manifest(
         "node_red_runtime_version": config["node_red_runtime_version"],
         "images": images,
         "models": {domain: model_record(domain, root) for domain in DOMAINS},
+        "model_profiles": model_profile_records(root),
         "protected_files": protected,
     }
 

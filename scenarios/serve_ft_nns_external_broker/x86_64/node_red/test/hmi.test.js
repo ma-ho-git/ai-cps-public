@@ -26,6 +26,9 @@ test("HMI combines factory, orchestration and model status without process actio
   const actions = hmi.handle("ft/sim/factory/status", {
     state: "modules_running",
     trace_profile: "standard",
+    trace_profile_name: "Normalbetrieb",
+    model_profile: "historical-full-storage-error",
+    model_profile_name: "Historischer Stand",
     trace_total: 320,
     payloads_sent: 12,
     module_runtime_ms: { vgr: 75, hbw: 110, mpo: 90, sld: 130 },
@@ -39,6 +42,9 @@ test("HMI combines factory, orchestration and model status without process actio
   assert.equal(status.progress_percent, 3.75);
   assert.equal(status.command_mode, "Commands aktiv");
   assert.equal(status.trace_profile, "standard");
+  assert.equal(status.trace_profile_name, "Normalbetrieb");
+  assert.equal(status.model_profile, "historical-full-storage-error");
+  assert.equal(status.model_profile_name, "Historischer Stand");
   const modules = actions.find((action) => action.role === "modules").payload;
   assert.equal(modules.length, 4);
   assert.equal(modules[0].module, "VGR");
@@ -69,6 +75,7 @@ test("HMI exposes predictions, bounded cycle history and latency series", () => 
         vgr: { cmd: index === 3 ? 101 : 0, top3: [{ cmd: index === 3 ? 101 : 0, p: 0.97 }] },
         hbw: { cmd: 0, top3: [{ cmd: 0, p: 0.96 }] },
       },
+      model_ids: { storage: "storage:a", vgr: "vgr:historical", hbw: "hbw:historical" },
       latencies_ms: { storage: index, vgr: index + 1, hbw: index + 2 },
     });
   }
@@ -79,6 +86,7 @@ test("HMI exposes predictions, bounded cycle history and latency series", () => 
   assert.equal(snapshot.predictions.find((row) => row.model === "VGR").prediction, "cmd 101");
   assert.equal(snapshot.latencies.length, 6);
   assert.equal(snapshot.latencies.at(-1).series, "HBW");
+  assert.equal(snapshot.models.find((row) => row.model === "VGR").model_id, "vgr:historical");
 });
 
 test("HMI reset clears stale cycle, prediction and module values", () => {

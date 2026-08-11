@@ -78,6 +78,7 @@ class HmiViewModel {
     this.factory = {};
     this.orchestration = {};
     this.modelStatus = Object.fromEntries(MODELS.map((model) => [model, {}]));
+    this.activeModelIds = {};
     this.predictions = Object.fromEntries(MODELS.map((model) => [model, null]));
     this.cycles = [];
     this.errors = [];
@@ -122,6 +123,7 @@ class HmiViewModel {
 
   resetRunDisplay(factoryStatus) {
     this.factory = { ...factoryStatus };
+    this.activeModelIds = {};
     this.predictions = Object.fromEntries(MODELS.map((model) => [model, null]));
     this.cycles = [];
     this.errors = [];
@@ -189,6 +191,7 @@ class HmiViewModel {
       });
     }
     const predictions = cycle.model_predictions || {};
+    this.activeModelIds = { ...this.activeModelIds, ...(cycle.model_ids || {}) };
     for (const model of MODELS) {
       if (predictions[model]) this.predictions[model] = { ...predictions[model] };
     }
@@ -239,6 +242,11 @@ class HmiViewModel {
       state,
       label,
       trace_profile: this.factory.trace_profile || "-",
+      trace_profile_name: this.factory.trace_profile_name || this.factory.trace_profile || "-",
+      model_profile: this.factory.model_profile || "deployment-current",
+      model_profile_name: this.factory.model_profile_name
+        || this.factory.model_profile
+        || "Aktueller Modellstand",
       trace_total: total,
       payloads_sent: sent,
       progress_percent: total > 0 ? Math.round((sent / total) * 10000) / 100 : 0,
@@ -274,7 +282,10 @@ class HmiViewModel {
     return MODELS.map((model) => ({
       model: model === "storage" ? "Storage" : model.toUpperCase(),
       state: this.modelStatus[model].state || "unbekannt",
-      model_id: this.modelStatus[model].model_id || this.orchestration.model_ids?.[model] || "-",
+      model_id: this.activeModelIds[model]
+        || this.modelStatus[model].model_id
+        || this.orchestration.model_ids?.[model]
+        || "-",
     }));
   }
 

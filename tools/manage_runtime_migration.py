@@ -204,6 +204,26 @@ def archive_directory(source: Path, destination: Path) -> None:
                 archive.add(child, arcname=child.name, recursive=True)
 
 
+def create_private_bundle(stage: Path, output: Path) -> None:
+    """Create an atomic archive whose plaintext site configuration stays private."""
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=output.parent,
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+    )
+    os.close(descriptor)
+    temporary_output = Path(temporary_name)
+    try:
+        os.chmod(temporary_output, 0o600)
+        with tarfile.open(temporary_output, "w:gz") as archive:
+            for child in sorted(stage.iterdir()):
+                archive.add(child, arcname=child.name, recursive=True)
+        os.replace(temporary_output, output)
+        os.chmod(output, 0o600)
+    finally:
+        temporary_output.unlink(missing_ok=True)
+
+
 def backup_volume(volume: str, destination: Path, *, allow_missing: bool) -> bool:
     inspect = subprocess.run(
         ["docker", "volume", "inspect", volume],
@@ -311,11 +331,7 @@ def export_bundle(
         (stage / "manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-        temporary_output = output.with_name(f".{output.name}.tmp")
-        with tarfile.open(temporary_output, "w:gz") as archive:
-            for child in sorted(stage.iterdir()):
-                archive.add(child, arcname=child.name, recursive=True)
-        os.replace(temporary_output, output)
+        create_private_bundle(stage, output)
     return manifest
 
 
@@ -356,9 +372,20 @@ def inspect_bundle(bundle: Path) -> dict[str, Any]:
 
 def validate_compatibility(manifest: Mapping[str, Any]) -> None:
     config = load_json(RELEASE_CONFIG)
-    if manifest.get("release") != config.get("release"):
+    compatible_releases = config.get(
+        "compatible_site_bundle_releases",
+        [config.get("release")],
+    )
+    if (
+        not isinstance(compatible_releases, list)
+        or not compatible_releases
+        or any(not isinstance(value, str) or not value for value in compatible_releases)
+    ):
+        raise MigrationError("runtime release contains no valid site-bundle compatibility list")
+    if manifest.get("release") not in compatible_releases:
         raise MigrationError(
-            f"bundle release {manifest.get('release')} does not match checkout {config.get('release')}"
+            f"bundle release {manifest.get('release')} is not compatible with "
+            f"checkout {config.get('release')}; supported: {', '.join(compatible_releases)}"
         )
     if manifest.get("platform") != "linux/amd64":
         raise MigrationError(f"unsupported bundle platform: {manifest.get('platform')}")
@@ -408,8 +435,37 @@ def restore_archive(archive_path: Path, destination: Path) -> None:
         raise MigrationError(f"cannot restore {archive_path}: {exc}") from exc
 
 
-def restore_volume(volume: str, archive_path: Path) -> None:
-    run_checked(["docker", "volume", "create", volume])
+def restore_volume(project: str, logical: str, archive_path: Path) -> None:
+    volume = volume_name(project, logical)
+    expected_labels = {
+        "com.docker.compose.project": project,
+        "com.docker.compose.volume": logical,
+    }
+    inspect = subprocess.run(
+        ["docker", "volume", "inspect", "--format", "{{json .Labels}}", volume],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if inspect.returncode == 0:
+        try:
+            labels = json.loads(inspect.stdout.strip() or "null") or {}
+        except json.JSONDecodeError as exc:
+            raise MigrationError(f"cannot read Docker volume labels for {volume}: {exc}") from exc
+        if any(labels.get(key) != value for key, value in expected_labels.items()):
+            run_checked(["docker", "volume", "rm", volume])
+    run_checked(
+        [
+            "docker",
+            "volume",
+            "create",
+            "--label",
+            f"com.docker.compose.project={project}",
+            "--label",
+            f"com.docker.compose.volume={logical}",
+            volume,
+        ]
+    )
     run_checked(
         [
             "docker",
@@ -485,7 +541,9 @@ def import_bundle(
         project = compose_project(effective_env)
         for logical in manifest.get("included_volumes", []):
             restore_volume(
-                volume_name(project, logical), stage / "volumes" / f"{logical}.tar.gz"
+                project,
+                logical,
+                stage / "volumes" / f"{logical}.tar.gz",
             )
     return backup
 

@@ -7,7 +7,9 @@ dupliziert sie aber nicht.
 ## System Scope
 
 - Virtuell: Mosquitto, Node-RED/FlowFuse Dashboard, Storage-, VGR- und
-  HBW-Inferenzcontainer sowie drei versionierte Trace-Profile.
+  HBW-Inferenzcontainer, drei versionierte Testszenarien sowie zwei feste
+  virtuelle Modellprofile. Das historische Profil dient nur der reproduzierbaren
+  Demonstration des bekannten Vollspeicherfehlers.
 - Physisch: nur die drei NN-Container; Node-RED, OPC UA und SPS sind eine
   externe Black Box mit eingefrorenem MQTT-Grenzvertrag.
 - Training: drei reproduzierbare Trainingscontainer, die lokale Kandidaten

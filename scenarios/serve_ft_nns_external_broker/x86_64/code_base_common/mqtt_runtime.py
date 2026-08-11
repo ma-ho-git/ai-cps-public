@@ -24,6 +24,7 @@ CORRELATION_FIELDS = (
     "source_id",
     "parent_request_id",
     "model_id",
+    "model_profile",
 )
 COMMAND_QOS = 2
 COMMAND_RETAIN = False

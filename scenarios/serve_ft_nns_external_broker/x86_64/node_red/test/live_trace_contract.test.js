@@ -58,6 +58,8 @@ function response(domain, request, cmd) {
     cycle_id: request.payload.cycle_id,
     request_id: request.payload.request_id,
     source_id: request.payload.source_id,
+    model_id: request.payload.model_id,
+    model_profile: request.payload.model_profile,
     cmd,
     command_output: {
       enabled: true,

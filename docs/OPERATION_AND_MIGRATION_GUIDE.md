@@ -23,7 +23,7 @@ startet oder veraendert es nicht.
 2. Repository flach klonen:
 
    ```bash
-   git clone --depth 1 --branch runtime-v1.1.0 \
+   git clone --depth 1 --branch runtime-v1.2.0 \
      https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
    cd AI-CPS
    ```
@@ -32,7 +32,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init \
-     --mode virtual --release runtime-v1.1.0 \
+     --mode virtual --release runtime-v1.2.0 \
      --compose-project ai-cps-nn-runtime \
      --report-root "$PWD/reports"
    ```
@@ -41,7 +41,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init --mode physical \
-     --release runtime-v1.1.0 --mqtt-host 192.168.0.5
+     --release runtime-v1.2.0 --mqtt-host 192.168.0.5
    ```
 
 Das Setup erzeugt Secret, `.venv`, Reportpfad und `.env` mit Modus `0600`,
@@ -67,6 +67,13 @@ her, erzeugt zuvor ein Ruecksicherungsbundle und startet nicht automatisch.
 Das Bundle ist ein Klartextartefakt der isolierten Testumgebung. Bei spaeteren
 echten Credentials vor Weitergabe verschluesseln.
 
+Export und automatisches Ruecksicherungsbundle werden mit Dateimodus `0600`
+angelegt. `runtime-v1.2.0` importiert Bundles aus V1.1.0, dem internen
+V1.1.1-Stand und V1.2.0.
+Mit `--force` werden vorhandene Zielvolumes nach der Ruecksicherung kontrolliert
+mit passenden Compose-Labels neu angelegt, damit spaetere Starts keine
+Fremdvolume-Warnung erzeugen.
+
 Fuer einen zweiten Teststand immer einen eigenen `--target-project` und
 `--target-report-root` verwenden. Dadurch werden weder Docker-Volumes noch
 Reports mit der bestehenden Installation geteilt.
@@ -81,9 +88,11 @@ Reports mit der bestehenden Installation geteilt.
 
 Browser: <http://localhost:1880/dashboard/betrieb>
 
-Im HMI koennen Trace-Profil, Seed und Basiszeit fuer VGR, HBW, MPO und SLD
-gewaehlt werden. Jede Basiszeit wird reproduzierbar um -50 bis +50 Prozent
-variiert. Standard sind 100 ms.
+Im HMI koennen Testszenario, Modellprofil, Seed und Basiszeit fuer VGR, HBW,
+MPO und SLD gewaehlt werden. Jede Basiszeit wird reproduzierbar um -50 bis
++50 Prozent variiert. Standard sind 100 ms. Das historische Modellprofil ist
+deutlich als virtuelle Reproduktion des bekannten Vollspeicherfehlers
+gekennzeichnet.
 
 ### Direktstart
 
@@ -95,9 +104,11 @@ Optionen:
 
 | Option | Wirkung |
 |---|---|
-| `--trace-profile standard` | 320-Zustaende-Referenzlauf |
-| `--trace-profile full-storage-attempt` | stationaerer Vollspeichertest |
-| `--trace-profile full-storage-process-guard` | prozessartiger Vollspeichertest |
+| `--trace-profile standard` | Normalbetrieb: Einlagerungen und Idle-Phasen (320 Zustaende) |
+| `--trace-profile full-storage-attempt` | Vollspeicher: 20 wiederholte Einlagerungsversuche (157 Zustaende) |
+| `--trace-profile full-storage-process-guard` | Vollspeicher: 9 vollstaendige Prozesssequenzen (308 Zustaende) |
+| `--model-profile deployment-current` | aktuell ausgewaehlter Deploymentstand, Standard |
+| `--model-profile historical-full-storage-error` | historische VGR-/HBW-Modelle zur virtuellen Fehlerreproduktion |
 | `--diagnosis` | keine Maschinencommands |
 | `--no-build` | vorhandene Images verwenden |
 | `--images` | freigegebene GHCR-Runtimeimages verwenden |
@@ -105,8 +116,15 @@ Optionen:
 | `--skip-preflight` | nur fuer gezielte Diagnose |
 
 Startparameter koennen auch in `.env` stehen: `FACTORY_SEED`, vier
-`FACTORY_*_BASE_RUNTIME_MS`, `TRACE_PROFILE`, `MQTT_PORT`, `NODE_RED_PORT`,
-`READY_TIMEOUT_S` und `REPORT_ROOT_HOST`.
+`FACTORY_*_BASE_RUNTIME_MS`, `TRACE_PROFILE`, `MODEL_PROFILE`, `MQTT_PORT`,
+`NODE_RED_PORT`, `READY_TIMEOUT_S` und `REPORT_ROOT_HOST`.
+
+Das Modellprofil wird vor dem ersten Zustand festgelegt und gilt fuer den
+vollstaendigen Lauf. Ein Wechsel waehrend eines offenen Laufs wird nicht
+uebernommen. Nach Reset beginnt ein anderes Profil mit einem neuen
+Neun-Zeilen-Bootstrap. Das historische Profil ist nur im virtuellen Stack
+verfuegbar; der physische Stack verwendet weiterhin ausschliesslich die in
+`.env` ausgewaehlten Deploymentmodelle.
 
 ### Status, Logs Und Stopp
 
@@ -180,7 +198,9 @@ Reports:
 
 - `events.jsonl`: Ereignisse und Modellinformationen;
 - `summary.csv`: ein Datensatz pro vollstaendig korreliertem Zyklus;
-- `run_summary.json`: Gesamtstatus, Counts, Fehler und Konfiguration.
+- `run_summary.json`: Gesamtstatus, Counts, Fehler und Konfiguration. Das Feld
+  `completed` wird erst durch den korrelierten finalen Fabrikstatus gesetzt;
+  abgeschlossene einzelne KI-Zyklen markieren den Gesamtlauf nicht als fertig.
 
 ## 6. Modell Mit Gleichem Featurevertrag Testen
 

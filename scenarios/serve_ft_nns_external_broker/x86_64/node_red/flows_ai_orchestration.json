@@ -118,6 +118,9 @@
     },
     "nodes": [
       "comment-ai-reporting",
+      "in-report-factory-status",
+      "switch-report-factory-status",
+      "change-report-factory-status",
       "fn-report-cycle",
       "split-report-files",
       "change-report-file",
@@ -128,7 +131,7 @@
     "x": 870,
     "y": 500,
     "w": 930,
-    "h": 210
+    "h": 270
   },
   {
     "id": "comment-ai-inputs",
@@ -889,19 +892,96 @@
     "z": "tab-ai-orchestration",
     "g": "group-ai-reporting",
     "name": "Reporting formatiert fachliche Daten; File-Nodes uebernehmen das Schreiben.",
-    "info": "Der Function-Node bildet aus einem abgeschlossenen Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. split-, switch- und file-Nodes uebernehmen danach die sichtbare Dateiverteilung und das Schreiben.",
+    "info": "Der Function-Node bildet aus jedem KI-Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. Erst der korrelierte Fabrikstatus completed schliesst den Gesamtlauf ab. split-, switch- und file-Nodes uebernehmen die sichtbare Dateiverteilung und das Schreiben.",
     "x": 1160,
     "y": 540,
     "wires": []
+  },
+  {
+    "id": "in-report-factory-status",
+    "type": "mqtt in",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Fabrikstatus fuer Laufabschluss",
+    "topic": "ft/sim/factory/status",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 1010,
+    "y": 680,
+    "wires": [
+      [
+        "switch-report-factory-status"
+      ]
+    ]
+  },
+  {
+    "id": "switch-report-factory-status",
+    "type": "switch",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Abschluss oder Reset",
+    "property": "payload.state",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "regex",
+        "v": "^(completed|reset)$",
+        "vt": "str",
+        "case": false
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 1220,
+    "y": 680,
+    "wires": [
+      [
+        "change-report-factory-status"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-factory-status",
+    "type": "change",
+    "z": "tab-ai-orchestration",
+    "g": "group-ai-reporting",
+    "name": "Ereignis: Fabrikstatus",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_report_event",
+        "pt": "msg",
+        "to": "factory_status",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 680,
+    "wires": [
+      [
+        "fn-report-cycle"
+      ]
+    ]
   },
   {
     "id": "fn-report-cycle",
     "type": "function",
     "z": "tab-ai-orchestration",
     "g": "group-ai-reporting",
-    "name": "Zyklusergebnis formatieren",
-    "func": "// Dieser Node berechnet nur konsistente Reportinhalte. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Beim ersten abgeschlossenen Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\n\n// Den fortgeschriebenen Zustand fuer den naechsten Zyklus speichern.\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
-    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er berechnet die Inhalte fuer `events.jsonl`, `summary.csv` und `run_summary.json`; geschrieben werden sie erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis des Orchestrierungszustandskerns.\n\n### Zustand\n`context.reportState` enthaelt Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. `REPORT_ROOT` legt das Stammverzeichnis der Reports fest.\n\n### Ausgang\n`msg.payload` wird zu einer Liste aus drei Dateibeschreibungen mit Rolle, Dateiname, Inhalt und Append-/Overwrite-Angabe. Der folgende `split`-Node verarbeitet jede Beschreibung einzeln.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen. Eine Verteilung auf mehrere Standard-Nodes koennte Zeilennummern und Summen auseinanderlaufen lassen; das eigentliche Schreiben ist bereits mit Core-File-Nodes umgesetzt.",
+    "name": "Laufreport aktualisieren",
+    "func": "// Dieser Node aktualisiert nur den konsistenten Reportzustand. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Ein Fabrikstatus darf nur einen bereits begonnenen und passend korrelierten Lauf abschliessen.\nif (msg._report_event === 'factory_status') {\n  if (!state) return null;\n  const finalized = reporting.finalizeRun(state, msg.payload);\n  if (!finalized) return null;\n  context.set('reportState', null);\n  msg.payload = finalized.files;\n  return msg;\n}\n\n// Beim ersten abgeschlossenen KI-Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und laufende Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
+    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er protokolliert KI-Zyklen und schliesst den Gesamtlauf erst mit einem korrelierten Fabrikstatus `completed` oder `reset` ab. Geschrieben wird erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist entweder ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis oder ein durch Standard-Nodes gefilterter Fabrikstatus.\n\n### Zustand\n`context.reportState` enthaelt Report- und Fabrik-Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. Retained Statusmeldungen anderer Laeufe werden durch die Run-ID-Korrelation ignoriert. `REPORT_ROOT` legt das Stammverzeichnis fest.\n\n### Ausgang\nBei einem Zyklus entstehen Beschreibungen fuer Event, CSV-Zeile und laufende Run-Summary. Bei Abschluss oder Reset wird nur die finale Run-Summary erzeugt. Danach zerlegt ein `split`-Node die Dateibeschreibungen.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen; auch der Fabrikabschluss muss genau diesem Lauf zugeordnet werden. Der getestete Kern haelt diese Konsistenz, waehrend Standard-Nodes Ereignisse filtern und Dateien schreiben.",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,

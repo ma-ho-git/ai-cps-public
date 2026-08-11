@@ -61,8 +61,17 @@ Abnahme der promovierten Modelle am 2026-08-10:
 
 ## Virtuelle Betriebsparameter
 
-- Profile: `standard`, `full-storage-attempt`,
-  `full-storage-process-guard`.
+- Testszenarien: `standard` fuer Normalbetrieb (320 Zustaende),
+  `full-storage-attempt` fuer 20 wiederholte Vollspeicherversuche (157
+  Zustaende) und `full-storage-process-guard` fuer 9 vollstaendige
+  Vollspeicher-Prozesssequenzen (308 Zustaende).
+- Modellprofile: `deployment-current` verwendet die aktuelle `.env`-Auswahl;
+  `historical-full-storage-error` laedt das feste VGR-/HBW-Modellpaar vom
+  10.06.2026 und reproduziert den bekannten Vollspeicherfehler.
+- Das Modellprofil gilt unveraenderlich fuer einen Lauf. Requests ohne Profil
+  bleiben rueckwaertskompatibel und verwenden `deployment-current`.
+- Historische Profile sind ausschliesslich virtuell. Physisch bleiben die
+  ausgewaehlten Deploymentmodelle und Schnittstellen unveraendert.
 - Basiszeit je Modul: Standard 100 ms, Variation fest -50 bis +50 Prozent.
 - FlowFuse Dashboard ist lokal unter `/dashboard/betrieb` erreichbar.
 - Versionierte Flows werden nicht still in persistente Volumes kopiert;
@@ -83,6 +92,12 @@ Abnahme der promovierten Modelle am 2026-08-10:
   Klartextartefakt der isolierten Testumgebung und enthaelt keine Git-/SSH-/
   GitHub-/Docker-Anmeldedaten.
 - Rolling Windows, offene Zyklen und Docker-Images werden nicht migriert.
+- Ab Runtime V1.2.0 sind Standort- und Pre-Import-Bundles immer `0600`;
+  Restore-Volumes tragen Compose-Projekt- und Volume-Labels. V1.1.0- und
+  interne V1.1.1-Bundles bleiben fuer den V1.2.0-Importer kompatibel.
+- `run_summary.json.completed` beschreibt den gesamten virtuellen Lauf. Die
+  Markierung erfolgt erst durch den korrelierten finalen Fabrikstatus, nicht
+  durch den Abschluss eines einzelnen KI-Zyklus.
 
 ## Archiv
 

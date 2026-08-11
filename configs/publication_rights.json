@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "runtime-v1.1.0",
+  "release": "runtime-v1.2.0",
   "entries": [
     {
       "id": "grum-ai-cps-origin",
@@ -22,7 +22,7 @@
     },
     {
       "id": "model-artifacts",
-      "scope": "Storage, VGR and HBW latest model artifacts",
+      "scope": "Storage, VGR and HBW deployment artifacts plus the cleared historical VGR/HBW demonstration pair",
       "status": "approved",
       "basis": "Project owner confirmed training-data clearance and public redistribution of all three model artifact groups on 2026-08-10"
     },

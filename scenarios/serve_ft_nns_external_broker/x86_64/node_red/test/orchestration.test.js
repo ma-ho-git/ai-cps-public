@@ -94,6 +94,8 @@ function modelResponse(domain, requestAction, cmd, commandOutputEnabled = true) 
   return {
     cycle_id: requestAction.payload.cycle_id,
     request_id: requestAction.payload.request_id,
+    model_id: requestAction.payload.model_id,
+    model_profile: requestAction.payload.model_profile,
     cmd,
     command_output: {
       enabled: commandOutputEnabled,
@@ -106,6 +108,64 @@ function modelResponse(domain, requestAction, cmd, commandOutputEnabled = true) 
     },
   };
 }
+
+function profileContract(domain, commandOutputEnabled = true) {
+  const base = contract(domain, commandOutputEnabled);
+  if (domain === "storage") return base;
+  const current = { ...base, profile_id: "deployment-current", display_name: "Aktueller Modellstand" };
+  const historical = {
+    ...base,
+    profile_id: "historical-full-storage-error",
+    display_name: "Historischer Stand - reproduziert Vollspeicherfehler",
+    model_id: `${domain}:historical`,
+    model_sha256: "b".repeat(64),
+    virtual_only: true,
+  };
+  base.default_model_profile = "deployment-current";
+  base.model_profiles = {
+    "deployment-current": current,
+    "historical-full-storage-error": historical,
+  };
+  return base;
+}
+
+test("historical profile uses its own contracts, windows, requests, and result IDs", () => {
+  const idleRow = Object.fromEntries(processFeatures.map((feature) => [feature, 0]));
+  const runtime = createRuntime({
+    topics,
+    idleSeedTemplates: { schema_version: "1.0", rows: Array.from({ length: 9 }, () => ({ ...idleRow })) },
+    commandOutputEnabled: true,
+    now: () => 1000,
+  });
+  for (const domain of ["storage", "vgr", "hbw"]) {
+    runtime.handleEvent("contract", profileContract(domain), domain);
+    runtime.handleEvent("status", { domain, state: "online", model_id: `${domain}:model-a` }, domain);
+  }
+
+  const storageRequest = action(runtime.handleEvent("live_state", {
+    ...livePayload(),
+    model_profile: "historical-full-storage-error",
+    model_profile_name: "Historischer Stand",
+  }), "storage_request");
+  const requests = runtime.handleEvent("storage_response", {
+    cycle_id: storageRequest.payload.cycle_id,
+    request_id: storageRequest.payload.request_id,
+    model_id: "storage:model-a",
+    empty_storage: 1,
+  });
+  const vgr = action(requests, "vgr_request");
+  const hbw = action(requests, "hbw_request");
+  assert.equal(vgr.payload.model_profile, "historical-full-storage-error");
+  assert.equal(vgr.payload.model_id, "vgr:historical");
+  assert.equal(hbw.payload.model_id, "hbw:historical");
+
+  runtime.handleEvent("vgr_response", modelResponse("vgr", vgr, 101));
+  const completed = runtime.handleEvent("hbw_response", modelResponse("hbw", hbw, 111));
+  const result = action(completed, "cycle_result").payload;
+  assert.equal(result.model_profile, "historical-full-storage-error");
+  assert.equal(result.model_ids.vgr, "vgr:historical");
+  assert.equal(result.model_ids.hbw, "hbw:historical");
+});
 
 function action(actions, role) {
   return actions.find((item) => item.role === role);

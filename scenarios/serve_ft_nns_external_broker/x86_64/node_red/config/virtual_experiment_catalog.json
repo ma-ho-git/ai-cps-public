@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "default_model_profile": "deployment-current",
+  "model_profiles": {
+    "deployment-current": {
+      "display_name": "Aktueller Modellstand",
+      "description": "Verwendet den aktuell ausgewaehlten Deploymentstand.",
+      "virtual_only": false,
+      "domains": {
+        "vgr": {
+          "source": "active"
+        },
+        "hbw": {
+          "source": "active"
+        }
+      }
+    },
+    "historical-full-storage-error": {
+      "display_name": "Historischer Stand - reproduziert Vollspeicherfehler",
+      "description": "Virtuelles Demonstrationsprofil vor der Vollspeicherkorrektur.",
+      "virtual_only": true,
+      "domains": {
+        "vgr": {
+          "source": "fixed",
+          "model_dir": "vgr/historical/full-storage-error",
+          "model_id": "vgr:2026-06-10_114233:0d5e18dcd42a",
+          "model_sha256": "0d5e18dcd42a7d1ce78718848d0ebca9a21ea649090949073a095b3174d397ee",
+          "activation_sha256": "f69b452f1ebd6fcb6cb67f26e06ed4ea705d73ff297c60e105561421f125d171",
+          "metrics_sha256": "027529fada96140f462f9f69c477efb234f4ed0fbbff47b921e0d9429eb73e82"
+        },
+        "hbw": {
+          "source": "fixed",
+          "model_dir": "hbw/historical/full-storage-error",
+          "model_id": "hbw:2026-06-10_114434:46eb4538c213",
+          "model_sha256": "46eb4538c2131a5801f91610413ff769a34e666e74a2104ec10755008d9fd69d",
+          "activation_sha256": "72a7846875d30bd6789b7c1425df54a96cea25e76f547486cd210f952ed59fa2",
+          "metrics_sha256": "f9165fd5b4caf99975b9e3d26eea98fb761fcde4cb089df2281e18176c9ed1ac"
+        }
+      }
+    }
+  },
+  "trace_profiles": {
+    "standard": {
+      "display_name": "Normalbetrieb - Einlagerungen und Idle-Phasen (320 Zustaende)",
+      "description": "Regulaerer Anlagenbetrieb mit Einlagerungsprozessen und Ruhephasen.",
+      "state_count": 320
+    },
+    "full-storage-attempt": {
+      "display_name": "Vollspeicher - 20 wiederholte Einlagerungsversuche (157 Zustaende)",
+      "description": "Stationaerer Grenzfall bei vollem Lager und ausgeloester Lichtschranke.",
+      "state_count": 157
+    },
+    "full-storage-process-guard": {
+      "display_name": "Vollspeicher - 9 vollstaendige Prozesssequenzen (308 Zustaende)",
+      "description": "Prozessartige Gegenbeispiele bei dauerhaft voll belegtem Lager.",
+      "state_count": 308
+    }
+  }
+}

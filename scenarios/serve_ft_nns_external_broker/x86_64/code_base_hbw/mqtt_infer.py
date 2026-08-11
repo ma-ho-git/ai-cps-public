@@ -32,6 +32,12 @@ from mqtt_runtime import (  # noqa: E402
     publish_contract_and_status,
     response_payload,
 )
+from model_profiles import (  # noqa: E402
+    DEFAULT_MODEL_PROFILE,
+    load_profile_specs,
+    profile_contract,
+    select_profile,
+)
 
 
 SENDER = os.environ.get("SENDER", "testSender")
@@ -45,6 +51,7 @@ MQTT_STATUS_TOPIC = os.environ.get("MQTT_STATUS_TOPIC", "ft/nn/hbw/status")
 MQTT_QOS = int(os.environ.get("MQTT_QOS", "1"))
 COMMAND_OUTPUT_ENABLED = env_flag("COMMAND_OUTPUT_ENABLED", False)
 COMMAND_TOPICS_PATH = os.environ.get("COMMAND_TOPICS_PATH", "/runtime_config/topics.json")
+MODEL_PROFILES_PATH = os.environ.get("MODEL_PROFILES_PATH", "")
 
 MQTT_USER = os.environ.get("MQTT_USER", "")
 MQTT_PASS = os.environ.get("MQTT_PASS", "")
@@ -58,6 +65,8 @@ ACTIVATION = None
 CONTRACT = None
 COMMAND_TOPICS = {}
 RESPONSE_CACHE = ResponseCache()
+LOADED_PROFILES = {}
+ACTIVE_MODEL_PROFILE = DEFAULT_MODEL_PROFILE
 
 
 def load_json(path: str):
@@ -80,12 +89,40 @@ def wait_for_files(paths, timeout_s=180, interval_s=1):
 
 
 def ensure_loaded():
-    """Laedt Modell und Activation einmalig in den Inferenzprozess."""
-    global MODEL, ACTIVATION
-    if ACTIVATION is None:
-        ACTIVATION = load_json(AB_PATH)
-    if MODEL is None:
-        MODEL = tf.keras.models.load_model(KB_PATH)
+    """Laedt den Deploymentstand und optionale virtuelle Profile einmalig."""
+    global MODEL, ACTIVATION, CONTRACT, LOADED_PROFILES, ACTIVE_MODEL_PROFILE
+    if LOADED_PROFILES:
+        return
+    default_profile, specs = load_profile_specs(
+        MODEL_PROFILES_PATH or None,
+        domain="hbw",
+        active_model_path=KB_PATH,
+        active_activation_path=AB_PATH,
+    )
+    for profile_id, spec in specs.items():
+        activation = load_json(str(spec["activation_path"]))
+        model = tf.keras.models.load_model(str(spec["model_path"]))
+        contract = build_model_contract(
+            domain="hbw",
+            activation=activation,
+            model_path=spec["model_path"],
+            request_topic=MQTT_REQ_TOPIC,
+            response_topic=MQTT_RES_TOPIC,
+            command_output=command_output_contract(
+                command_topics=COMMAND_TOPICS,
+                enabled=COMMAND_OUTPUT_ENABLED,
+            ),
+        )
+        expected_model_id = spec.get("expected_model_id")
+        if expected_model_id and expected_model_id != contract["model_id"]:
+            raise ValueError(
+                f"profile {profile_id!r} model_id mismatch: expected {expected_model_id}, got {contract['model_id']}",
+            )
+        LOADED_PROFILES[profile_id] = {**spec, "activation": activation, "model": model, "contract": contract}
+    ACTIVE_MODEL_PROFILE = default_profile
+    MODEL = LOADED_PROFILES[default_profile]["model"]
+    ACTIVATION = LOADED_PROFILES[default_profile]["activation"]
+    CONTRACT = profile_contract(default_profile, LOADED_PROFILES)
 
 
 def class_ids_for_output(activation, n_outputs):
@@ -102,20 +139,22 @@ def class_ids_for_output(activation, n_outputs):
     return class_ids
 
 
-def predict(sequence):
+def predict(sequence, profile=None):
     """Validiert das Sequenzfenster und berechnet HBW-Befehl plus Top-3."""
     ensure_loaded()
-    time_steps = int(ACTIVATION["time_steps"])
-    feature_cols = ACTIVATION["feature_cols"]
-    cmd_map = {int(k): v for k, v in ACTIVATION["cmd_map"].items()}
+    activation = ACTIVATION if profile is None else profile["activation"]
+    model = MODEL if profile is None else profile["model"]
+    time_steps = int(activation["time_steps"])
+    feature_cols = activation["feature_cols"]
+    cmd_map = {int(k): v for k, v in activation["cmd_map"].items()}
 
     x = np.asarray(sequence, dtype=np.float32)
     if x.shape != (time_steps, len(feature_cols)):
         raise ValueError(f"Sequence shape mismatch. Expected {(time_steps, len(feature_cols))}, got {x.shape}")
 
     x = x.reshape(1, time_steps, len(feature_cols))
-    proba = MODEL.predict(x, verbose=0)[0]
-    class_ids = class_ids_for_output(ACTIVATION, len(proba))
+    proba = model.predict(x, verbose=0)[0]
+    class_ids = class_ids_for_output(activation, len(proba))
     y_idx = int(np.argmax(proba))
     y_hat = int(class_ids[y_idx])
 
@@ -158,9 +197,22 @@ def on_message(client, userdata, msg):
             client.publish(MQTT_RES_TOPIC, json.dumps(cached), qos=MQTT_QOS, retain=False)
             print(f"[MQTT] duplicate request_id={request_id} -> response replayed without command", flush=True)
             return
+        if LOADED_PROFILES:
+            selected_profile_id, selected_profile = select_profile(
+                req,
+                default_profile=ACTIVE_MODEL_PROFILE,
+                loaded_profiles=LOADED_PROFILES,
+            )
+            selected_contract = selected_profile["contract"]
+        else:
+            selected_profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
+            if selected_profile_id != DEFAULT_MODEL_PROFILE:
+                raise ValueError(f"unknown model_profile {selected_profile_id!r}")
+            selected_profile = None
+            selected_contract = CONTRACT
         sequence = req["sequence"]
 
-        y_hat, y_name, top3 = predict(sequence)
+        y_hat, y_name, top3 = predict(sequence) if selected_profile is None else predict(sequence, selected_profile)
         command_output = publish_direct_command(
             client,
             domain="hbw",
@@ -170,7 +222,8 @@ def on_message(client, userdata, msg):
         )
         res = response_payload(
             req,
-            model_id=CONTRACT["model_id"],
+            model_id=selected_contract["model_id"],
+            model_profile=selected_profile_id,
             cmd=y_hat,
             name=y_name,
             top3=top3,
@@ -185,7 +238,19 @@ def on_message(client, userdata, msg):
         )
 
     except Exception as e:
-        err = response_payload(req, model_id=CONTRACT["model_id"], error=str(e))
+        error_profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
+        error_profile = LOADED_PROFILES.get(error_profile_id)
+        error_model_id = (
+            error_profile["contract"]["model_id"]
+            if error_profile is not None
+            else CONTRACT["model_id"]
+        )
+        err = response_payload(
+            req,
+            model_id=error_model_id,
+            model_profile=error_profile_id,
+            error=str(e),
+        )
         request_id = str(req.get("request_id", ""))
         if request_id and RESPONSE_CACHE.get(request_id) is None:
             RESPONSE_CACHE.remember(request_id, err)
@@ -195,30 +260,23 @@ def on_message(client, userdata, msg):
 
 def main():
     """Startet den HBW-Inferenzcontainer als MQTT-Client."""
-    global COMMAND_TOPICS, CONTRACT
+    global COMMAND_TOPICS
     try:
         print(f"[INIT] waiting for KB={KB_PATH} and AB={AB_PATH}", flush=True)
         wait_for_files([KB_PATH, AB_PATH], timeout_s=180, interval_s=1)
-        ensure_loaded()
         COMMAND_TOPICS = load_command_topic_map(COMMAND_TOPICS_PATH, "hbw")
-        missing_topics = sorted(set(int(value) for value in ACTIVATION["class_ids"]) - set(COMMAND_TOPICS))
-        if missing_topics:
-            raise ValueError(f"HBW classes without physical command topics: {missing_topics}")
-        CONTRACT = build_model_contract(
-            domain="hbw",
-            activation=ACTIVATION,
-            model_path=KB_PATH,
-            request_topic=MQTT_REQ_TOPIC,
-            response_topic=MQTT_RES_TOPIC,
-            command_output=command_output_contract(
-                command_topics=COMMAND_TOPICS,
-                enabled=COMMAND_OUTPUT_ENABLED,
-            ),
-        )
+        ensure_loaded()
+        for profile_id, profile in LOADED_PROFILES.items():
+            missing_topics = sorted(
+                set(int(value) for value in profile["activation"]["class_ids"]) - set(COMMAND_TOPICS),
+            )
+            if missing_topics:
+                raise ValueError(f"HBW profile {profile_id!r} classes without physical command topics: {missing_topics}")
         print("[INIT] model+activation loaded OK", flush=True)
         print(
             f"[INIT] broker={MQTT_HOST}:{MQTT_PORT} req={MQTT_REQ_TOPIC} "
-            f"res={MQTT_RES_TOPIC} direct_commands={COMMAND_OUTPUT_ENABLED}",
+            f"res={MQTT_RES_TOPIC} direct_commands={COMMAND_OUTPUT_ENABLED} "
+            f"profiles={','.join(LOADED_PROFILES)}",
             flush=True,
         )
     except Exception as e:

@@ -6,6 +6,9 @@ const bootstrap = require("./lib/bootstrap");
 const baseDir = __dirname;
 const tracePath = process.env.LIVE_TRACE_PAYLOADS || path.join(baseDir, "data/live_plc_trace/payloads.jsonl");
 const traceProfile = process.env.TRACE_PROFILE || "standard";
+const experimentCatalog = bootstrap.loadJson(
+  path.join(baseDir, "config/virtual_experiment_catalog.json"),
+);
 const traceCatalog = {
   standard: bootstrap.loadJsonLines(path.join(baseDir, "data/live_plc_trace/payloads.jsonl")),
   "full-storage-attempt": bootstrap.loadJsonLines(
@@ -37,6 +40,10 @@ module.exports = {
     aiCpsTracePayloads: bootstrap.loadJsonLines(tracePath),
     aiCpsTraceCatalog: traceCatalog,
     aiCpsDefaultTraceProfile: traceProfile,
+    aiCpsExperimentCatalog: experimentCatalog,
+    aiCpsDefaultModelProfile: process.env.MODEL_PROFILE
+      || experimentCatalog.default_model_profile
+      || "deployment-current",
   },
   logging: {
     console: {

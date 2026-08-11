@@ -44,6 +44,15 @@ function normalizeRunConfig(value = {}, { payloadCatalog, defaults = {} } = {}) 
   if (!Object.hasOwn(catalog, traceProfile) || !Array.isArray(catalog[traceProfile])) {
     throw new TypeError(`trace profile '${traceProfile}' is not available`);
   }
+  const modelProfiles = defaults.model_profiles || {
+    "deployment-current": { display_name: "deployment-current" },
+  };
+  const modelProfile = String(
+    value.model_profile ?? defaults.model_profile ?? "deployment-current",
+  );
+  if (!Object.hasOwn(modelProfiles, modelProfile)) {
+    throw new TypeError(`model profile '${modelProfile}' is not available`);
+  }
 
   const seed = normalizeSeed(value.seed ?? defaults.seed ?? 42);
   const baseRuntimeMs = normalizeBaseRuntimeMs({
@@ -60,6 +69,7 @@ function normalizeRunConfig(value = {}, { payloadCatalog, defaults = {} } = {}) 
 
   return {
     trace_profile: traceProfile,
+    model_profile: modelProfile,
     seed,
     base_runtime_ms: baseRuntimeMs,
   };
@@ -81,18 +91,27 @@ class VirtualFactory {
     topics,
     payloads,
     payloadCatalog,
+    experimentCatalog = {},
     traceProfile = "standard",
+    modelProfile = "deployment-current",
     seed = 42,
     baseRuntimeMs = {},
     now = () => Date.now(),
   }) {
     this.topics = topics;
     this.payloadCatalog = payloadCatalog || { [traceProfile]: payloads || [] };
+    this.experimentCatalog = experimentCatalog;
+    this.modelProfiles = experimentCatalog.model_profiles || {
+      [modelProfile]: { display_name: modelProfile },
+    };
+    this.traceProfiles = experimentCatalog.trace_profiles || {};
     if (!Object.hasOwn(this.payloadCatalog, traceProfile)) {
       this.payloadCatalog[traceProfile] = payloads || [];
     }
     this.defaultRunConfig = {
       trace_profile: traceProfile,
+      model_profile: modelProfile,
+      model_profiles: this.modelProfiles,
       seed: normalizeSeed(seed),
       base_runtime_ms: normalizeBaseRuntimeMs(baseRuntimeMs),
     };
@@ -121,6 +140,9 @@ class VirtualFactory {
   runConfigSnapshot() {
     return {
       trace_profile: this.activeRunConfig.trace_profile,
+      trace_profile_name: this.traceProfileName(this.activeRunConfig.trace_profile),
+      model_profile: this.activeRunConfig.model_profile,
+      model_profile_name: this.modelProfileName(this.activeRunConfig.model_profile),
       seed: this.activeRunConfig.seed,
       base_runtime_ms: { ...this.baseRuntimeMs },
     };
@@ -134,6 +156,9 @@ class VirtualFactory {
     return {
       state,
       trace_profile: this.activeRunConfig.trace_profile,
+      trace_profile_name: this.traceProfileName(this.activeRunConfig.trace_profile),
+      model_profile: this.activeRunConfig.model_profile,
+      model_profile_name: this.modelProfileName(this.activeRunConfig.model_profile),
       trace_total: traceTotal,
       payloads_sent: this.payloadIndex,
       progress_percent: progressPercent,
@@ -147,12 +172,21 @@ class VirtualFactory {
   applyRunConfig(config) {
     this.activeRunConfig = {
       trace_profile: config.trace_profile,
+      model_profile: config.model_profile,
       seed: config.seed,
       base_runtime_ms: { ...config.base_runtime_ms },
     };
     this.payloads = this.payloadCatalog[config.trace_profile];
     this.random = new SeededRandom(config.seed);
     this.baseRuntimeMs = { ...config.base_runtime_ms };
+  }
+
+  traceProfileName(profileId) {
+    return this.traceProfiles[profileId]?.display_name || profileId;
+  }
+
+  modelProfileName(profileId) {
+    return this.modelProfiles[profileId]?.display_name || profileId;
   }
 
   runtimeMs(module) {
@@ -238,6 +272,9 @@ class VirtualFactory {
         payload: {
           ...this.statusPayload("waiting_for_orchestration"),
           trace_profile: pending.trace_profile,
+          trace_profile_name: this.traceProfileName(pending.trace_profile),
+          model_profile: pending.model_profile,
+          model_profile_name: this.modelProfileName(pending.model_profile),
           trace_total: this.payloadCatalog[pending.trace_profile].length,
           seed: pending.seed,
           base_runtime_ms: { ...pending.base_runtime_ms },
@@ -245,6 +282,7 @@ class VirtualFactory {
       }];
     }
     if (value?.cmd === "reset") {
+      const previousRunId = this.activeRunId;
       this.running = false;
       this.finished = false;
       this.startRequested = false;
@@ -262,7 +300,7 @@ class VirtualFactory {
       return [{
         channel: "status",
         role: "factory_status",
-        payload: this.statusPayload("reset"),
+        payload: this.statusPayload("reset", { run_id: previousRunId }),
       }];
     }
     return [];
@@ -372,6 +410,9 @@ class VirtualFactory {
       correlation_id: this.activeRunId,
       factory_cycle: this.cycleCounter,
       trace_profile: this.activeRunConfig.trace_profile,
+      trace_profile_name: this.traceProfileName(this.activeRunConfig.trace_profile),
+      model_profile: this.activeRunConfig.model_profile,
+      model_profile_name: this.modelProfileName(this.activeRunConfig.model_profile),
       factory_seed: this.activeRunConfig.seed,
       factory_base_runtime_ms: { ...this.baseRuntimeMs },
       module_runtime_ms: { ...this.moduleRuntimeMs },

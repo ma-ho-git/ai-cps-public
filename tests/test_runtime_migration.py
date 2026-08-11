@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -84,6 +85,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             ["model_registry/vgr/candidates/selected-vgr"],
         )
         self.assertEqual(set(manifest["included_volumes"]), set(migration.VOLUMES))
+        self.assertEqual(stat.S_IMODE(bundle.stat().st_mode), 0o600)
 
     def test_checksum_damage_is_rejected(self) -> None:
         bundle = self.create_bundle()
@@ -105,14 +107,16 @@ class RuntimeMigrationTests(unittest.TestCase):
             "COMPOSE_PROJECT_NAME=target-site\nREPORT_ROOT_HOST=../../../reports\n",
             encoding="utf-8",
         )
-        restore_calls: list[tuple[str, str]] = []
+        restore_calls: list[tuple[str, str, str]] = []
         patches = self.patches()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], mock.patch.object(
             migration, "export_bundle"
         ) as backup, mock.patch.object(
             migration,
             "restore_volume",
-            side_effect=lambda volume, archive: restore_calls.append((volume, archive.name)),
+            side_effect=lambda project, logical, archive: restore_calls.append(
+                (project, logical, archive.name)
+            ),
         ):
             backup.return_value = {}
             backup_path = migration.import_bundle(
@@ -126,15 +130,32 @@ class RuntimeMigrationTests(unittest.TestCase):
         self.assertEqual(restored["NODE_RED_CREDENTIAL_SECRET"], "test-secret")
         self.assertEqual(len(restore_calls), 3)
 
+    def test_import_creates_private_pre_import_backup(self) -> None:
+        bundle = self.create_bundle()
+        patches = self.patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], mock.patch.object(
+            migration, "backup_volume", side_effect=self.fake_volume
+        ), mock.patch.object(migration, "restore_volume"):
+            backup_path = migration.import_bundle(
+                bundle=bundle,
+                env_file=self.env_file,
+                force=True,
+            )
+
+        self.assertTrue(backup_path.is_file())
+        self.assertEqual(stat.S_IMODE(backup_path.stat().st_mode), 0o600)
+
     def test_import_can_restore_into_isolated_project_and_report_root(self) -> None:
         bundle = self.create_bundle()
         target_reports = self.root / "isolated-reports"
-        restore_calls: list[tuple[str, str]] = []
+        restore_calls: list[tuple[str, str, str]] = []
         patches = self.patches()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], mock.patch.object(
             migration,
             "restore_volume",
-            side_effect=lambda volume, archive: restore_calls.append((volume, archive.name)),
+            side_effect=lambda project, logical, archive: restore_calls.append(
+                (project, logical, archive.name)
+            ),
         ):
             migration.import_bundle(
                 bundle=bundle,
@@ -149,11 +170,11 @@ class RuntimeMigrationTests(unittest.TestCase):
         self.assertEqual(restored["REPORT_ROOT_HOST"], str(target_reports.resolve()))
         self.assertEqual(restored["NODE_RED_CREDENTIAL_SECRET"], "test-secret")
         self.assertEqual(
-            {volume for volume, _archive in restore_calls},
+            {(project, logical) for project, logical, _archive in restore_calls},
             {
-                "ai-cps-v11-restore_nodered_data",
-                "ai-cps-v11-restore_mosquitto_data",
-                "ai-cps-v11-restore_mosquitto_log",
+                ("ai-cps-v11-restore", "nodered_data"),
+                ("ai-cps-v11-restore", "mosquitto_data"),
+                ("ai-cps-v11-restore", "mosquitto_log"),
             },
         )
         self.assertEqual(
@@ -188,6 +209,104 @@ class RuntimeMigrationTests(unittest.TestCase):
         with mock.patch.object(migration, "RELEASE_CONFIG", self.config):
             with self.assertRaisesRegex(migration.MigrationError, "volume list"):
                 migration.validate_compatibility(manifest)
+
+    def test_v12_release_accepts_v110_and_internal_v111_site_bundles(self) -> None:
+        self.config.write_text(
+            json.dumps(
+                {
+                    "release": "runtime-v1.2.0",
+                    "platform": "linux/amd64",
+                    "compatible_site_bundle_releases": [
+                        "runtime-v1.1.0",
+                        "runtime-v1.1.1",
+                        "runtime-v1.2.0",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        for release in ("runtime-v1.1.0", "runtime-v1.1.1", "runtime-v1.2.0"):
+            with self.subTest(release=release):
+                manifest = {
+                    "release": release,
+                    "platform": "linux/amd64",
+                    "included_volumes": list(migration.VOLUMES),
+                    "selected_candidates": [],
+                }
+                with mock.patch.object(migration, "RELEASE_CONFIG", self.config):
+                    migration.validate_compatibility(manifest)
+
+    def test_patch_release_rejects_unlisted_site_bundle(self) -> None:
+        self.config.write_text(
+            json.dumps(
+                {
+                    "release": "runtime-v1.2.0",
+                    "platform": "linux/amd64",
+                    "compatible_site_bundle_releases": [
+                        "runtime-v1.1.0",
+                        "runtime-v1.1.1",
+                        "runtime-v1.2.0",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        manifest = {
+            "release": "runtime-v1.0.0",
+            "platform": "linux/amd64",
+            "included_volumes": list(migration.VOLUMES),
+            "selected_candidates": [],
+        }
+        with mock.patch.object(migration, "RELEASE_CONFIG", self.config):
+            with self.assertRaisesRegex(migration.MigrationError, "not compatible"):
+                migration.validate_compatibility(manifest)
+
+    def test_restore_volume_recreates_unlabelled_volume_with_compose_labels(self) -> None:
+        archive = self.root / "volume.tar.gz"
+        archive.write_bytes(b"archive")
+        inspect = mock.Mock(returncode=0, stdout="null\n", stderr="")
+        with mock.patch.object(migration.subprocess, "run", return_value=inspect), mock.patch.object(
+            migration, "run_checked"
+        ) as run_checked:
+            migration.restore_volume("target-project", "nodered_data", archive)
+
+        commands = [call.args[0] for call in run_checked.call_args_list]
+        self.assertIn(
+            ["docker", "volume", "rm", "target-project_nodered_data"],
+            commands,
+        )
+        self.assertIn(
+            [
+                "docker",
+                "volume",
+                "create",
+                "--label",
+                "com.docker.compose.project=target-project",
+                "--label",
+                "com.docker.compose.volume=nodered_data",
+                "target-project_nodered_data",
+            ],
+            commands,
+        )
+
+    def test_restore_volume_keeps_correctly_labelled_volume(self) -> None:
+        archive = self.root / "volume.tar.gz"
+        archive.write_bytes(b"archive")
+        labels = {
+            "com.docker.compose.project": "target-project",
+            "com.docker.compose.volume": "nodered_data",
+        }
+        inspect = mock.Mock(returncode=0, stdout=json.dumps(labels), stderr="")
+        with mock.patch.object(migration.subprocess, "run", return_value=inspect), mock.patch.object(
+            migration, "run_checked"
+        ) as run_checked:
+            migration.restore_volume("target-project", "nodered_data", archive)
+
+        commands = [call.args[0] for call in run_checked.call_args_list]
+        self.assertNotIn(
+            ["docker", "volume", "rm", "target-project_nodered_data"],
+            commands,
+        )
 
 
 if __name__ == "__main__":

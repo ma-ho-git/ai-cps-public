@@ -9,7 +9,8 @@ sind der Betriebsstandard; lokale Builds bleiben der Entwicklungsweg.
 ## Uebertragbarer Bestand
 
 - drei NN-Inferenzdienste und `model_registry/*/latest`;
-- Node-RED mit FlowFuse Dashboard, Mosquitto und drei Trace-Profilen;
+- Node-RED mit FlowFuse Dashboard, Mosquitto, drei Testszenarien und zwei
+  festen virtuellen Modellprofilen;
 - physische und virtuelle Compose-Datei;
 - drei Trainingscontainer und aktive/Regressionstrainingsdaten;
 - Preflight, Modellmanager, Beobachter und Reportanalyse;
@@ -20,11 +21,11 @@ sind der Betriebsstandard; lokale Builds bleiben der Entwicklungsweg.
 Empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.1.0 \
+git clone --depth 1 --branch runtime-v1.2.0 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.1.0 \
+  --mode virtual --release runtime-v1.2.0 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -43,8 +44,9 @@ Entwickler kopieren `.env.example`, installieren
 ## Freigegebene Images Und Manifest
 
 Das GitHub-Release enthaelt `runtime-manifest.json` mit Source-Commit,
-linux/amd64-Image-Digests, Modell-IDs/-Hashes, Trace-/Flow-Hashes und
-Node-RED-Runtimeversion. Der Assistent uebernimmt diese Referenzen in `.env`.
+linux/amd64-Image-Digests, Modell-IDs/-Hashes, Trace-/Flow-Hashes,
+Node-RED-Runtimeversion sowie IDs und Hashes der historischen
+Demonstrationsmodelle. Der Assistent uebernimmt diese Referenzen in `.env`.
 Manuelle `*_IMAGE`-Aenderungen liegen ausserhalb dieses Release-Locks.
 
 ## Persistenz
@@ -87,6 +89,13 @@ Reportpfad, ausgewaehlte Kandidaten sowie Auswahlzustand und -historie. Images,
 Git-/SSH-/Docker-Zugangsdaten und unbenutzte Modellversionen sind ausgeschlossen.
 Der Import prueft alle Hashes, erzeugt bei vorhandenem Zielstand ein
 `pre-import-*.tar.gz` und startet den Stack nicht.
+
+Bundle und Pre-Import-Backup erhalten immer Dateimodus `0600`. Der
+V1.2.0-Importer akzeptiert V1.1.0-, interne V1.1.1- und V1.2.0-Bundles.
+Vorhandene Zielvolumes
+werden nach dem Backup mit dem Zielprojektnamen und den von Compose erwarteten
+Labels neu angelegt; ihre Daten stammen anschliessend ausschliesslich aus dem
+geprueften Bundle.
 
 `--target-project` und `--target-report-root` ueberschreiben nur den
 Docker-Namensraum und den Reportpfad. Alle weiteren Standortwerte und das

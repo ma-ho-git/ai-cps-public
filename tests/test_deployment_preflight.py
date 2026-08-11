@@ -206,6 +206,11 @@ class DeploymentPreflightTests(unittest.TestCase):
         )
         self.assertIn(
             "scenarios/serve_ft_nns_external_broker/x86_64/"
+            "node_red/config/virtual_experiment_catalog.json",
+            relative_paths,
+        )
+        self.assertIn(
+            "scenarios/serve_ft_nns_external_broker/x86_64/"
             "test_payloads/live_plc_full_storage_attempt/payloads.jsonl",
             relative_paths,
         )
@@ -214,6 +219,17 @@ class DeploymentPreflightTests(unittest.TestCase):
             "test_payloads/live_plc_full_storage_attempt/manifest.csv",
             relative_paths,
         )
+
+    def test_virtual_experiment_catalog_verifies_profiles_and_scenario_counts(self):
+        checks = preflight.check_virtual_experiment_catalog()
+        self.assertTrue(checks)
+        self.assertTrue(all(check.ok for check in checks), checks)
+        names = {check.name for check in checks}
+        self.assertIn(
+            "virtual-model-profile:historical-full-storage-error:vgr",
+            names,
+        )
+        self.assertIn("virtual-trace-profile:standard", names)
 
     def test_only_x86_64_is_released(self):
         self.assertTrue(preflight.check_architecture("x86_64").ok)

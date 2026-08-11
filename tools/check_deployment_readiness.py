@@ -163,6 +163,7 @@ def required_nodered_assets(root: Path = PROJECT_ROOT) -> list[Path]:
         base / "config/topics.json",
         base / "config/idle_seed_templates.json",
         base / "config/model_contract.schema.json",
+        base / "config/virtual_experiment_catalog.json",
         base / "lib/orchestration.js",
         base / "lib/hmi.js",
         base / "lib/reporting.js",
@@ -185,6 +186,86 @@ def check_nodered_assets(root: Path = PROJECT_ROOT) -> CheckResult:
         "versioned Node-RED and Mosquitto runtime assets are complete",
         f"missing runtime assets: {missing}",
     )
+
+
+def check_virtual_experiment_catalog(root: Path = PROJECT_ROOT) -> list[CheckResult]:
+    """Prueft sichtbare Szenarien und fest versionierte historische Modelle."""
+    scenario = root / "scenarios/serve_ft_nns_external_broker/x86_64"
+    catalog_path = scenario / "node_red/config/virtual_experiment_catalog.json"
+    try:
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [CheckResult("virtual-experiment-catalog", False, str(exc))]
+
+    checks: list[CheckResult] = []
+    profiles = catalog.get("model_profiles", {})
+    default_profile = catalog.get("default_model_profile")
+    checks.append(
+        result(
+            "virtual-model-profiles",
+            catalog.get("schema_version") == "1.0"
+            and isinstance(profiles, dict)
+            and default_profile in profiles,
+            f"model profiles available: {', '.join(sorted(profiles))}",
+            "invalid virtual model profile catalog",
+        )
+    )
+    for profile_id, profile in profiles.items() if isinstance(profiles, dict) else ():
+        for domain in ("vgr", "hbw"):
+            domain_config = profile.get("domains", {}).get(domain, {})
+            if domain_config.get("source") == "active":
+                continue
+            relative = Path(str(domain_config.get("model_dir", "")))
+            model_dir = root / "model_registry" / relative
+            invalid: list[str] = []
+            for filename, hash_key in (
+                ("model.keras", "model_sha256"),
+                ("activation.json", "activation_sha256"),
+                ("metrics.json", "metrics_sha256"),
+            ):
+                artifact = model_dir / filename
+                expected = str(domain_config.get(hash_key, ""))
+                if not artifact.is_file() or not expected or sha256_file(artifact) != expected:
+                    invalid.append(filename)
+            model_hash = str(domain_config.get("model_sha256", ""))
+            expected_id = str(domain_config.get("model_id", ""))
+            try:
+                activation = json.loads((model_dir / "activation.json").read_text(encoding="utf-8"))
+                actual_id = f"{domain}:{activation.get('trained_at', 'unknown')}:{model_hash[:12]}"
+            except (OSError, json.JSONDecodeError):
+                actual_id = ""
+            checks.append(
+                result(
+                    f"virtual-model-profile:{profile_id}:{domain}",
+                    not invalid and actual_id == expected_id,
+                    f"verified {expected_id}",
+                    f"invalid artifacts={invalid} or model_id={expected_id!r}/{actual_id!r}",
+                )
+            )
+
+    trace_profiles = catalog.get("trace_profiles", {})
+    trace_paths = {
+        "standard": scenario / "test_payloads/live_plc_trace/payloads.jsonl",
+        "full-storage-attempt": scenario / "test_payloads/live_plc_full_storage_attempt/payloads.jsonl",
+        "full-storage-process-guard": scenario / "test_payloads/live_plc_full_storage_process_guard/payloads.jsonl",
+    }
+    for profile_id, payload_path in trace_paths.items():
+        configured = trace_profiles.get(profile_id, {}) if isinstance(trace_profiles, dict) else {}
+        try:
+            actual_count = sum(1 for line in payload_path.read_text(encoding="utf-8").splitlines() if line.strip())
+        except OSError:
+            actual_count = -1
+        expected_count = configured.get("state_count")
+        display_name = configured.get("display_name")
+        checks.append(
+            result(
+                f"virtual-trace-profile:{profile_id}",
+                bool(display_name) and expected_count == actual_count,
+                f"{display_name}: {actual_count} states",
+                f"missing display name or state count mismatch: expected {expected_count}, got {actual_count}",
+            )
+        )
+    return checks
 
 
 def check_dependency_pins(root: Path = PROJECT_ROOT) -> list[CheckResult]:
@@ -797,6 +878,7 @@ def collect_checks(
         checks.extend(
             [
                 check_nodered_assets(root),
+                *check_virtual_experiment_catalog(root),
                 check_report_directory(settings, root),
                 check_nodered_credential_secret(settings),
                 *check_factory_base_runtimes(settings),

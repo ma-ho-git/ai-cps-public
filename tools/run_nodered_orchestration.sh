@@ -40,6 +40,9 @@ Options:
   --trace-profile NAME
                   Virtueller Trace: standard, full-storage-attempt oder
                   full-storage-process-guard.
+  --model-profile NAME
+                  Virtuelles Modellprofil: deployment-current oder
+                  historical-full-storage-error.
   --env-file PATH Andere Umgebungsdatei statt .env verwenden.
   --skip-preflight Preflight bewusst ueberspringen.
 
@@ -65,7 +68,7 @@ Virtual HMI:
 
 Portable release setup:
   python3 tools/setup_portable_runtime.py init --mode virtual \
-    --release runtime-v1.1.0
+    --release runtime-v1.2.0
   Danach mit `virtual-hmi --images` starten. COMPOSE_PROJECT_NAME trennt
   mehrere lokale Standortinstallationen voneinander.
 
@@ -84,6 +87,14 @@ Examples:
   ./tools/run_nodered_orchestration.sh virtual-run --diagnosis
   ./tools/run_nodered_orchestration.sh virtual-run --trace-profile full-storage-attempt
   ./tools/run_nodered_orchestration.sh virtual-run --trace-profile full-storage-process-guard
+  ./tools/run_nodered_orchestration.sh virtual-run \
+    --trace-profile full-storage-attempt \
+    --model-profile historical-full-storage-error
+
+Testszenarien im Dashboard:
+  standard                   Normalbetrieb - Einlagerungen und Idle-Phasen (320 Zustaende)
+  full-storage-attempt       Vollspeicher - 20 wiederholte Einlagerungsversuche (157 Zustaende)
+  full-storage-process-guard Vollspeicher - 9 vollstaendige Prozesssequenzen (308 Zustaende)
   python3 tools/manage_model_candidates.py status
   ./tools/run_nodered_orchestration.sh monitor
   ./tools/run_nodered_orchestration.sh virtual-down
@@ -160,7 +171,7 @@ preserve_running_node_red_configuration() {
     key="${env_line%%=*}"
     value="${env_line#*=}"
     case "$key" in
-      COMMAND_OUTPUT_ENABLED|TRACE_PROFILE|LIVE_TRACE_PAYLOADS|FACTORY_SEED|\
+      COMMAND_OUTPUT_ENABLED|TRACE_PROFILE|MODEL_PROFILE|LIVE_TRACE_PAYLOADS|FACTORY_SEED|\
       FACTORY_VGR_BASE_RUNTIME_MS|FACTORY_HBW_BASE_RUNTIME_MS|\
       FACTORY_MPO_BASE_RUNTIME_MS|FACTORY_SLD_BASE_RUNTIME_MS)
         printf -v "$key" '%s' "$value"
@@ -181,6 +192,8 @@ parse_options() {
   ENV_FILE="$ENV_FILE_DEFAULT"
   TRACE_PROFILE_CLI=""
   TRACE_PROFILE_EXPLICIT=0
+  MODEL_PROFILE_CLI=""
+  MODEL_PROFILE_EXPLICIT=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --no-build) BUILD=0 ;;
@@ -193,6 +206,12 @@ parse_options() {
         [[ $# -gt 0 ]] || die "--trace-profile benoetigt einen Namen."
         TRACE_PROFILE_CLI="$1"
         TRACE_PROFILE_EXPLICIT=1
+        ;;
+      --model-profile)
+        shift
+        [[ $# -gt 0 ]] || die "--model-profile benoetigt einen Namen."
+        MODEL_PROFILE_CLI="$1"
+        MODEL_PROFILE_EXPLICIT=1
         ;;
       --env-file)
         shift
@@ -218,6 +237,12 @@ parse_options() {
     *) die "Unbekanntes Trace-Profil: $TRACE_PROFILE (erlaubt: standard, full-storage-attempt, full-storage-process-guard)" ;;
   esac
   export TRACE_PROFILE LIVE_TRACE_PAYLOADS
+  MODEL_PROFILE="${MODEL_PROFILE_CLI:-${MODEL_PROFILE:-deployment-current}}"
+  case "$MODEL_PROFILE" in
+    deployment-current|historical-full-storage-error) ;;
+    *) die "Unbekanntes Modellprofil: $MODEL_PROFILE (erlaubt: deployment-current, historical-full-storage-error)" ;;
+  esac
+  export MODEL_PROFILE
   MQTT_HOST="${MQTT_HOST:-localhost}"
   MQTT_PORT="${MQTT_PORT:-1883}"
   MQTT_CLI_HOST="${VIRTUAL_MQTT_HOST:-localhost}"
@@ -358,7 +383,7 @@ virtual_up() {
   local output=true
   [[ "$DIAGNOSIS" == "1" ]] && output=false
   ensure_report_root
-  info "Starte persistenten Mosquitto-/Node-RED-Teststack (Command-Output=${output}, Trace-Profil=${TRACE_PROFILE})."
+  info "Starte persistenten Mosquitto-/Node-RED-Teststack (Command-Output=${output}, Testszenario=${TRACE_PROFILE}, Modellprofil=${MODEL_PROFILE})."
   COMMAND_OUTPUT_ENABLED="$output" virtual_compose up "${options[@]}"
 }
 
@@ -435,8 +460,13 @@ wait_hmi_ready() {
 
 factory_start() {
   require_command mosquitto_pub
-  info "Publiziere die einmalige Initialzuendung auf ft/sim/factory/control."
-  mosquitto_pub -h "$MQTT_CLI_HOST" -p "$MQTT_PORT" "${MQTT_AUTH_ARGS[@]}" -q 1 -t 'ft/sim/factory/control' -m '{"cmd":"start"}'
+  local payload
+  printf -v payload '{"cmd":"start","config":{"model_profile":"%s","trace_profile":"%s","seed":%s,"base_runtime_ms":{"vgr":%s,"hbw":%s,"mpo":%s,"sld":%s}}}' \
+    "$MODEL_PROFILE" "$TRACE_PROFILE" "${FACTORY_SEED:-42}" \
+    "${FACTORY_VGR_BASE_RUNTIME_MS:-100}" "${FACTORY_HBW_BASE_RUNTIME_MS:-100}" \
+    "${FACTORY_MPO_BASE_RUNTIME_MS:-100}" "${FACTORY_SLD_BASE_RUNTIME_MS:-100}"
+  info "Publiziere die einmalige Initialzuendung auf ft/sim/factory/control (Testszenario=${TRACE_PROFILE}, Modellprofil=${MODEL_PROFILE})."
+  mosquitto_pub -h "$MQTT_CLI_HOST" -p "$MQTT_PORT" "${MQTT_AUTH_ARGS[@]}" -q 1 -t 'ft/sim/factory/control' -m "$payload"
 }
 
 reset_all() {
@@ -470,6 +500,9 @@ main() {
   if [[ "$TRACE_PROFILE_EXPLICIT" == "1" && "$command" != "virtual-up" && "$command" != "virtual-hmi" && "$command" != "virtual-run" ]]; then
     die "--trace-profile gilt nur fuer virtual-up/virtual-hmi/virtual-run."
   fi
+  if [[ "$MODEL_PROFILE_EXPLICIT" == "1" && "$command" != "virtual-up" && "$command" != "virtual-hmi" && "$command" != "virtual-run" ]]; then
+    die "--model-profile gilt nur fuer virtual-up/virtual-hmi/virtual-run."
+  fi
   if command_uses_runtime_images "$command"; then
     configure_image_mode
   fi
@@ -488,7 +521,7 @@ main() {
       wait_ready "$ready_not_before_ms" 1
       wait_hmi_ready
       info "Dashboard bereit: http://localhost:${NODE_RED_PORT:-1880}/dashboard/betrieb"
-      info "Trace, Seed und Modulbasiszeiten werden vor dem Start im HMI gewaehlt."
+      info "Modellprofil, Testszenario, Seed und Modulbasiszeiten werden vor dem Start im HMI gewaehlt."
       ;;
     virtual-run)
       local ready_not_before_ms

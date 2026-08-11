@@ -99,6 +99,19 @@ function validateContract(domain, contract, topics) {
         throw new Error(`${domain} command topic mismatch for class ${classId}`);
       }
     }
+    if (contract.model_profiles !== undefined) {
+      const profiles = asObject(contract.model_profiles, `${domain} model_profiles`);
+      const defaultProfile = String(contract.default_model_profile || "deployment-current");
+      if (!profiles[defaultProfile]) {
+        throw new Error(`${domain} default model profile ${defaultProfile} is not available`);
+      }
+      for (const [profileId, profile] of Object.entries(profiles)) {
+        validateContract(domain, profile, topics);
+        if (profile.profile_id !== profileId) {
+          throw new Error(`${domain} model profile ID mismatch for ${profileId}`);
+        }
+      }
+    }
   }
 }
 
@@ -251,6 +264,23 @@ class OrchestrationRuntime {
     );
   }
 
+  modelContract(domain, profileId = "deployment-current") {
+    const serviceContract = this.contracts[domain];
+    if (domain === "storage") return serviceContract;
+    const profiles = serviceContract?.model_profiles;
+    if (!profiles) {
+      if (profileId !== "deployment-current") {
+        throw new Error(`${domain} model profile ${profileId} is not available`);
+      }
+      return serviceContract;
+    }
+    const selected = profiles[profileId];
+    if (!selected) {
+      throw new Error(`${domain} model profile ${profileId} is not available`);
+    }
+    return selected;
+  }
+
   clearBuffers() {
     this.buffers.vgr.clear();
     this.buffers.hbw.clear();
@@ -287,9 +317,15 @@ class OrchestrationRuntime {
   normalizeLivePayload(payload) {
     const raw = asPayload(payload);
     const state = raw.state && typeof raw.state === "object" && !Array.isArray(raw.state) ? raw.state : raw;
-    const required = new Set(this.contracts.storage.feature_cols);
+    const modelProfile = String(raw.model_profile || "deployment-current");
+    const modelContracts = {
+      storage: this.contracts.storage,
+      vgr: this.modelContract("vgr", modelProfile),
+      hbw: this.modelContract("hbw", modelProfile),
+    };
+    const required = new Set(modelContracts.storage.feature_cols);
     for (const domain of LSTM_DOMAINS) {
-      for (const feature of this.contracts[domain].feature_cols) {
+      for (const feature of modelContracts[domain].feature_cols) {
         if (!feature.startsWith(EMPTY_STORAGE_PREFIX)) {
           required.add(feature);
         }
@@ -307,7 +343,7 @@ class OrchestrationRuntime {
       }
       normalized[feature] = value;
     }
-    return { raw, state: normalized };
+    return { raw, state: normalized, modelProfile, modelContracts };
   }
 
   handleLiveState(payload) {
@@ -338,7 +374,9 @@ class OrchestrationRuntime {
     }
 
     try {
-      const { raw, state } = this.normalizeLivePayload(payload);
+      const {
+        raw, state, modelProfile, modelContracts,
+      } = this.normalizeLivePayload(payload);
       const parentRequestId = String(raw.request_id || `live-${this.now()}-${this.cycleCounter + 1}`);
       if (this.completedRequestIds.has(parentRequestId)) {
         return [this.orchestrationStatus("ready", "duplicate_live_state_ignored")];
@@ -354,6 +392,9 @@ class OrchestrationRuntime {
         source_id: sourceId,
         raw_state: state,
         input_metadata: clone(raw),
+        model_profile: modelProfile,
+        model_profile_name: String(raw.model_profile_name || modelProfile),
+        model_contracts: modelContracts,
         storage_request_id: requestId,
         storage_started_ms: this.now(),
         deadline_ms: this.now() + Number(this.topics.request_timeout_ms),
@@ -365,7 +406,11 @@ class OrchestrationRuntime {
         this.contracts.storage.feature_cols.map((feature) => [feature, state[feature]]),
       );
       return [
-        this.orchestrationStatus("running", "storage_request", { cycle_id: cycleId }),
+        this.orchestrationStatus("running", "storage_request", {
+          cycle_id: cycleId,
+          model_profile: modelProfile,
+          model_profile_name: String(raw.model_profile_name || modelProfile),
+        }),
         mqttAction(
           "storage_request",
           this.contracts.storage.request_topic,
@@ -416,10 +461,11 @@ class OrchestrationRuntime {
   }
 
   seedAndAppend(domain, emptyStorage) {
-    const contract = this.contracts[domain];
+    const contract = this.pending.model_contracts[domain];
     const timeSteps = Number(contract.time_steps);
     const sourceId = this.pending.source_id;
-    let entry = this.buffers[domain].get(sourceId);
+    const bufferKey = `${sourceId}|${contract.model_id}`;
+    let entry = this.buffers[domain].get(bufferKey);
     let seededRows = 0;
 
     if (!entry || entry.model_id !== contract.model_id) {
@@ -439,7 +485,7 @@ class OrchestrationRuntime {
     if (entry.rows.length !== timeSteps) {
       throw new Error(`${domain} window has ${entry.rows.length} rows, expected ${timeSteps}`);
     }
-    this.buffers[domain].set(sourceId, entry);
+    this.buffers[domain].set(bufferKey, entry);
     this.pending.bootstrap[domain] = {
       seeded_rows: seededRows,
       time_steps: timeSteps,
@@ -465,6 +511,7 @@ class OrchestrationRuntime {
       this.pending.storage_latency_ms = this.now() - this.pending.storage_started_ms;
       const actions = [];
       for (const domain of LSTM_DOMAINS) {
+        const contract = this.pending.model_contracts[domain];
         const sequence = this.seedAndAppend(domain, emptyStorage);
         const requestId = `${this.pending.cycle_id}:${domain}`;
         this.pending[`${domain}_request_id`] = requestId;
@@ -478,7 +525,8 @@ class OrchestrationRuntime {
               request_id: requestId,
               parent_request_id: this.pending.parent_request_id,
               source_id: this.pending.source_id,
-              model_id: this.contracts[domain].model_id,
+              model_id: contract.model_id,
+              model_profile: this.pending.model_profile,
               sequence,
             },
             Number(this.topics.mqtt.model_qos),
@@ -523,8 +571,15 @@ class OrchestrationRuntime {
         return [];
       }
       this.assertMatchingResponse(response, this.pending?.[`${domain}_request_id`], domain);
+      const selectedContract = this.pending.model_contracts[domain];
+      if (response.model_profile !== this.pending.model_profile) {
+        throw new Error(`${domain} model_profile mismatch`);
+      }
+      if (response.model_id !== selectedContract.model_id) {
+        throw new Error(`${domain} model_id mismatch`);
+      }
       const cmd = Number(response.cmd);
-      if (!this.contracts[domain].class_ids.map(Number).includes(cmd)) {
+      if (!selectedContract.class_ids.map(Number).includes(cmd)) {
         throw new Error(`${domain} returned unknown model class ${response.cmd}`);
       }
       if (!this.topics.command_topics[domain][String(cmd)]) {
@@ -600,8 +655,14 @@ class OrchestrationRuntime {
       request_id: cycle.parent_request_id,
       source_id: cycle.source_id,
       status: "completed",
-      model_ids: this.modelIds(),
-      model_contracts: clone(this.contracts),
+      model_profile: cycle.model_profile,
+      model_profile_name: cycle.model_profile_name,
+      model_ids: {
+        storage: cycle.responses.storage.model_id || this.contracts.storage.model_id,
+        vgr: cycle.responses.vgr.model_id,
+        hbw: cycle.responses.hbw.model_id,
+      },
+      model_contracts: clone(cycle.model_contracts),
       empty_storage: cycle.empty_storage,
       vgr_cmd: vgrCmd,
       hbw_cmd: hbwCmd,
@@ -664,8 +725,15 @@ class OrchestrationRuntime {
           source_id: cycle?.source_id || null,
           status: "fault_latched",
           error: String(reason),
-          model_ids: this.modelIds(),
-          model_contracts: clone(this.contracts),
+          model_profile: cycle?.model_profile || null,
+          model_profile_name: cycle?.model_profile_name || null,
+          model_ids: cycle ? Object.fromEntries(
+            DOMAINS.map((domain) => [
+              domain,
+              cycle.responses?.[domain]?.model_id || cycle.model_contracts?.[domain]?.model_id,
+            ]),
+          ) : this.modelIds(),
+          model_contracts: clone(cycle?.model_contracts || this.contracts),
           commands: issuedCommands,
           command_output_enabled: this.commandOutputEnabled,
           command_set_complete: false,

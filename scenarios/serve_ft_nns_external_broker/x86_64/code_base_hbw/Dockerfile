@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir --require-hashes -r /codeBase/code_base_common/re
     && pip check
 
 COPY code_base_common/mqtt_runtime.py /codeBase/code_base_common/mqtt_runtime.py
+COPY code_base_common/model_profiles.py /codeBase/code_base_common/model_profiles.py
 COPY code_base_hbw/mqtt_infer.py ./mqtt_infer.py
 
 CMD ["python", "/codeBase/code_base_hbw/mqtt_infer.py"]

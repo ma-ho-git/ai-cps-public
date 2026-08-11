@@ -114,6 +114,17 @@ class ModelSelectionComposeTests(unittest.TestCase):
             "ghcr.io/example/ai-cps-node-red@sha256:abc",
         )
 
+    def test_historical_profile_catalog_is_virtual_only(self) -> None:
+        physical = self.render()
+        virtual = self.render_virtual()
+        for domain in ("vgr", "hbw"):
+            service = f"{domain}_infer"
+            self.assertNotIn("MODEL_PROFILES_PATH", physical["services"][service]["environment"])
+            self.assertEqual(
+                virtual["services"][service]["environment"]["MODEL_PROFILES_PATH"],
+                "/runtime_config/virtual_experiment_catalog.json",
+            )
+
     def test_compose_project_and_runtime_identity_are_configurable(self) -> None:
         config = self.render_virtual(
             COMPOSE_PROJECT_NAME="portable-site",

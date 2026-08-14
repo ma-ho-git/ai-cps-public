@@ -54,6 +54,7 @@ jobs:
             tools/analyze_full_storage_attempt_run.py \
             tools/analyze_full_storage_process_guard_run.py \
             tools/evaluate_full_storage_guard_models.py \
+            tools/build_modular_nodered_flow.py \
             tools/export_nodered_ai_flow.py \
             tools/monitor_physical_mqtt_contract.py \
             training/storage/train.py \
@@ -96,6 +97,7 @@ jobs:
             tests.test_nodered_idle_seed_templates \
             tests.test_nodered_runtime_persistence \
             tests.test_nodered_runtime_script \
+            tests.test_virtual_sequence_diagram \
             tests.test_observe_nn_inference \
             tests.test_physical_mqtt_contract_monitor \
             tests.test_vgr_train_windowing

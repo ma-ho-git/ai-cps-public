@@ -31,6 +31,7 @@ Physisch laufen aus diesem Repository nur die drei NN-Dienste.
 | Zyklusergebnis | `ft/ai/orchestration/cycle_result` |
 | Fabriksteuerung | `ft/sim/factory/control` |
 | Fabrikstatus | `ft/sim/factory/status` |
+| Virtueller Rohzustand | `ft/sim/factory/raw_state` |
 
 VGR und HBW publizieren bei freigegebenem Command-Output ihre leeren
 Maschinencommands direkt auf den bestehenden `ai/<domain>/cmd<code>`-Topics.
@@ -39,17 +40,23 @@ MPO und SLD erhalten Idle-Commands vom KI-Flow. Commands verwenden QoS 2 und
 
 ## Zyklus
 
-1. Der KI-Flow validiert den 28-Feld-Rohzustand.
-2. Storage wird einmal abgefragt und liefert `empty_storage=0..9`.
-3. Node-RED erzeugt `empty_storage_0..9` und aktualisiert beide Rolling Windows.
-4. Bei neuer `source_id` werden neun versionierte Idle-Zeilen vorangestellt.
-5. VGR- und HBW-Requests werden parallel gesendet.
-6. VGR/HBW publizieren ihre Commands unabhaengig; der KI-Flow publiziert MPO/SLD.
-7. Die vier Module laufen unabhaengig.
-8. Erst wenn je Modul `sent_count == accepted_count` gilt, wird der naechste
-   Anlagenzustand freigegeben.
-9. VGR-/HBW-Responses werden fuer Reports korreliert. Diese Korrelation ist
-   keine Command-Barriere.
+1. Vier getrennte Initialisierungszweige publizieren je einen Idle-Command.
+2. Die Zustandserfassung publiziert den aktuellen Tracezustand alle 50 ms auf
+   `ft/sim/factory/raw_state`; der Traceindex bleibt dabei unveraendert.
+3. Der Semaphor gibt genau einen Zustand auf `log/logging/state` frei, sobald
+   alle vier neuen Commands vorliegen und je Modul `sent_count == accepted_count`
+   gilt.
+4. Der virtuelle Contract-Gate prueft Contracts, Modellprofil, Features,
+   Klassen und Command-Mappings unmittelbar vor Storage.
+5. Storage wird einmal abgefragt und liefert `empty_storage=0..9`.
+6. Node-RED erzeugt `empty_storage_0..9`, aktualisiert zwei getrennte Rolling
+   Windows und ergaenzt bei neuer Quelle neun interne Idle-Zeilen.
+7. VGR- und HBW-Requests werden parallel gesendet. VGR/HBW publizieren ihre
+   Commands unabhaengig; der KI-Flow publiziert MPO/SLD.
+8. Vier unabhaengige Modulzweige simulieren die Teilprozesse mit Core-Delay-
+   Nodes und registrieren danach ihren `accepted_count`.
+9. Der Semaphor gibt erst danach die naechste Tracezeile frei. VGR-/HBW-
+   Responses werden nur fuer Reports korreliert und bilden keine Command-Barriere.
 
 Bei vollem Lager bleibt `empty_storage_0=1` ein normaler LSTM-Eingang. Die
 aktuellen Guard-Modelle liefern in den beiden versionierten Vollspeicherprofilen
@@ -57,7 +64,7 @@ durchgehend `cmd=0`.
 
 ## Virtuelle Fabrik
 
-Der Fabrik-Flow laedt eines von drei Testszenarien:
+Die Initialisierung laedt eines von drei Testszenarien:
 
 - `standard`: Normalbetrieb mit Einlagerungen und Idle-Phasen (320 Zustaende);
 - `full-storage-attempt`: Vollspeicher mit 20 wiederholten
@@ -96,16 +103,25 @@ persistentes `/data`-Volume das Paket nicht verdeckt.
 
 ## Flowstruktur
 
-Die Flows verwenden Core-Nodes fuer MQTT, `change`, `switch`, `split`, JSON
-und Dateien. Drei begrenzte Function-Nodes bleiben als Adapter erhalten:
+Die virtuelle Laufzeit ist in fuenf Funktions-Tabs gegliedert:
 
-- Orchestrierungsereignis an `lib/orchestration.js` uebergeben;
-- konsistenten Reportzustand mit `lib/reporting.js` erzeugen;
-- Fabrikereignis an `lib/virtual_factory.js` uebergeben.
+- `00 Initialisierung`: Startvertrag, Trace-`file in`, Reset, vier Idle-Zweige;
+- `10 Zustandserfassung`: 50-ms-Tick und virtuelles Rohzustandstopic;
+- `20 Virtuelle Module`: VGR, HBW, MPO und SLD als getrennte Gruppen;
+- `30 Semaphor`: atomarer Jobcountervergleich, Watchdog und Live-Freigabe;
+- `40 NN-Pipeline`: Contract-Gate, Storage, zwei Rolling Windows und Reporting.
 
-Zustandsautomaten, PRNG, Requestkorrelation und Vier-Modul-Barriere bleiben
-zusammenhaengend in getesteten JS-Modulen. Eine Zerlegung auf unverbundene
-`delay`-/`join`-Nodes wuerde Reset und Reproduzierbarkeit veraendern.
+MQTT, Routing, Serialisierung, Dateizugriff und Laufzeitverzoegerungen werden
+mit Core-Nodes umgesetzt. Function-Nodes besitzen jeweils nur eine atomare
+Aufgabe, beispielsweise Countervergleich, Laufzeitberechnung oder Windowupdate.
+Die Function-Nodes enthalten ihre Fachlogik direkt; `settings.js` importiert
+keine Laufzeitbibliotheken oder Katalogdateien. Nur die drei versionierten
+Trace-Dateien werden gelesen. Reportdateien werden weiterhin ausschliesslich
+geschrieben.
+
+Jeder Funktionstab besitzt gezielte `catch`- und MQTT-`status`-Pfade. Kompakte
+Debug-Ausgaben zeigen nur IDs, Topic, Klasse, Laufzeit und Counter. Vollstaendige
+Rohpayloads und LSTM-Fenster werden nicht im Debug-Panel ausgegeben.
 
 ## Fehlerverhalten
 
@@ -115,7 +131,7 @@ Idle ersetzt. Weitere Zustaende bleiben bis zum manuellen Reset blockiert.
 
 ## Persistenz Und Reports
 
-Flows, Settings, Topics, Seeds und Traces sind versioniert. Docker-Volumes
+Flows, Settings, eingebettete Topics/Seeds/Kataloge und Traces sind versioniert. Docker-Volumes
 persistieren Node-RED- und Mosquitto-Daten. Rolling Windows, offene Requests
 und Timer werden nach Neustart bewusst neu initialisiert.
 

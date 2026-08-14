@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "runtime-v1.2.0",
+  "release": "runtime-v1.3.0-rc.1",
   "entries": [
     {
       "id": "grum-ai-cps-origin",

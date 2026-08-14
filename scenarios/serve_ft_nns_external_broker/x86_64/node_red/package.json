@@ -4,7 +4,7 @@
   "private": true,
   "description": "Versionierte Node-RED-Orchestrierung und virtuelle Fabrik fuer AI-CPS",
   "scripts": {
-    "test": "node --test test/orchestration.test.js test/virtual_factory_reporting.test.js test/live_trace_contract.test.js test/hmi.test.js"
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"

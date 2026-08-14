@@ -4,7 +4,7 @@ set -eu
 SOURCE_ROOT="${AI_CPS_RUNTIME_SOURCE:-/opt/ai-cps-node-red}"
 RUNTIME_ROOT="${AI_CPS_RUNTIME_ROOT:-/data/ai-cps-runtime}"
 MARKER="$RUNTIME_ROOT/.ai-cps-runtime-version"
-RUNTIME_VERSION="${AI_CPS_RUNTIME_VERSION:-1.2.0-dashboard}"
+RUNTIME_VERSION="${AI_CPS_RUNTIME_VERSION:-1.3.0-rc.1-dashboard}"
 
 install_runtime() {
   force="${1:-false}"
@@ -22,8 +22,6 @@ install_runtime() {
 
   mkdir -p "$RUNTIME_ROOT"
   rm -rf "$RUNTIME_ROOT/config" "$RUNTIME_ROOT/lib" "$RUNTIME_ROOT/data"
-  cp -R "$SOURCE_ROOT/config" "$RUNTIME_ROOT/config"
-  cp -R "$SOURCE_ROOT/lib" "$RUNTIME_ROOT/lib"
   cp -R "$SOURCE_ROOT/data" "$RUNTIME_ROOT/data"
   cp "$SOURCE_ROOT/flows.json" "$RUNTIME_ROOT/flows.json"
   cp "$SOURCE_ROOT/settings.js" "$RUNTIME_ROOT/settings.js"

@@ -10,6 +10,10 @@ dupliziert sie aber nicht.
   HBW-Inferenzcontainer, drei versionierte Testszenarien sowie zwei feste
   virtuelle Modellprofile. Das historische Profil dient nur der reproduzierbaren
   Demonstration des bekannten Vollspeicherfehlers.
+- Virtueller Ablauf: fuenf Node-RED-Funktionstabs fuer Initialisierung,
+  kontinuierliche Zustandserfassung, vier Modulzweige, Jobcounter-Semaphor und
+  NN-Pipeline. `ft/sim/factory/raw_state` bleibt rein intern; die physische
+  MQTT-Grenze aendert sich dadurch nicht.
 - Physisch: nur die drei NN-Container; Node-RED, OPC UA und SPS sind eine
   externe Black Box mit eingefrorenem MQTT-Grenzvertrag.
 - Training: drei reproduzierbare Trainingscontainer, die lokale Kandidaten

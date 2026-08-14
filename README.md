@@ -23,11 +23,11 @@ Docker Engine oder Docker Desktop im Linux-Container-Modus, Compose und
 Python 3.12. Betriebsrechner verwenden den freigegebenen Release:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.2.0 \
+git clone --depth 1 --branch runtime-v1.3.0-rc.1 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.2.0 \
+  --mode virtual --release runtime-v1.3.0-rc.1 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -39,7 +39,7 @@ Physischer Schnellstart:
 
 ```bash
 python3 tools/setup_portable_runtime.py init --mode physical \
-  --release runtime-v1.2.0 --mqtt-host 192.168.0.5
+  --release runtime-v1.3.0-rc.1 --mqtt-host 192.168.0.5
 ./tools/run_nodered_orchestration.sh physical-up --images
 ```
 
@@ -90,6 +90,12 @@ reproduzieren:
 
 Ohne `--model-profile` wird unveraendert `deployment-current` verwendet. Der
 physische Betrieb bietet das historische Profil nicht an.
+
+Die virtuelle Fabrik bildet den physischen Ablauf in fuenf getrennten
+Node-RED-Tabs nach: Initialisierung, 50-ms-Zustandserfassung, vier unabhaengige
+Module, Jobcounter-Semaphor und NN-Pipeline. Das interne Topic
+`ft/sim/factory/raw_state` ist ausschliesslich virtuell; der freigegebene
+Anlagenzustand bleibt unveraendert auf `log/logging/state`.
 
 Status und Stopp:
 

@@ -1,6 +1,6 @@
 # Public Runtime Release Procedure
 
-Diese Prozedur veroeffentlicht Runtime V1.2 ohne die private
+Diese Prozedur veroeffentlicht Runtime V1.3.0-RC.1 ohne die private
 Entwicklungshistorie. Das Zielrepository ist
 `https://github.com/ma-ho-git/ai-cps-runtime`.
 
@@ -22,7 +22,7 @@ Release-Tag erzeugt.
 
 1. Vollstaendige Tests und Runtime-Abnahmen ausfuehren.
 2. Den freigegebenen Stand im privaten Repository als
-   `checkpoint/portable-runtime-v1.2.0-ready-2026-08-11` sichern.
+   `checkpoint/portable-runtime-v1.3.0-rc.1-ready-2026-08-14` sichern.
 3. Den exakten Commit notieren. Der Worktree muss sauber sein.
 
 ## 3. Bereinigten Quellbaum Exportieren
@@ -59,14 +59,18 @@ Aenderungen.
 
 ## 5. Images Und Release
 
-1. CI fuer `main` vollstaendig abwarten.
+1. Branch-CI fuer `feature/nodered-physical-flow-parity` vollstaendig abwarten.
 2. Alle vier GHCR-Packages auf `public` stellen und anonymen Pull pruefen.
 3. Den zur Releasekonfiguration passenden unveraenderlichen Runtime-Tag
-   erzeugen und pushen, fuer diesen Release `runtime-v1.2.0`.
+   erzeugen und pushen, fuer diesen Release `runtime-v1.3.0-rc.1`.
 4. Release-Manifest, `SHA256SUMS`, Source-SBOM, Notices, Citation und
    Image-Digests pruefen.
 5. Clean-Install und Standort-Restore mit getrennten Compose-Projekten und
    Reportpfaden abnehmen.
+
+Der RC wird nicht nach `main` gemergt. Die vier RC-Images erhalten den
+Release-Tag; `latest-validated` bleibt bis zur finalen V1.3.0-Freigabe auf
+Runtime V1.2.0.
 
 Das private Entwicklungsrepository bleibt erhalten, ist aber nicht die
 oeffentliche Runtime-Quelle.

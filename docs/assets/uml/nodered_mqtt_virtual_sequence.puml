@@ -30,8 +30,11 @@ box "Host"
 end box
 
 box "Node-RED"
-  participant ":Fabrik-Flow" as factory
+  participant ":Initialisierung" as init
+  participant ":Zustands-Flow" as state
+  participant ":Semaphor-Flow" as semaphore
   participant ":KI-Flow" as ai
+  participant ":Modul-Flows" as modules
 end box
 
 box "NN-Anwendungsdienste"
@@ -40,19 +43,25 @@ box "NN-Anwendungsdienste"
   participant ":HBW-NN" as hbw
 end box
 
-start ->> factory : MQTT: Simulation starten
-activate factory
-factory ->> factory : MQTT: initiales Idle-Command-Set
-factory -> factory : sent_count erhöhen + Module starten
-factory -> factory : accepted_count erhöhen + Semaphor prüfen
-deactivate factory
+start ->> init : MQTT: Simulation starten
+activate init
+init ->> modules : MQTT: 4 Idle-Commands
+deactivate init
+activate modules
+modules -> modules : sent_count++ + Delay
+modules -> modules : accepted_count++
+deactivate modules
 
-loop 320 Trace-Zustände; nächster Zustand erst nach vier Modulabschlüssen
-  activate factory
-  factory ->> ai : MQTT: Anlagenzustand
-  note right of factory
-    Erste Trace-Zustandsmeldung: Idle
+loop Testszenario; nächster Zustand erst nach vier Modulabschlüssen
+  state ->> semaphore : MQTT: Rohzustand [alle 50 ms]
+  note right of state
+    Wiederholte Samples möglich;
+    Traceindex bleibt konstant
   end note
+  activate semaphore
+  semaphore -> semaphore : 4 Jobcounterpaare prüfen
+  semaphore ->> ai : MQTT: freigegebener Anlagenzustand
+  deactivate semaphore
   activate ai
 
   ai ->> storage : MQTT: Lagerzustand
@@ -61,21 +70,18 @@ loop 320 Trace-Zustände; nächster Zustand erst nach vier Modulabschlüssen
   deactivate storage
 
   ai -> ai : Merkmalsfenster bilden\n[bei neuer Quelle: 9 Idle-Seeds ergänzen]
-  ai ->> factory : MQTT: MPO-/SLD-Idle\n[sent_count++]
-  factory -> factory : MPO/SLD unabhängig starten
+  ai ->> modules : MQTT: MPO-/SLD-Idle
 
   par VGR: Inferenz + Command
     ai ->> vgr : MQTT: VGR-Fenster
     activate vgr
-    vgr ->> factory : MQTT: VGR-Command\n[sent_count++]
-    factory -> factory : VGR-Modul starten
+    vgr ->> modules : MQTT: VGR-Command
     vgr ->> ai : MQTT: VGR-Ergebnis\n[nur Report/Diagnose]
     deactivate vgr
   else HBW: Inferenz + Command
     ai ->> hbw : MQTT: HBW-Fenster
     activate hbw
-    hbw ->> factory : MQTT: HBW-Command\n[sent_count++]
-    factory -> factory : HBW-Modul starten
+    hbw ->> modules : MQTT: HBW-Command
     hbw ->> ai : MQTT: HBW-Ergebnis\n[nur Report/Diagnose]
     deactivate hbw
   end
@@ -83,9 +89,10 @@ loop 320 Trace-Zustände; nächster Zustand erst nach vier Modulabschlüssen
   ai -> ai : Ergebnisse für Report zusammenführen\n[keine Command-Barriere]
   deactivate ai
 
-  factory -> factory : Module unabhängig ausführen\n[Standard: 0,1 s ±50 %]
-  factory -> factory : Semaphor: alle sent_count == accepted_count
-  deactivate factory
+  activate modules
+  modules -> modules : 4 Teilprozesse unabhängig ausführen\n[Core-Delay; Standard: 0,1 s ±50 %]
+  modules -> modules : accepted_count je Modul erhöhen
+  deactivate modules
 end
 
 legend bottom

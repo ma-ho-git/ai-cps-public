@@ -1,14 +1,15 @@
 {
   "schema_version": 1,
-  "release": "runtime-v1.2.0",
+  "release": "runtime-v1.3.0-rc.1",
   "compatible_site_bundle_releases": [
     "runtime-v1.1.0",
     "runtime-v1.1.1",
-    "runtime-v1.2.0"
+    "runtime-v1.2.0",
+    "runtime-v1.3.0-rc.1"
   ],
   "repository": "ma-ho-git/ai-cps-runtime",
   "ghcr_owner": "ma-ho-git",
   "platform": "linux/amd64",
   "compose_project": "ai-cps-nn-runtime",
-  "node_red_runtime_version": "1.2.0-dashboard"
+  "node_red_runtime_version": "1.3.0-rc.1-dashboard"
 }

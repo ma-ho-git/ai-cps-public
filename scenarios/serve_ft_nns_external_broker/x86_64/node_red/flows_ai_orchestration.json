@@ -1,10 +1,1558 @@
 [
   {
-    "id": "tab-ai-orchestration",
+    "id": "tab-pipeline",
     "type": "tab",
-    "label": "AI Orchestration",
+    "label": "40 NN-Pipeline",
     "disabled": false,
-    "info": "Importierbarer KI-Flow. Physische Grenztopics bleiben unveraendert; aktive Buffer sind nur im Memory-Context."
+    "info": ""
+  },
+  {
+    "id": "group-contracts",
+    "type": "group",
+    "z": "tab-pipeline",
+    "name": "Contracts und Status",
+    "style": {
+      "label": true,
+      "stroke": "#9e9e9e",
+      "fill": "none"
+    },
+    "nodes": [
+      "in-contracts",
+      "fn-contract-register",
+      "in-model-statuses",
+      "fn-status-register",
+      "fn-readiness",
+      "json-ai-ready",
+      "out-ai-ready",
+      "in-ai-control",
+      "fn-ai-reset"
+    ],
+    "x": 20,
+    "y": 20,
+    "w": 1660,
+    "h": 210
+  },
+  {
+    "id": "group-storage",
+    "type": "group",
+    "z": "tab-pipeline",
+    "name": "Storage",
+    "style": {
+      "label": true,
+      "stroke": "#9e9e9e",
+      "fill": "none"
+    },
+    "nodes": [
+      "in-live-pipeline",
+      "fn-contract-gate",
+      "fn-storage-request",
+      "json-storage-request",
+      "out-storage-request",
+      "in-storage-result",
+      "fn-storage-response",
+      "debug-storage"
+    ],
+    "x": 20,
+    "y": 250,
+    "w": 1660,
+    "h": 210
+  },
+  {
+    "id": "group-window",
+    "type": "group",
+    "z": "tab-pipeline",
+    "name": "Windowing und parallele Requests",
+    "style": {
+      "label": true,
+      "stroke": "#9e9e9e",
+      "fill": "none"
+    },
+    "nodes": [
+      "fn-window-vgr",
+      "fn-window-hbw",
+      "json-vgr-request",
+      "out-vgr-request",
+      "json-hbw-request",
+      "out-hbw-request",
+      "debug-request-vgr",
+      "debug-request-hbw",
+      "change-debug-request-vgr",
+      "change-debug-request-hbw",
+      "change-idle-modules",
+      "split-idle-modules",
+      "change-idle-command",
+      "out-idle-modules"
+    ],
+    "x": 20,
+    "y": 480,
+    "w": 1660,
+    "h": 250
+  },
+  {
+    "id": "group-responses",
+    "type": "group",
+    "z": "tab-pipeline",
+    "name": "Responses und Reporting",
+    "style": {
+      "label": true,
+      "stroke": "#9e9e9e",
+      "fill": "none"
+    },
+    "nodes": [
+      "in-vgr-response",
+      "fn-vgr-response",
+      "in-hbw-response",
+      "fn-hbw-response",
+      "join-model-responses",
+      "fn-cycle-result",
+      "json-cycle-result",
+      "out-cycle-result",
+      "inject-ai-timeout",
+      "fn-timeout-check",
+      "link-fault-pipeline",
+      "in-report-factory-status",
+      "switch-report-factory-status",
+      "change-report-factory-status",
+      "fn-report-row",
+      "fn-report-state",
+      "change-report-event",
+      "json-report-event",
+      "change-report-event-newline",
+      "fn-report-csv",
+      "fn-report-summary",
+      "file-report-append-inline",
+      "file-report-replace-inline",
+      "catch-report",
+      "change-catch-report"
+    ],
+    "x": 20,
+    "y": 750,
+    "w": 1660,
+    "h": 300
+  },
+  {
+    "id": "comment-pipeline",
+    "type": "comment",
+    "z": "tab-pipeline",
+    "name": "Contract Gate | Storage | VGR/HBW parallel | Responses nur Reporting",
+    "info": "",
+    "x": 340,
+    "y": 45,
+    "wires": []
+  },
+  {
+    "id": "in-contracts",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Modellvertraege",
+    "topic": "ft/nn/+/contract",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 90,
+    "wires": [
+      [
+        "fn-contract-register"
+      ]
+    ]
+  },
+  {
+    "id": "fn-contract-register",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Contract registrieren",
+    "func": "// Retained Contract speichern; Topicvertrag pr\u00fcfen\nconst match = /^ft\\/nn\\/(storage|vgr|hbw)\\/contract$/.exec(String(msg.topic));\nif (!match) return null;\nconst domain = match[1];\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nconst expected = {storage:['ft/nn/storage/request','ft/nn/response/storage'],vgr:['ft/nn/vgr/request','ft/nn/response/vgr'],hbw:['ft/nn/hbw/request','ft/nn/response/hbw']}[domain];\nif (!value || value.schema_version !== '1.0' || value.domain !== domain || !Array.isArray(value.feature_cols)\n    || !Array.isArray(value.class_ids) || value.request_topic !== expected[0] || value.response_topic !== expected[1]) {\n  node.error(`contract_invalid:${domain}`, msg);\n  return null;\n}\nconst contracts = global.get('ai.contracts') || {};\nif (contracts[domain]?.model_id && contracts[domain].model_id !== value.model_id) {\n  if (global.get('sim.run')?.running || global.get('ai.pending')) {\n    node.error(`model_changed_during_cycle:${domain}`, msg);\n    return null;\n  }\n  global.set('ai.windows', {vgr:{},hbw:{}});\n}\ncontracts[domain] = value;\nglobal.set('ai.contracts', contracts);\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 370,
+    "y": 90,
+    "wires": [
+      [
+        "fn-readiness"
+      ]
+    ],
+    "info": "### Aufgabe\nEinen retained Modellvertrag gegen Domain und Topics pruefen und speichern.\n\n### Eingang\n`ft/nn/+/contract`.\n\n### Ausgang\nRegistry-Aktualisierung.\n\n### Warum Function-Node?\nEin Vertrag wird atomar validiert und ersetzt."
+  },
+  {
+    "id": "in-model-statuses",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Modellstatus",
+    "topic": "ft/nn/+/status",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 150,
+    "wires": [
+      [
+        "fn-status-register"
+      ]
+    ]
+  },
+  {
+    "id": "fn-status-register",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Status registrieren",
+    "func": "// Retained Dienststatus speichern\nconst match = /^ft\\/nn\\/(storage|vgr|hbw)\\/status$/.exec(String(msg.topic));\nif (!match) return null;\nconst statuses = global.get('ai.statuses') || {};\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nif (value?.state !== 'online' && global.get('sim.run')?.running) {\n  node.error(`model_offline:${match[1]}`, msg);\n  return null;\n}\nstatuses[match[1]] = value;\nglobal.set('ai.statuses', statuses);\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 370,
+    "y": 150,
+    "wires": [
+      [
+        "fn-readiness"
+      ]
+    ],
+    "info": "### Aufgabe\nEinen retained Dienststatus domainbezogen speichern.\n\n### Eingang\n`ft/nn/+/status`.\n\n### Ausgang\nRegistry-Aktualisierung.\n\n### Warum Function-Node?\nWildcard-Topic und Domain werden gemeinsam ausgewertet."
+  },
+  {
+    "id": "fn-readiness",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Bereitschaft pruefen",
+    "func": "// Drei Dienste gemeinsam bewerten\nconst contracts = global.get('ai.contracts') || {};\nconst statuses = global.get('ai.statuses') || {};\nconst domains = ['storage','vgr','hbw'];\nconst ready = domains.every((d) => contracts[d] && statuses[d]?.state === 'online' && statuses[d]?.model_id === contracts[d]?.model_id);\nmsg.topic = 'ft/ai/orchestration/status';\nmsg.qos = 1;\nmsg.retain = true;\nmsg.payload = {schema_version:'1.0', state:ready ? 'ready':'waiting_for_models',\n  detail:ready ? 'contracts_and_status_ready':'contracts_or_status_missing',\n  command_output_enabled:String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true',\n  fault_latched:Boolean(global.get('sim.run')?.fault),\n  model_ids:Object.fromEntries(domains.filter((d)=>contracts[d]).map((d)=>[d,contracts[d].model_id])), ts_ms:Date.now()};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 620,
+    "y": 120,
+    "wires": [
+      [
+        "json-ai-ready"
+      ]
+    ],
+    "info": "### Aufgabe\nDrei Contracts und Online-Status gemeinsam bewerten.\n\n### Eingang\nRegistry-Aktualisierung.\n\n### Ausgang\nRetained Orchestrierungsstatus.\n\n### Warum Function-Node?\nDie Bereitschaft ist ein atomarer Gesamtsnapshot."
+  },
+  {
+    "id": "json-ai-ready",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Status JSON",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 830,
+    "y": 120,
+    "wires": [
+      [
+        "out-ai-ready"
+      ]
+    ]
+  },
+  {
+    "id": "out-ai-ready",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Orchestrierungsstatus",
+    "topic": "ft/ai/orchestration/status",
+    "qos": "1",
+    "retain": "true",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1050,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "in-ai-control",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "KI Reset",
+    "topic": "ft/ai/orchestration/control",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 1180,
+    "y": 90,
+    "wires": [
+      [
+        "fn-ai-reset"
+      ]
+    ]
+  },
+  {
+    "id": "fn-ai-reset",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "KI-Zustand leeren",
+    "func": "// Offene NN-Anfragen und LSTM-Fenster zuruecksetzen\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : (msg.payload || {});\nif (value.cmd !== 'reset') return null;\nglobal.set('ai.pending', null);\nglobal.set('ai.windows', {vgr:{},hbw:{}});\nglobal.set('ai.seen_responses', []);\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1380,
+    "y": 90,
+    "wires": [
+      [
+        "fn-readiness"
+      ]
+    ],
+    "info": "### Aufgabe\nOffene Requests, Antwort-Deduplizierung und LSTM-Fenster leeren.\n\n### Eingang\n`ft/ai/orchestration/control` mit `cmd=reset`.\n\n### Ausgang\nImpuls zur erneuten Bereitschaftspruefung.\n\n### Warum Function-Node?\nDie drei fluechtigen KI-Zustaende muessen gemeinsam zurueckgesetzt werden."
+  },
+  {
+    "id": "in-live-pipeline",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Freigegebener Anlagenzustand",
+    "topic": "log/logging/state",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 320,
+    "wires": [
+      [
+        "fn-contract-gate"
+      ]
+    ]
+  },
+  {
+    "id": "fn-contract-gate",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Contract pruefen",
+    "func": "// Virtueller Feature-/Profilvertrag vor Storage pr\u00fcfen\nconst raw = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nconst contracts = global.get('ai.contracts') || {};\nconst statuses = global.get('ai.statuses') || {};\nconst profile = String(raw.model_profile || 'deployment-current');\nconst selected = {storage:contracts.storage};\nfor (const domain of ['vgr','hbw']) {\n  const service = contracts[domain];\n  selected[domain] = service?.model_profiles ? service.model_profiles[profile] : (profile === 'deployment-current' ? service : null);\n}\nlet error = '';\nfor (const domain of ['storage','vgr','hbw']) {\n  const c = selected[domain];\n  if (!c || statuses[domain]?.state !== 'online') { error = `contract_or_service_missing:${domain}`; break; }\n  if (!Array.isArray(c.feature_cols) || !Array.isArray(c.class_ids)) { error = `contract_invalid:${domain}`; break; }\n}\nif (!error) {\n  const commandTopics = {\n    vgr:{0:'ai/vgr/cmd0',101:'ai/vgr/cmd101',102:'ai/vgr/cmd102',103:'ai/vgr/cmd103',104:'ai/vgr/cmd104',105:'ai/vgr/cmd105',301:'ai/vgr/cmd301'},\n    hbw:{0:'ai/hbw/cmd000',102:'ai/hbw/cmd102',103:'ai/hbw/cmd103',104:'ai/hbw/cmd104',105:'ai/hbw/cmd105',107:'ai/hbw/cmd107',111:'ai/hbw/cmd111',116:'ai/hbw/cmd116',121:'ai/hbw/cmd121',126:'ai/hbw/cmd126',131:'ai/hbw/cmd131',136:'ai/hbw/cmd136',141:'ai/hbw/cmd141',146:'ai/hbw/cmd146',151:'ai/hbw/cmd151',156:'ai/hbw/cmd156',161:'ai/hbw/cmd161',166:'ai/hbw/cmd166',171:'ai/hbw/cmd171',176:'ai/hbw/cmd176',181:'ai/hbw/cmd181',186:'ai/hbw/cmd186',191:'ai/hbw/cmd191',196:'ai/hbw/cmd196',301:'ai/hbw/cmd301'}\n  };\n  for (const domain of ['vgr','hbw']) {\n    const output = selected[domain].command_output;\n    if (output?.mode !== 'direct_mqtt' || Number(output?.qos) !== 2 || Boolean(output?.retain) !== false) { error=`contract_invalid:${domain}:command_output`; break; }\n    for (const classId of selected[domain].class_ids.map(Number)) {\n      if (output?.topics?.[String(classId)] !== commandTopics[domain][classId]) { error=`contract_invalid:${domain}:class_${classId}`; break; }\n    }\n    if (error) break;\n  }\n}\nif (!error) {\n  const required = new Set(selected.storage.feature_cols);\n  for (const domain of ['vgr','hbw']) for (const f of selected[domain].feature_cols) if (!f.startsWith('empty_storage_')) required.add(f);\n  for (const f of required) if (!Object.hasOwn(raw,f) || !Number.isFinite(Number(raw[f]))) { error = `invalid_payload:${f}`; break; }\n}\nif (error) {\n  msg.payload = {code:error.split(':')[0], detail:error, cycle_id:null, ts_ms:Date.now()};\n  return [null,msg];\n}\nmsg._raw = raw;\nmsg._profile = profile;\nmsg._contracts = selected;\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 320,
+    "wires": [
+      [
+        "fn-storage-request"
+      ],
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nVirtuell verfuegbare Features, Profil, Klassen und Dienststatus vor Storage pruefen.\n\n### Eingang\nFreigegebener Anlagenzustand.\n\n### Ausgang\nValidierter Zykluskontext oder Fault.\n\n### Warum Function-Node?\nDer virtuelle Contract-Gate muss einen konsistenten Snapshot pruefen."
+  },
+  {
+    "id": "fn-storage-request",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Request bilden",
+    "func": "// Storage-Request erzeugen; einen Zyklus \u00f6ffnen\nif (global.get('ai.pending')) {\n  msg.payload = {code:'invalid_payload',detail:'new live state while cycle pending',ts_ms:Date.now()};\n  return [null,msg];\n}\nconst raw = msg._raw;\nconst contract = msg._contracts.storage;\nconst cycleNo = Number(global.get('ai.cycle_counter') || 0) + 1;\nglobal.set('ai.cycle_counter', cycleNo);\nconst sourceId = String(raw.source_id || 'plc_live');\nconst parent = String(raw.request_id || `live-${Date.now()}-${cycleNo}`);\nconst correlation = String(raw.correlation_id || parent);\nconst cycleId = `cycle-${sourceId}-${correlation}-${String(cycleNo).padStart(6,'0')}`;\nconst pending = {cycle_id:cycleId,parent_request_id:parent,source_id:sourceId,raw_state:raw,\n  model_profile:msg._profile,model_profile_name:String(raw.model_profile_name || msg._profile),\n  contracts:msg._contracts,storage_request_id:`${cycleId}:storage`,storage_started_ms:Date.now(),\n  deadline_ms:Date.now()+10000,responses:{},bootstrap:{},issued_commands:{}};\nglobal.set('ai.pending', pending);\nmsg.topic = contract.request_topic;\nmsg.qos = 1;\nmsg.retain = false;\nmsg.payload = {cycle_id:cycleId,request_id:pending.storage_request_id,parent_request_id:parent,\n  source_id:sourceId,model_id:contract.model_id,\n  features:Object.fromEntries(contract.feature_cols.map((f)=>[f,Number(raw[f])]))};\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 650,
+    "y": 320,
+    "wires": [
+      [
+        "json-storage-request"
+      ],
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nGenau einen Storage-Request und Korrelationszustand erzeugen.\n\n### Eingang\nValidierter Live-Zustand.\n\n### Ausgang\nStorage-Request oder Pending-Fehler.\n\n### Warum Function-Node?\nCycle-ID und Pending-Zustand muessen gemeinsam entstehen."
+  },
+  {
+    "id": "json-storage-request",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage JSON",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 870,
+    "y": 320,
+    "wires": [
+      [
+        "out-storage-request"
+      ]
+    ]
+  },
+  {
+    "id": "out-storage-request",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Request",
+    "topic": "ft/nn/storage/request",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1090,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "in-storage-result",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Ergebnis",
+    "topic": "ft/nn/response/storage",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 400,
+    "wires": [
+      [
+        "fn-storage-response"
+      ]
+    ]
+  },
+  {
+    "id": "fn-storage-response",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Ergebnis pruefen",
+    "func": "// Storage-Antwort korrelieren; One-hot erzeugen\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nif (!pending || response.request_id !== pending.storage_request_id || response.cycle_id !== pending.cycle_id || response.error) {\n  msg.payload = {code:'model_response_error',detail:'storage correlation or inference error',cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\nconst value = Number(response.empty_storage);\nif (!pending.contracts.storage.class_ids.map(Number).includes(value)) {\n  msg.payload = {code:'model_response_error',detail:`storage class ${value} unknown`,cycle_id:pending.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses.storage = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending.empty_storage = value;\npending.storage_latency_ms = Date.now()-pending.storage_started_ms;\npending.one_hot = Object.fromEntries(Array.from({length:10},(_,i)=>[`empty_storage_${i}`,i===value?1:0]));\nglobal.set('ai.pending', pending);\nmsg.payload = {cycle_id:pending.cycle_id,empty_storage:value,model_id:response.model_id,top3:response.top3||[]};\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 400,
+    "wires": [
+      [
+        "fn-window-vgr",
+        "fn-window-hbw",
+        "change-idle-modules",
+        "debug-storage"
+      ],
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nStorage-Antwort korrelieren, Klasse pruefen und One-hot bilden.\n\n### Eingang\nStorage-Response.\n\n### Ausgang\nKlasse fuer zwei Window-Zweige und Idle-Zweig.\n\n### Warum Function-Node?\nKorrelation und One-hot muessen denselben Pending-Zyklus verwenden."
+  },
+  {
+    "id": "debug-storage",
+    "type": "debug",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Ergebnis",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 700,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "fn-window-vgr",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR W=10 bilden",
+    "func": "// vgr-Fenster W=10 aktualisieren\nconst domain = 'vgr';\nconst pending = global.get('ai.pending');\nif (!pending) return null;\nconst contract = pending.contracts[domain];\nconst steps = Number(contract.time_steps);\nconst key = `${pending.source_id}|${contract.model_id}`;\nconst windows = global.get('ai.windows') || {vgr:{},hbw:{}};\nlet rows = windows[domain]?.[key] || [];\nlet seeded = 0;\nconst seed = {\n  IX_VGR_RefSwitchVerticalAxis_I1:1,IX_VGR_RefSwitchHorizontalAxis_I2:1,IX_VGR_RefSwitchRotate_I3:1,\n  QX_VGR_M2_HorizontalAxisBackward_Q3:0,QX_VGR_M2_HorizontalAxisForward_Q4:0,QX_VGR_Compressor_Q7:0,QX_VGR_ValveVacuum_Q8:0,\n  VGR_vertical_position:0,VGR_horizontal_position:0,VGR_rotate_position:0,\n  IX_HBW_RefSwitchHorizontalAxis_I1:1,IX_HBW_LightBarrierInside_I2:1,IX_HBW_LightBarrierOutside_I3:1,\n  IX_HBW_RefSwitchVerticalAxis_I4:1,IX_HBW_SwitchCantileverFront_I5:0,IX_HBW_SwitchCantileverBack_I6:1,\n  HBW_vertical_position:0,HBW_horizontal_position:0,IX_SSC_LightBarrierStorage_I3:1\n};\nconst vector = (state) => contract.feature_cols.map((f) => f.startsWith('empty_storage_') ? pending.one_hot[f] : Number(state[f]));\nif (rows.length === 0) {\n  for (let i=0;i<steps-1;i+=1) rows.push(vector(seed));\n  seeded = steps-1;\n}\nrows.push(vector(pending.raw_state));\nrows = rows.slice(-steps);\nwindows[domain] = windows[domain] || {};\nwindows[domain][key] = rows;\nglobal.set('ai.windows', windows);\npending.bootstrap[domain] = {seeded_rows:seeded,time_steps:steps,template_version:'1.0'};\npending[`${domain}_request_id`] = `${pending.cycle_id}:${domain}`;\npending[`${domain}_started_ms`] = Date.now();\npending.deadline_ms = Date.now()+10000;\nglobal.set('ai.pending', pending);\nmsg.topic = domain === 'vgr' ? 'ft/nn/vgr/request':'ft/nn/hbw/request';\nmsg.qos = 1; msg.retain = false;\nmsg.payload = {cycle_id:pending.cycle_id,request_id:pending[`${domain}_request_id`],parent_request_id:pending.parent_request_id,\n  source_id:pending.source_id,model_id:contract.model_id,model_profile:pending.model_profile,sequence:rows};\nmsg._request_summary = {domain,cycle_id:pending.cycle_id,model_profile:pending.model_profile,window:`${steps}x${contract.feature_cols.length}`};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 550,
+    "wires": [
+      [
+        "json-vgr-request",
+        "change-debug-request-vgr"
+      ]
+    ],
+    "info": "### Aufgabe\nVGR-Rolling-Window aktualisieren und Request bilden.\n\n### Eingang\nStorage-Klasse und aktueller Zustand.\n\n### Zustand\nNur VGR-Fenster je Quelle und Modell-ID.\n\n### Ausgang\nVGR-Request `(10,29)`.\n\n### Warum Function-Node?\nWindowupdate und Bootstrap muessen atomar sein."
+  },
+  {
+    "id": "fn-window-hbw",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW W=10 bilden",
+    "func": "// hbw-Fenster W=10 aktualisieren\nconst domain = 'hbw';\nconst pending = global.get('ai.pending');\nif (!pending) return null;\nconst contract = pending.contracts[domain];\nconst steps = Number(contract.time_steps);\nconst key = `${pending.source_id}|${contract.model_id}`;\nconst windows = global.get('ai.windows') || {vgr:{},hbw:{}};\nlet rows = windows[domain]?.[key] || [];\nlet seeded = 0;\nconst seed = {\n  IX_VGR_RefSwitchVerticalAxis_I1:1,IX_VGR_RefSwitchHorizontalAxis_I2:1,IX_VGR_RefSwitchRotate_I3:1,\n  QX_VGR_M2_HorizontalAxisBackward_Q3:0,QX_VGR_M2_HorizontalAxisForward_Q4:0,QX_VGR_Compressor_Q7:0,QX_VGR_ValveVacuum_Q8:0,\n  VGR_vertical_position:0,VGR_horizontal_position:0,VGR_rotate_position:0,\n  IX_HBW_RefSwitchHorizontalAxis_I1:1,IX_HBW_LightBarrierInside_I2:1,IX_HBW_LightBarrierOutside_I3:1,\n  IX_HBW_RefSwitchVerticalAxis_I4:1,IX_HBW_SwitchCantileverFront_I5:0,IX_HBW_SwitchCantileverBack_I6:1,\n  HBW_vertical_position:0,HBW_horizontal_position:0,IX_SSC_LightBarrierStorage_I3:1\n};\nconst vector = (state) => contract.feature_cols.map((f) => f.startsWith('empty_storage_') ? pending.one_hot[f] : Number(state[f]));\nif (rows.length === 0) {\n  for (let i=0;i<steps-1;i+=1) rows.push(vector(seed));\n  seeded = steps-1;\n}\nrows.push(vector(pending.raw_state));\nrows = rows.slice(-steps);\nwindows[domain] = windows[domain] || {};\nwindows[domain][key] = rows;\nglobal.set('ai.windows', windows);\npending.bootstrap[domain] = {seeded_rows:seeded,time_steps:steps,template_version:'1.0'};\npending[`${domain}_request_id`] = `${pending.cycle_id}:${domain}`;\npending[`${domain}_started_ms`] = Date.now();\npending.deadline_ms = Date.now()+10000;\nglobal.set('ai.pending', pending);\nmsg.topic = domain === 'vgr' ? 'ft/nn/vgr/request':'ft/nn/hbw/request';\nmsg.qos = 1; msg.retain = false;\nmsg.payload = {cycle_id:pending.cycle_id,request_id:pending[`${domain}_request_id`],parent_request_id:pending.parent_request_id,\n  source_id:pending.source_id,model_id:contract.model_id,model_profile:pending.model_profile,sequence:rows};\nmsg._request_summary = {domain,cycle_id:pending.cycle_id,model_profile:pending.model_profile,window:`${steps}x${contract.feature_cols.length}`};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 620,
+    "wires": [
+      [
+        "json-hbw-request",
+        "change-debug-request-hbw"
+      ]
+    ],
+    "info": "### Aufgabe\nHBW-Rolling-Window aktualisieren und Request bilden.\n\n### Eingang\nStorage-Klasse und aktueller Zustand.\n\n### Zustand\nNur HBW-Fenster je Quelle und Modell-ID.\n\n### Ausgang\nHBW-Request `(10,29)`.\n\n### Warum Function-Node?\nWindowupdate und Bootstrap muessen atomar sein."
+  },
+  {
+    "id": "json-vgr-request",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR JSON",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 650,
+    "y": 550,
+    "wires": [
+      [
+        "out-vgr-request"
+      ]
+    ]
+  },
+  {
+    "id": "out-vgr-request",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR-Request",
+    "topic": "ft/nn/vgr/request",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 860,
+    "y": 550,
+    "wires": []
+  },
+  {
+    "id": "json-hbw-request",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW JSON",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 650,
+    "y": 620,
+    "wires": [
+      [
+        "out-hbw-request"
+      ]
+    ]
+  },
+  {
+    "id": "out-hbw-request",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW-Request",
+    "topic": "ft/nn/hbw/request",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 860,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "debug-request-vgr",
+    "type": "debug",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR-Request Kurzinfo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 650,
+    "y": 520,
+    "wires": []
+  },
+  {
+    "id": "debug-request-hbw",
+    "type": "debug",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW-Request Kurzinfo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 650,
+    "y": 670,
+    "wires": []
+  },
+  {
+    "id": "change-debug-request-vgr",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR Kurzinfo",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_request_summary",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 520,
+    "y": 520,
+    "wires": [
+      [
+        "debug-request-vgr"
+      ]
+    ]
+  },
+  {
+    "id": "change-debug-request-hbw",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW Kurzinfo",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_request_summary",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 520,
+    "y": 670,
+    "wires": [
+      [
+        "debug-request-hbw"
+      ]
+    ]
+  },
+  {
+    "id": "change-idle-modules",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "MPO / SLD Idle",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "[{\"topic\":\"ai/mpo/cmd0\",\"payload\":\"\",\"qos\":2,\"retain\":false},{\"topic\":\"ai/sld/cmd0\",\"payload\":\"\",\"qos\":2,\"retain\":false}]",
+        "tot": "json"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1080,
+    "y": 585,
+    "wires": [
+      [
+        "split-idle-modules"
+      ]
+    ]
+  },
+  {
+    "id": "split-idle-modules",
+    "type": "split",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "Idle-Commands trennen",
+    "splt": "\\n",
+    "spltType": "str",
+    "arraySplt": 1,
+    "arraySpltType": "len",
+    "stream": false,
+    "addname": "",
+    "property": "payload",
+    "x": 1300,
+    "y": 585,
+    "wires": [
+      [
+        "change-idle-command"
+      ]
+    ]
+  },
+  {
+    "id": "change-idle-command",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "MQTT-Felder",
+    "rules": [
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "payload.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "qos",
+        "pt": "msg",
+        "to": "payload.qos",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "retain",
+        "pt": "msg",
+        "to": "payload.retain",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1510,
+    "y": 585,
+    "wires": [
+      [
+        "out-idle-modules"
+      ]
+    ]
+  },
+  {
+    "id": "out-idle-modules",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "MPO / SLD Idle",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1630,
+    "y": 585,
+    "wires": []
+  },
+  {
+    "id": "in-vgr-response",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "VGR-Response",
+    "topic": "ft/nn/response/vgr",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 140,
+    "y": 820,
+    "wires": [
+      [
+        "fn-vgr-response"
+      ]
+    ]
+  },
+  {
+    "id": "fn-vgr-response",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "VGR-Response pruefen",
+    "func": "// vgr-Antwort validieren; nur Reporting freigeben\nconst domain = 'vgr';\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nconst contract = pending?.contracts?.[domain];\nlet error = '';\nif (!pending || response.request_id !== pending?.[`${domain}_request_id`] || response.cycle_id !== pending?.cycle_id) error = `${domain} correlation mismatch`;\nelse if (response.error) error = `${domain} inference error: ${response.error}`;\nelse if (response.model_profile !== pending.model_profile || response.model_id !== contract.model_id) error = `${domain} model mismatch`;\nelse if (!contract.class_ids.map(Number).includes(Number(response.cmd))) error = `${domain} class unknown`;\nelse if (String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true' && response.command_output?.published !== true) error = `${domain} command not published`;\nif (error) {\n  msg.payload = {code:'model_response_error',detail:error,cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses[domain] = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending[`${domain}_latency_ms`] = Date.now()-pending[`${domain}_started_ms`];\npending.issued_commands[domain] = {cmd:Number(response.cmd),topic:response.command_output?.topic,\n  publisher:'model_service',published:Boolean(response.command_output?.published),mid:response.command_output?.mid ?? null};\nglobal.set('ai.pending', pending);\nmsg.topic = domain;\nmsg.payload = response;\nmsg.parts = {id:pending.cycle_id,type:'object',key:domain,count:2,index:domain==='vgr'?0:1};\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 820,
+    "wires": [
+      [
+        "join-model-responses"
+      ],
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nVGR-Response korrelieren und fuer Reporting markieren.\n\n### Eingang\nVGR-Response.\n\n### Ausgang\nValidierte Diagnoseantwort.\n\n### Warum Function-Node?\nKorrelation und Command-Nachweis gehoeren zu einer Antwort."
+  },
+  {
+    "id": "in-hbw-response",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "HBW-Response",
+    "topic": "ft/nn/response/hbw",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 140,
+    "y": 880,
+    "wires": [
+      [
+        "fn-hbw-response"
+      ]
+    ]
+  },
+  {
+    "id": "fn-hbw-response",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "HBW-Response pruefen",
+    "func": "// hbw-Antwort validieren; nur Reporting freigeben\nconst domain = 'hbw';\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nconst contract = pending?.contracts?.[domain];\nlet error = '';\nif (!pending || response.request_id !== pending?.[`${domain}_request_id`] || response.cycle_id !== pending?.cycle_id) error = `${domain} correlation mismatch`;\nelse if (response.error) error = `${domain} inference error: ${response.error}`;\nelse if (response.model_profile !== pending.model_profile || response.model_id !== contract.model_id) error = `${domain} model mismatch`;\nelse if (!contract.class_ids.map(Number).includes(Number(response.cmd))) error = `${domain} class unknown`;\nelse if (String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true' && response.command_output?.published !== true) error = `${domain} command not published`;\nif (error) {\n  msg.payload = {code:'model_response_error',detail:error,cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses[domain] = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending[`${domain}_latency_ms`] = Date.now()-pending[`${domain}_started_ms`];\npending.issued_commands[domain] = {cmd:Number(response.cmd),topic:response.command_output?.topic,\n  publisher:'model_service',published:Boolean(response.command_output?.published),mid:response.command_output?.mid ?? null};\nglobal.set('ai.pending', pending);\nmsg.topic = domain;\nmsg.payload = response;\nmsg.parts = {id:pending.cycle_id,type:'object',key:domain,count:2,index:domain==='vgr'?0:1};\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 880,
+    "wires": [
+      [
+        "join-model-responses"
+      ],
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nHBW-Response korrelieren und fuer Reporting markieren.\n\n### Eingang\nHBW-Response.\n\n### Ausgang\nValidierte Diagnoseantwort.\n\n### Warum Function-Node?\nKorrelation und Command-Nachweis gehoeren zu einer Antwort."
+  },
+  {
+    "id": "join-model-responses",
+    "type": "join",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Responses fuer Report",
+    "mode": "auto",
+    "build": "object",
+    "property": "payload",
+    "propertyType": "msg",
+    "key": "topic",
+    "joiner": "\\n",
+    "joinerType": "str",
+    "accumulate": false,
+    "timeout": "10",
+    "count": "2",
+    "reduceRight": false,
+    "reduceExp": "",
+    "reduceInit": "",
+    "reduceInitType": "",
+    "reduceFixup": "",
+    "x": 680,
+    "y": 850,
+    "wires": [
+      [
+        "fn-cycle-result"
+      ]
+    ]
+  },
+  {
+    "id": "fn-cycle-result",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zyklusergebnis bilden",
+    "func": "// Zwei Diagnoseantworten zu einem Reportdatensatz verbinden\nconst pending = global.get('ai.pending');\nif (!pending || !msg.payload?.vgr || !msg.payload?.hbw) return null;\nconst finished = Date.now();\nconst vgr = msg.payload.vgr, hbw = msg.payload.hbw, storage = pending.responses.storage;\nconst enabled = String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true';\nconst commands = {\n  vgr:pending.issued_commands.vgr,hbw:pending.issued_commands.hbw,\n  mpo:{cmd:0,topic:'ai/mpo/cmd0',publisher:'ai_flow',published:enabled},\n  sld:{cmd:0,topic:'ai/sld/cmd0',publisher:'ai_flow',published:enabled}\n};\nmsg.topic = 'ft/ai/orchestration/cycle_result'; msg.qos=1; msg.retain=false;\nmsg.payload = {schema_version:'1.0',cycle_id:pending.cycle_id,request_id:pending.parent_request_id,\n  source_id:pending.source_id,status:'completed',model_profile:pending.model_profile,\n  model_profile_name:pending.model_profile_name,model_ids:{storage:storage.model_id,vgr:vgr.model_id,hbw:hbw.model_id},\n  model_contracts:pending.contracts,empty_storage:pending.empty_storage,vgr_cmd:Number(vgr.cmd),hbw_cmd:Number(hbw.cmd),\n  model_predictions:{storage:{empty_storage:storage.empty_storage,top3:storage.top3||[]},\n    vgr:{cmd:Number(vgr.cmd),name:vgr.name,top3:vgr.top3||[]},hbw:{cmd:Number(hbw.cmd),name:hbw.name,top3:hbw.top3||[]}},\n  commands,command_output_enabled:enabled,command_set_complete:Object.values(commands).every((c)=>c.published===enabled),\n  bootstrap:pending.bootstrap,storage_latency_ms:pending.storage_latency_ms,vgr_latency_ms:pending.vgr_latency_ms,\n  hbw_latency_ms:pending.hbw_latency_ms,duration_ms:finished-pending.storage_started_ms,input_metadata:pending.raw_state,\n  qos:2,retain:false,ts_ms:finished};\nglobal.set('ai.pending', null);\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 920,
+    "y": 850,
+    "wires": [
+      [
+        "json-cycle-result",
+        "fn-report-row"
+      ]
+    ],
+    "info": "### Aufgabe\nZwei bereits unabhaengig publizierte NN-Ergebnisse zu einem Diagnosebericht verbinden.\n\n### Eingang\nVGR- und HBW-Response.\n\n### Ausgang\nZyklusergebnis.\n\n### Warum Function-Node?\nDer Report braucht einen konsistenten Pending-Snapshot; er ist keine Command-Barriere."
+  },
+  {
+    "id": "json-cycle-result",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zyklus JSON",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 1140,
+    "y": 820,
+    "wires": [
+      [
+        "out-cycle-result"
+      ]
+    ]
+  },
+  {
+    "id": "out-cycle-result",
+    "type": "mqtt out",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zyklusergebnis",
+    "topic": "ft/ai/orchestration/cycle_result",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-ai-cps",
+    "x": 1370,
+    "y": 820,
+    "wires": []
+  },
+  {
+    "id": "inject-ai-timeout",
+    "type": "inject",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Timeout alle 250 ms",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "0.25",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "payload": "",
+    "payloadType": "date",
+    "x": 170,
+    "y": 960,
+    "wires": [
+      [
+        "fn-timeout-check"
+      ]
+    ]
+  },
+  {
+    "id": "fn-timeout-check",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Timeout pruefen",
+    "func": "// Offenen Inferenzzyklus auf Timeout pr\u00fcfen\nconst pending = global.get('ai.pending');\nif (!pending || Date.now() < Number(pending.deadline_ms)) return null;\nglobal.set('ai.pending', null);\nmsg.payload = {code:'inference_timeout',detail:'model response deadline exceeded',cycle_id:pending.cycle_id,ts_ms:Date.now()};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 960,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": "### Aufgabe\nDeadline eines offenen Inferenzzyklus pruefen.\n\n### Eingang\n250-ms-Tick.\n\n### Ausgang\nNur bei Timeout ein Fault.\n\n### Warum Function-Node?\nDeadline und Pending-Zyklus werden atomar gelesen."
+  },
+  {
+    "id": "link-fault-pipeline",
+    "type": "link out",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zum Fault-Latch",
+    "mode": "link",
+    "links": [
+      "link-fault-central"
+    ],
+    "x": 650,
+    "y": 960,
+    "wires": []
+  },
+  {
+    "id": "in-report-factory-status",
+    "type": "mqtt in",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Fabrikabschluss",
+    "topic": "ft/sim/factory/status",
+    "qos": "1",
+    "datatype": "auto-detect",
+    "broker": "mqtt-ai-cps",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 920,
+    "y": 930,
+    "wires": [
+      [
+        "switch-report-factory-status"
+      ]
+    ]
+  },
+  {
+    "id": "switch-report-factory-status",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Abschluss oder Reset",
+    "property": "payload.state",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "completed",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "reset",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1140,
+    "y": 930,
+    "wires": [
+      [
+        "change-report-factory-status"
+      ],
+      [
+        "change-report-factory-status"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-factory-status",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportabschluss markieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_report_event",
+        "pt": "msg",
+        "to": "factory_status",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1360,
+    "y": 930,
+    "wires": [
+      [
+        "fn-report-state"
+      ]
+    ]
+  },
+  {
+    "id": "fn-report-row",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV-Zeile abbilden",
+    "func": "// Zyklusergebnis auf den stabilen CSV-Vertrag abbilden\nconst result=msg.payload||{}, meta=result.input_metadata||{}, commands=result.commands||{};\nconst match=(a,b)=>a===null||a===undefined||b===null||b===undefined?'':Number(a)===Number(b);\nconst probability=(prediction,key,value)=>{const found=(prediction?.top3||[]).find((item)=>Number(item?.[key])===Number(value)); return found?.p===undefined?'':Number(found.p);};\nconst report=flow.get('report.state')||{rows:0};\nmsg._report_result=result;\nmsg._report_row={\n row_index:Number(report.rows||0),request_id_base:result.request_id||'',cycle_id:result.cycle_id||'',phase:meta.phase||'live_state',trace_phase:meta.trace_phase||'',attempt_repeat_idx:meta.attempt_repeat_idx,\n guard_episode_idx:meta.guard_episode_idx,guard_prefix_idx:meta.guard_prefix_idx,guard_process_step_idx:meta.guard_process_step_idx,guard_source_episode_id:meta.guard_source_episode_id,source_id:result.source_id||'',\n trace_profile:meta.trace_profile||'',trace_profile_name:meta.trace_profile_name||'',model_profile:result.model_profile||meta.model_profile||'deployment-current',model_profile_name:result.model_profile_name||meta.model_profile_name||'',factory_seed:meta.factory_seed,\n factory_base_runtime_vgr_ms:meta.factory_base_runtime_ms?.vgr,factory_base_runtime_hbw_ms:meta.factory_base_runtime_ms?.hbw,factory_base_runtime_mpo_ms:meta.factory_base_runtime_ms?.mpo,factory_base_runtime_sld_ms:meta.factory_base_runtime_ms?.sld,\n storage_model_id:result.model_ids?.storage||'',vgr_model_id:result.model_ids?.vgr||'',hbw_model_id:result.model_ids?.hbw||'',expected_empty_storage:meta.expected_empty_storage,\n vgr_storage_pred:result.empty_storage,hbw_storage_pred:result.empty_storage,storage_match_vgr:match(result.empty_storage,meta.expected_empty_storage),storage_match_hbw:match(result.empty_storage,meta.expected_empty_storage),storage_confidence:probability(result.model_predictions?.storage,'empty_storage',result.empty_storage),\n expected_label_VGR:meta.expected_label_VGR,predicted_label_VGR:result.vgr_cmd,vgr_match:match(result.vgr_cmd,meta.expected_label_VGR),vgr_ready:result.status==='completed',vgr_confidence:probability(result.model_predictions?.vgr,'cmd',result.vgr_cmd),vgr_latency_s:result.vgr_latency_ms===undefined?'':Number(result.vgr_latency_ms)/1000,\n expected_label_HBW:meta.expected_label_HBW,predicted_label_HBW:result.hbw_cmd,hbw_match:match(result.hbw_cmd,meta.expected_label_HBW),hbw_ready:result.status==='completed',hbw_confidence:probability(result.model_predictions?.hbw,'cmd',result.hbw_cmd),hbw_latency_s:result.hbw_latency_ms===undefined?'':Number(result.hbw_latency_ms)/1000,\n timeout:String(result.error||'').includes('timeout'),error:result.error||'',control_enabled:Boolean(result.command_output_enabled),control_published:Boolean(result.command_output_enabled&&result.status==='completed'&&result.command_set_complete),control_reason:result.status==='completed'?(result.command_output_enabled?'published_independently':'disabled'):result.status,\n control_command_set_complete:Boolean(result.command_set_complete),control_vgr_cmd:commands.vgr?.cmd,control_hbw_cmd:commands.hbw?.cmd,control_mpo_cmd:commands.mpo?.cmd,control_sld_cmd:commands.sld?.cmd,\n control_vgr_topic:commands.vgr?.topic,control_hbw_topic:commands.hbw?.topic,control_mpo_topic:commands.mpo?.topic,control_sld_topic:commands.sld?.topic,control_vgr_publisher:commands.vgr?.publisher,control_hbw_publisher:commands.hbw?.publisher,control_mpo_publisher:commands.mpo?.publisher,control_sld_publisher:commands.sld?.publisher,\n control_qos:result.qos,control_retain:result.retain,bootstrap_vgr_rows:result.bootstrap?.vgr?.seeded_rows,bootstrap_hbw_rows:result.bootstrap?.hbw?.seeded_rows,\n module_runtime_vgr_ms:meta.module_runtime_ms?.vgr,module_runtime_hbw_ms:meta.module_runtime_ms?.hbw,module_runtime_mpo_ms:meta.module_runtime_ms?.mpo,module_runtime_sld_ms:meta.module_runtime_ms?.sld,\n job_sent_vgr:meta.module_job_counts?.sent?.vgr,job_sent_hbw:meta.module_job_counts?.sent?.hbw,job_sent_mpo:meta.module_job_counts?.sent?.mpo,job_sent_sld:meta.module_job_counts?.sent?.sld,\n job_accepted_vgr:meta.module_job_counts?.accepted?.vgr,job_accepted_hbw:meta.module_job_counts?.accepted?.hbw,job_accepted_mpo:meta.module_job_counts?.accepted?.mpo,job_accepted_sld:meta.module_job_counts?.accepted?.sld\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1110,
+    "y": 850,
+    "wires": [
+      [
+        "fn-report-state"
+      ]
+    ],
+    "info": "### Aufgabe\nEin Zyklusergebnis auf den stabilen CSV-Spaltenvertrag abbilden.\n\n### Eingang\nFertiges Zyklusergebnis.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nOriginalereignis und normalisierte Tabellenzeile.\n\n### Warum Function-Node?\nOptionale Metriken und Sollwerte werden typisiert zusammengefuehrt."
+  },
+  {
+    "id": "fn-report-state",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportzaehler aktualisieren",
+    "func": "// Einen Zyklus zaehlen oder einen korrelierten Laufabschluss erkennen\nlet state=flow.get('report.state');\nif (msg._report_event==='factory_status') {\n  if (!state || !state.factory_run_id || String(msg.payload?.run_id||'')!==String(state.factory_run_id)) return null;\n  if (!['completed','reset'].includes(msg.payload?.state)) return null;\n  msg._report_state=state; msg._factory_status=msg.payload;\n  flow.set('report.state',null);\n  return [null,msg];\n}\nconst now=Date.now(), result=msg._report_result||{}, row=msg._report_row||{};\nif (!state) {\n  const runId=new Date(now).toISOString().replace(/[-:TZ.]/g,'').slice(0,18)+'_nodered';\n  const root=String(env.get('REPORT_ROOT')||'/reports/orchestration_simulation').replace(/\\/$/,'');\n  state={run_id:runId,run_dir:`${root}/${runId}`,started_at:new Date(now).toISOString(),rows:0,matches:{storage:0,vgr:0,hbw:0},faults:0,command_rows:0,idle_fallback_rows:0,factory_run_id:null,last_cycle_status:null,model_ids:{},run_config:{}};\n}\nstate.rows+=1;\nif (row.storage_match_vgr===true) state.matches.storage+=1;\nif (row.vgr_match===true) state.matches.vgr+=1;\nif (row.hbw_match===true) state.matches.hbw+=1;\nif (result.status==='fault_latched') state.faults+=1;\nif (row.control_published) state.command_rows+=1;\nif (result.idle_set_published) state.idle_fallback_rows+=1;\nstate.factory_run_id=state.factory_run_id||result.input_metadata?.simulation_run_id||result.input_metadata?.correlation_id||null;\nstate.last_cycle_status=result.status||null; state.model_ids=result.model_ids||state.model_ids;\nstate.run_config={trace_profile:row.trace_profile,trace_profile_name:row.trace_profile_name,model_profile:row.model_profile,model_profile_name:row.model_profile_name,seed:row.factory_seed,base_runtime_ms:{vgr:row.factory_base_runtime_vgr_ms,hbw:row.factory_base_runtime_hbw_ms,mpo:row.factory_base_runtime_mpo_ms,sld:row.factory_base_runtime_sld_ms}};\nflow.set('report.state',state); msg._report_state=state;\nreturn [msg,null];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1280,
+    "y": 850,
+    "wires": [
+      [
+        "change-report-event",
+        "fn-report-csv",
+        "fn-report-summary"
+      ],
+      [
+        "fn-report-summary"
+      ]
+    ],
+    "info": "### Aufgabe\nEinen Zyklus zaehlen oder einen korrelierten Laufabschluss erkennen.\n\n### Eingang\nNormalisierte Zykluszeile oder finaler Fabrikstatus.\n\n### Zustand\nNur Reportzaehler, Pfad und Run-ID.\n\n### Ausgang\nLaufende oder finale Reportdaten.\n\n### Warum Function-Node?\nZaehler und Abschlusskorrelation muessen atomar bleiben."
+  },
+  {
+    "id": "change-report-event",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Eventdatei waehlen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "filename",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/events.jsonl'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_report_result",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1450,
+    "y": 790,
+    "wires": [
+      [
+        "json-report-event"
+      ]
+    ]
+  },
+  {
+    "id": "json-report-event",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Event JSONL",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1580,
+    "y": 790,
+    "wires": [
+      [
+        "change-report-event-newline"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-event-newline",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zeilenabschluss",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "payload & '\\n'",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1580,
+    "y": 820,
+    "wires": [
+      [
+        "file-report-append-inline"
+      ]
+    ]
+  },
+  {
+    "id": "fn-report-csv",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV formatieren",
+    "func": "// Genau eine CSV-Zeile mit stabilem Spaltenvertrag bilden\nconst columns=['row_index','request_id_base','cycle_id','phase','trace_phase','attempt_repeat_idx','guard_episode_idx','guard_prefix_idx','guard_process_step_idx','guard_source_episode_id','source_id','trace_profile','trace_profile_name','model_profile','model_profile_name','factory_seed','factory_base_runtime_vgr_ms','factory_base_runtime_hbw_ms','factory_base_runtime_mpo_ms','factory_base_runtime_sld_ms','storage_model_id','vgr_model_id','hbw_model_id','expected_empty_storage','vgr_storage_pred','hbw_storage_pred','storage_match_vgr','storage_match_hbw','storage_confidence','expected_label_VGR','predicted_label_VGR','vgr_match','vgr_ready','vgr_confidence','vgr_latency_s','expected_label_HBW','predicted_label_HBW','hbw_match','hbw_ready','hbw_confidence','hbw_latency_s','timeout','error','control_enabled','control_published','control_reason','control_command_set_complete','control_vgr_cmd','control_hbw_cmd','control_mpo_cmd','control_sld_cmd','control_vgr_topic','control_hbw_topic','control_mpo_topic','control_sld_topic','control_vgr_publisher','control_hbw_publisher','control_mpo_publisher','control_sld_publisher','control_qos','control_retain','bootstrap_vgr_rows','bootstrap_hbw_rows','module_runtime_vgr_ms','module_runtime_hbw_ms','module_runtime_mpo_ms','module_runtime_sld_ms','job_sent_vgr','job_sent_hbw','job_sent_mpo','job_sent_sld','job_accepted_vgr','job_accepted_hbw','job_accepted_mpo','job_accepted_sld'];\nconst csv=(value)=>{if(value===null||value===undefined)return '';const text=String(value);return /[\",\\n]/.test(text)?`\"${text.replaceAll('\"','\"\"')}\"`:text;};\nconst row=msg._report_row||{};\nmsg.filename=`${msg._report_state.run_dir}/summary.csv`;\nmsg.payload=(Number(row.row_index)===0?columns.join(',')+'\\n':'')+columns.map((key)=>csv(row[key])).join(',')+'\\n';\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1450,
+    "y": 850,
+    "wires": [
+      [
+        "file-report-append-inline"
+      ]
+    ],
+    "info": "### Aufgabe\nGenau eine CSV-Zeile in stabiler Spaltenreihenfolge formatieren.\n\n### Eingang\nNormalisierte Tabellenzeile.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nDateiname und CSV-Text.\n\n### Warum Function-Node?\nHeader und CSV-Escaping muessen je Reportlauf konsistent sein."
+  },
+  {
+    "id": "fn-report-summary",
+    "type": "function",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Run Summary bilden",
+    "func": "// Laufende oder finale run_summary.json aus einem konsistenten Zaehlerstand bilden\nconst state=msg._report_state, factory=msg._factory_status||null, completed=factory?.state==='completed', stopped=factory?.state==='reset'||state.last_cycle_status==='fault_latched';\nconst summary={mode:'live_mqtt_nodered',completed,stopped,stop_reason:factory?(completed?'completed':'reset'):(stopped?'fault_latched':'running'),last_cycle_status:state.last_cycle_status,rows_completed:state.rows,control_published_rows:state.command_rows,control_published_commands:state.command_rows*4,control_idle_fallback_rows:state.idle_fallback_rows,faults:state.faults,storage_matches_vgr:state.matches.storage,storage_matches_hbw:state.matches.storage,vgr_matches:state.matches.vgr,hbw_matches:state.matches.hbw,model_ids:state.model_ids,run_config:state.run_config,started_at:state.started_at,updated_at:new Date().toISOString(),events_path:`${state.run_dir}/events.jsonl`,summary_path:`${state.run_dir}/summary.csv`};\nif (factory) summary.factory_status={run_id:factory.run_id,trace_total:factory.trace_total,payloads_sent:factory.payloads_sent,progress_percent:factory.progress_percent,sent_counts:factory.sent_counts,accepted_counts:factory.accepted_counts};\nmsg.filename=`${state.run_dir}/run_summary.json`; msg.payload=JSON.stringify(summary,null,2)+'\\n';\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1450,
+    "y": 900,
+    "wires": [
+      [
+        "file-report-replace-inline"
+      ]
+    ],
+    "info": "### Aufgabe\nLaufende oder finale run_summary.json aus demselben Zaehlerstand bilden.\n\n### Eingang\nReportzustand und optional korrelierter Fabrikabschluss.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nDateiname und JSON-Text.\n\n### Warum Function-Node?\nAbschlussflags und finale Zaehler gehoeren in einen Snapshot."
+  },
+  {
+    "id": "file-report-append-inline",
+    "type": "file",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Events / CSV",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": false,
+    "createDir": true,
+    "overwriteFile": "false",
+    "encoding": "none",
+    "x": 1600,
+    "y": 960,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "file-report-replace-inline",
+    "type": "file",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Run Summary",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": false,
+    "createDir": true,
+    "overwriteFile": "true",
+    "encoding": "none",
+    "x": 1600,
+    "y": 1000,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "catch-report",
+    "type": "catch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportfehler",
+    "scope": [
+      "file-report-append-inline",
+      "file-report-replace-inline"
+    ],
+    "uncaught": false,
+    "x": 920,
+    "y": 1010,
+    "wires": [
+      [
+        "change-catch-report"
+      ]
+    ]
+  },
+  {
+    "id": "change-catch-report",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportfehler normalisieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'report_write_error','detail':error.message,'source':error.source.name}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1150,
+    "y": 1010,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "catch-pipeline",
+    "type": "catch",
+    "z": "tab-pipeline",
+    "name": "Pipelinefehler",
+    "scope": [
+      "fn-contract-register",
+      "fn-status-register",
+      "fn-readiness",
+      "fn-ai-reset",
+      "fn-contract-gate",
+      "fn-storage-request",
+      "fn-storage-response",
+      "fn-window-vgr",
+      "fn-window-hbw",
+      "fn-vgr-response",
+      "fn-hbw-response",
+      "fn-cycle-result",
+      "fn-timeout-check",
+      "fn-report-row",
+      "fn-report-state",
+      "fn-report-csv",
+      "fn-report-summary"
+    ],
+    "uncaught": false,
+    "x": 1150,
+    "y": 1000,
+    "wires": [
+      [
+        "change-catch-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "change-catch-pipeline",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "",
+    "name": "Fehler normalisieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'runtime_error','detail':error.message,'source':error.source.name}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1360,
+    "y": 1000,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "status-mqtt-pipeline",
+    "type": "status",
+    "z": "tab-pipeline",
+    "name": "MQTT-Zustand",
+    "scope": [
+      "in-contracts",
+      "in-model-statuses",
+      "in-live-pipeline",
+      "out-storage-request",
+      "out-vgr-request",
+      "out-hbw-request",
+      "out-idle-modules"
+    ],
+    "x": 1150,
+    "y": 1040,
+    "wires": [
+      [
+        "switch-mqtt-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "switch-mqtt-pipeline",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "",
+    "name": "MQTT getrennt?",
+    "property": "status.text",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "regex",
+        "v": "disconnected|error",
+        "vt": "str",
+        "case": false
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 1360,
+    "y": 1040,
+    "wires": [
+      [
+        "change-mqtt-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "change-mqtt-pipeline",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "",
+    "name": "MQTT-Fehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'mqtt_disconnected','detail':status.text,'source':'NN-Pipeline'}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1530,
+    "y": 1040,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ]
   },
   {
     "id": "mqtt-ai-cps",
@@ -31,1094 +1579,5 @@
     "willQos": "0",
     "willPayload": "",
     "willMsg": {}
-  },
-  {
-    "id": "group-ai-inputs",
-    "type": "group",
-    "z": "tab-ai-orchestration",
-    "name": "1. MQTT-Eingaenge und Ereignisse",
-    "style": {
-      "label": true
-    },
-    "nodes": [
-      "comment-ai-inputs",
-      "in-live-state",
-      "change-event-live-state",
-      "in-model-contracts",
-      "change-event-contract",
-      "in-model-status",
-      "change-event-status",
-      "in-storage-response",
-      "change-event-storage-response",
-      "in-vgr-response",
-      "change-event-vgr-response",
-      "in-hbw-response",
-      "change-event-hbw-response",
-      "in-ai-control",
-      "change-event-ai-control",
-      "inject-ai-tick",
-      "change-event-ai-tick"
-    ],
-    "x": 20,
-    "y": 20,
-    "w": 520,
-    "h": 580
-  },
-  {
-    "id": "group-ai-core",
-    "type": "group",
-    "z": "tab-ai-orchestration",
-    "name": "2. Getesteter Orchestrierungszustandskern",
-    "style": {
-      "label": true
-    },
-    "nodes": [
-      "comment-ai-core",
-      "fn-ai-runtime"
-    ],
-    "x": 560,
-    "y": 190,
-    "w": 290,
-    "h": 180
-  },
-  {
-    "id": "group-ai-actions",
-    "type": "group",
-    "z": "tab-ai-orchestration",
-    "name": "3. Requests, MPO/SLD und Status verteilen",
-    "style": {
-      "label": true
-    },
-    "nodes": [
-      "comment-ai-actions",
-      "split-ai-actions",
-      "change-ai-action",
-      "switch-ai-action-role",
-      "json-model-request",
-      "json-cycle-result",
-      "json-ai-status",
-      "out-model-requests",
-      "out-physical-commands",
-      "out-cycle-result",
-      "out-ai-status",
-      "debug-ai-unknown-role"
-    ],
-    "x": 870,
-    "y": 20,
-    "w": 930,
-    "h": 460
-  },
-  {
-    "id": "group-ai-reporting",
-    "type": "group",
-    "z": "tab-ai-orchestration",
-    "name": "4. Zyklusergebnis protokollieren",
-    "style": {
-      "label": true
-    },
-    "nodes": [
-      "comment-ai-reporting",
-      "in-report-factory-status",
-      "switch-report-factory-status",
-      "change-report-factory-status",
-      "fn-report-cycle",
-      "split-report-files",
-      "change-report-file",
-      "switch-report-file",
-      "file-report-append",
-      "file-run-summary"
-    ],
-    "x": 870,
-    "y": 500,
-    "w": 930,
-    "h": 270
-  },
-  {
-    "id": "comment-ai-inputs",
-    "type": "comment",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Jeder Eingang erhaelt hier nur Ereignistyp und optional Modelldomaene.",
-    "info": "",
-    "x": 280,
-    "y": 60,
-    "wires": []
-  },
-  {
-    "id": "in-live-state",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Unveraenderter PLC-Zustand",
-    "topic": "log/logging/state",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 150,
-    "y": 110,
-    "wires": [
-      [
-        "change-event-live-state"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-live-state",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: live_state",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "live_state",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 110,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-model-contracts",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Retained Modellvertraege",
-    "topic": "ft/nn/+/contract",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 150,
-    "y": 170,
-    "wires": [
-      [
-        "change-event-contract"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-contract",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: contract",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "contract",
-        "tot": "str"
-      },
-      {
-        "t": "set",
-        "p": "_ai_domain",
-        "pt": "msg",
-        "to": "$split(topic, '/')[2]",
-        "tot": "jsonata"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 170,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-model-status",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Retained Modellstatus",
-    "topic": "ft/nn/+/status",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 140,
-    "y": 230,
-    "wires": [
-      [
-        "change-event-status"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-status",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: status",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "status",
-        "tot": "str"
-      },
-      {
-        "t": "set",
-        "p": "_ai_domain",
-        "pt": "msg",
-        "to": "$split(topic, '/')[2]",
-        "tot": "jsonata"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 230,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-storage-response",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Storage-Response",
-    "topic": "ft/nn/response/storage",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 140,
-    "y": 290,
-    "wires": [
-      [
-        "change-event-storage-response"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-storage-response",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: storage_response",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "storage_response",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 290,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-vgr-response",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "VGR-Response",
-    "topic": "ft/nn/response/vgr",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 130,
-    "y": 350,
-    "wires": [
-      [
-        "change-event-vgr-response"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-vgr-response",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: vgr_response",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "vgr_response",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 350,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-hbw-response",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "HBW-Response",
-    "topic": "ft/nn/response/hbw",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 130,
-    "y": 410,
-    "wires": [
-      [
-        "change-event-hbw-response"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-hbw-response",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: hbw_response",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "hbw_response",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 410,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "in-ai-control",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Reset / Diagnose-Control",
-    "topic": "ft/ai/orchestration/control",
-    "qos": "1",
-    "datatype": "utf8",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 150,
-    "y": 470,
-    "wires": [
-      [
-        "change-event-ai-control"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-ai-control",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: control",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "control",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 470,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "inject-ai-tick",
-    "type": "inject",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Timeout-Pruefung",
-    "props": [
-      {
-        "p": "payload"
-      }
-    ],
-    "repeat": "0.25",
-    "crontab": "",
-    "once": true,
-    "onceDelay": "0.5",
-    "payload": "",
-    "payloadType": "str",
-    "x": 140,
-    "y": 530,
-    "wires": [
-      [
-        "change-event-ai-tick"
-      ]
-    ]
-  },
-  {
-    "id": "change-event-ai-tick",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-inputs",
-    "name": "Ereignis: tick",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_ai_event",
-        "pt": "msg",
-        "to": "tick",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 400,
-    "y": 530,
-    "wires": [
-      [
-        "fn-ai-runtime"
-      ]
-    ]
-  },
-  {
-    "id": "comment-ai-core",
-    "type": "comment",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-core",
-    "name": "Einzige Aufgabe: Ereignis an den getesteten JS-Zustandskern uebergeben.",
-    "info": "Warum bleibt hier ein Function-Node? Rolling Windows, offene Requests, Modellvertraege und Fault-Latch muessen gemeinsam und in einer festen Reihenfolge aktualisiert werden. VGR/HBW publizieren ihre Commands direkt; die Response-Korrelation hier dient nur Report und Diagnose. Mehrere Function-, join- oder switch-Nodes wuerden diesen Zustand verteilen.",
-    "x": 705,
-    "y": 230,
-    "wires": []
-  },
-  {
-    "id": "fn-ai-runtime",
-    "type": "function",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-core",
-    "name": "Orchestrierungsereignis ausfuehren",
-    "func": "// Dieser Node ist nur die Bruecke zwischen dem sichtbaren Flow und dem getesteten JS-Kern.\n// Node-RED stellt dafuer vier Objekte bereit:\n// - msg enthaelt das aktuelle Ereignis und seine Nutzdaten.\n// - global enthaelt die in settings.js geladenen Module und Konfigurationen.\n// - context speichert den fluechtigen Zustand genau dieses Function-Nodes.\n// - env liest Laufzeiteinstellungen aus den Umgebungsvariablen.\n\n// 1. Fachmodul, MQTT-Topics und Idle-Seed-Vorlagen aus dem globalen Kontext laden.\nconst api = global.get('aiCpsOrchestration');\nconst topics = global.get('aiCpsTopics');\nconst idleSeeds = global.get('aiCpsIdleSeedTemplates');\n\n// 2. Bereits vorhandene Runtime laden. Sie enthaelt unter anderem Rolling Windows,\n// offene Requests und den Fault-Latch und wird nicht dauerhaft gespeichert.\nlet runtime = context.get('runtime');\n\n// 3. Nur fuer die erste Nachricht nach Start oder Deploy eine neue Runtime anlegen.\nif (!runtime) {\n    const enabled = String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true';\n    runtime = api.createRuntime({ topics, idleSeedTemplates: idleSeeds, commandOutputEnabled: enabled });\n    context.set('runtime', runtime);\n}\n\n// 4. Genau ein zuvor von einem change-Node klassifiziertes Ereignis verarbeiten.\n// _ai_domain ist nur bei modellbezogenen Ereignissen storage, vgr oder hbw.\nconst actions = runtime.handleEvent(msg._ai_event, msg.payload, msg._ai_domain || null);\n\n// 5. Den aktualisierten Zustand fuer die naechste Nachricht im Node-Context ablegen.\ncontext.set('runtime', runtime);\n\n// Ohne Aktion darf die Nachricht den Function-Node nicht verlassen.\nif (actions.length === 0) return null;\n\n// Die nachfolgenden split-/switch-Nodes verteilen diese Aktionsliste sichtbar.\nmsg.payload = actions;\nreturn msg;",
-    "info": "### Aufgabe\nDieser Node uebergibt genau ein bereits klassifiziertes Ereignis an den getesteten Orchestrierungszustandskern in `lib/orchestration.js`.\n\n### Eingang\n- `msg._ai_event`: `live_state`, `contract`, `status`, `storage_response`, `vgr_response`, `hbw_response`, `control` oder `tick`\n- `msg.payload`: Inhalt der MQTT-Nachricht beziehungsweise des Ticks\n- `msg._ai_domain`: optional `storage`, `vgr` oder `hbw`\n\n### Zustand\n`context.runtime` ist nur waehrend der laufenden Node-RED-Instanz vorhanden. Darin liegen Rolling Windows, offene Request-IDs, Modellvertraege, Modellstatus und Fault-Latch. Nach einem Neustart wird dieser Zustand bewusst neu aufgebaut.\n\n### Ausgang\nNach Storage entstehen zwei LSTM-Requests und im Vollbetrieb die MPO-/SLD-Idle-Commands. VGR und HBW publizieren ihre Maschinencommands direkt. Ihre JSON-Responses werden hier nur fuer Report und Diagnose korreliert. Der folgende `split`-Node zerlegt die Aktionsliste; bei keiner Aktion beendet `return null` die Nachricht.\n\n### Warum Function-Node?\nBootstrap, Rolling Windows, Requestpruefung und Fehlerverriegelung muessen atomar in derselben getesteten Runtime bleiben. Die Response-Korrelation ist keine Command-Barriere und kein Maschinensemaphor.",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 705,
-    "y": 300,
-    "wires": [
-      [
-        "split-ai-actions"
-      ]
-    ]
-  },
-  {
-    "id": "comment-ai-actions",
-    "type": "comment",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Standard-Nodes verteilen Requests, MPO/SLD-Commands und Status.",
-    "info": "Nur MPO- und SLD-Idle verlassen den KI-Flow als Command. Direkte VGR-/HBW-Commands kommen aus den NN-Diensten. Leere Payloads werden nicht durch einen JSON-Node veraendert.",
-    "x": 1160,
-    "y": 60,
-    "wires": []
-  },
-  {
-    "id": "split-ai-actions",
-    "type": "split",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Aktionsliste zerlegen",
-    "splt": "\\n",
-    "spltType": "str",
-    "arraySplt": 1,
-    "arraySpltType": "len",
-    "stream": false,
-    "addname": "",
-    "property": "payload",
-    "x": 980,
-    "y": 250,
-    "wires": [
-      [
-        "change-ai-action"
-      ]
-    ]
-  },
-  {
-    "id": "change-ai-action",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "MQTT-Felder uebernehmen",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_action_role",
-        "pt": "msg",
-        "to": "payload.role",
-        "tot": "msg"
-      },
-      {
-        "t": "set",
-        "p": "topic",
-        "pt": "msg",
-        "to": "payload.topic",
-        "tot": "msg"
-      },
-      {
-        "t": "set",
-        "p": "qos",
-        "pt": "msg",
-        "to": "payload.qos",
-        "tot": "msg"
-      },
-      {
-        "t": "set",
-        "p": "retain",
-        "pt": "msg",
-        "to": "payload.retain",
-        "tot": "msg"
-      },
-      {
-        "t": "set",
-        "p": "payload",
-        "pt": "msg",
-        "to": "payload.payload",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1170,
-    "y": 250,
-    "wires": [
-      [
-        "switch-ai-action-role"
-      ]
-    ]
-  },
-  {
-    "id": "switch-ai-action-role",
-    "type": "switch",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Aktionsrolle",
-    "property": "_action_role",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "regex",
-        "v": "_request$",
-        "vt": "str",
-        "case": false
-      },
-      {
-        "t": "regex",
-        "v": "_command$",
-        "vt": "str",
-        "case": false
-      },
-      {
-        "t": "eq",
-        "v": "cycle_result",
-        "vt": "str"
-      },
-      {
-        "t": "eq",
-        "v": "orchestration_status",
-        "vt": "str"
-      },
-      {
-        "t": "else"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 5,
-    "x": 1350,
-    "y": 250,
-    "wires": [
-      [
-        "json-model-request"
-      ],
-      [
-        "out-physical-commands"
-      ],
-      [
-        "json-cycle-result",
-        "fn-report-cycle"
-      ],
-      [
-        "json-ai-status"
-      ],
-      [
-        "debug-ai-unknown-role"
-      ]
-    ]
-  },
-  {
-    "id": "json-model-request",
-    "type": "json",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "NN-Request als JSON",
-    "property": "payload",
-    "action": "str",
-    "pretty": false,
-    "x": 1510,
-    "y": 130,
-    "wires": [
-      [
-        "out-model-requests"
-      ]
-    ]
-  },
-  {
-    "id": "json-cycle-result",
-    "type": "json",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Zyklusergebnis als JSON",
-    "property": "payload",
-    "action": "str",
-    "pretty": false,
-    "x": 1520,
-    "y": 250,
-    "wires": [
-      [
-        "out-cycle-result"
-      ]
-    ]
-  },
-  {
-    "id": "json-ai-status",
-    "type": "json",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Status als JSON",
-    "property": "payload",
-    "action": "str",
-    "pretty": false,
-    "x": 1500,
-    "y": 310,
-    "wires": [
-      [
-        "out-ai-status"
-      ]
-    ]
-  },
-  {
-    "id": "out-model-requests",
-    "type": "mqtt out",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "NN-Requests (dynamisch)",
-    "topic": "",
-    "qos": "",
-    "retain": "",
-    "respTopic": "",
-    "contentType": "",
-    "userProps": "",
-    "correl": "",
-    "expiry": "",
-    "broker": "mqtt-ai-cps",
-    "x": 1640,
-    "y": 130,
-    "wires": []
-  },
-  {
-    "id": "out-physical-commands",
-    "type": "mqtt out",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "MPO-/SLD-Idle-Topics",
-    "topic": "",
-    "qos": "",
-    "retain": "",
-    "respTopic": "",
-    "contentType": "",
-    "userProps": "",
-    "correl": "",
-    "expiry": "",
-    "broker": "mqtt-ai-cps",
-    "x": 1570,
-    "y": 190,
-    "wires": []
-  },
-  {
-    "id": "out-cycle-result",
-    "type": "mqtt out",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Zyklusergebnis",
-    "topic": "",
-    "qos": "",
-    "retain": "",
-    "respTopic": "",
-    "contentType": "",
-    "userProps": "",
-    "correl": "",
-    "expiry": "",
-    "broker": "mqtt-ai-cps",
-    "x": 1650,
-    "y": 250,
-    "wires": []
-  },
-  {
-    "id": "out-ai-status",
-    "type": "mqtt out",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Orchestrierungsstatus retained",
-    "topic": "",
-    "qos": "",
-    "retain": "",
-    "respTopic": "",
-    "contentType": "",
-    "userProps": "",
-    "correl": "",
-    "expiry": "",
-    "broker": "mqtt-ai-cps",
-    "x": 1580,
-    "y": 310,
-    "wires": []
-  },
-  {
-    "id": "debug-ai-unknown-role",
-    "type": "debug",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-actions",
-    "name": "Unbekannte Aktionsrolle",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "_action_role",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 1530,
-    "y": 370,
-    "wires": []
-  },
-  {
-    "id": "comment-ai-reporting",
-    "type": "comment",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Reporting formatiert fachliche Daten; File-Nodes uebernehmen das Schreiben.",
-    "info": "Der Function-Node bildet aus jedem KI-Zyklus konsistente Inhalte fuer events.jsonl, summary.csv und run_summary.json. Erst der korrelierte Fabrikstatus completed schliesst den Gesamtlauf ab. split-, switch- und file-Nodes uebernehmen die sichtbare Dateiverteilung und das Schreiben.",
-    "x": 1160,
-    "y": 540,
-    "wires": []
-  },
-  {
-    "id": "in-report-factory-status",
-    "type": "mqtt in",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Fabrikstatus fuer Laufabschluss",
-    "topic": "ft/sim/factory/status",
-    "qos": "1",
-    "datatype": "auto-detect",
-    "broker": "mqtt-ai-cps",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 1010,
-    "y": 680,
-    "wires": [
-      [
-        "switch-report-factory-status"
-      ]
-    ]
-  },
-  {
-    "id": "switch-report-factory-status",
-    "type": "switch",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Abschluss oder Reset",
-    "property": "payload.state",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "regex",
-        "v": "^(completed|reset)$",
-        "vt": "str",
-        "case": false
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 1,
-    "x": 1220,
-    "y": 680,
-    "wires": [
-      [
-        "change-report-factory-status"
-      ]
-    ]
-  },
-  {
-    "id": "change-report-factory-status",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Ereignis: Fabrikstatus",
-    "rules": [
-      {
-        "t": "set",
-        "p": "_report_event",
-        "pt": "msg",
-        "to": "factory_status",
-        "tot": "str"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1440,
-    "y": 680,
-    "wires": [
-      [
-        "fn-report-cycle"
-      ]
-    ]
-  },
-  {
-    "id": "fn-report-cycle",
-    "type": "function",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Laufreport aktualisieren",
-    "func": "// Dieser Node aktualisiert nur den konsistenten Reportzustand. Core-Nodes schreiben die Dateien.\n// global liefert das in settings.js geladene Reportingmodul.\nconst reporting = global.get('aiCpsReporting');\n\n// context behaelt Zaehler, Trefferzahlen und die Run-ID fuer den aktuellen Lauf.\nlet state = context.get('reportState');\n\n// Ein Fabrikstatus darf nur einen bereits begonnenen und passend korrelierten Lauf abschliessen.\nif (msg._report_event === 'factory_status') {\n  if (!state) return null;\n  const finalized = reporting.finalizeRun(state, msg.payload);\n  if (!finalized) return null;\n  context.set('reportState', null);\n  msg.payload = finalized.files;\n  return msg;\n}\n\n// Beim ersten abgeschlossenen KI-Zyklus einen neuen Reportlauf unter REPORT_ROOT anlegen.\nif (!state) state = reporting.createReportState(env.get('REPORT_ROOT') || '/reports/orchestration_simulation');\n\n// Aus demselben Zyklusergebnis gemeinsam Event, CSV-Zeile und laufende Run-Summary bilden.\nconst recorded = reporting.recordCycle(state, msg.payload);\ncontext.set('reportState', recorded.state);\n\n// Die nachfolgenden split-/switch-/file-Nodes verteilen und schreiben die Dateien.\nmsg.payload = recorded.files;\nreturn msg;",
-    "info": "### Aufgabe\nDieser Node ruft den getesteten Reportingkern in `lib/reporting.js` auf. Er protokolliert KI-Zyklen und schliesst den Gesamtlauf erst mit einem korrelierten Fabrikstatus `completed` oder `reset` ab. Geschrieben wird erst von den nachfolgenden File-Nodes.\n\n### Eingang\n`msg.payload` ist entweder ein abgeschlossenes oder fehlgeschlagenes Zyklusergebnis oder ein durch Standard-Nodes gefilterter Fabrikstatus.\n\n### Zustand\n`context.reportState` enthaelt Report- und Fabrik-Run-ID, Zeilenzahl, Trefferzaehler, Faults und Command-Zaehler. Retained Statusmeldungen anderer Laeufe werden durch die Run-ID-Korrelation ignoriert. `REPORT_ROOT` legt das Stammverzeichnis fest.\n\n### Ausgang\nBei einem Zyklus entstehen Beschreibungen fuer Event, CSV-Zeile und laufende Run-Summary. Bei Abschluss oder Reset wird nur die finale Run-Summary erzeugt. Danach zerlegt ein `split`-Node die Dateibeschreibungen.\n\n### Warum Function-Node?\nEvent, CSV-Zeile und Run-Summary muessen aus demselben Zaehlerstand entstehen; auch der Fabrikabschluss muss genau diesem Lauf zugeordnet werden. Der getestete Kern haelt diese Konsistenz, waehrend Standard-Nodes Ereignisse filtern und Dateien schreiben.",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 990,
-    "y": 610,
-    "wires": [
-      [
-        "split-report-files"
-      ]
-    ]
-  },
-  {
-    "id": "split-report-files",
-    "type": "split",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Reportdateien zerlegen",
-    "splt": "\\n",
-    "spltType": "str",
-    "arraySplt": 1,
-    "arraySpltType": "len",
-    "stream": false,
-    "addname": "",
-    "property": "payload",
-    "x": 1180,
-    "y": 610,
-    "wires": [
-      [
-        "change-report-file"
-      ]
-    ]
-  },
-  {
-    "id": "change-report-file",
-    "type": "change",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Dateiname und Inhalt",
-    "rules": [
-      {
-        "t": "set",
-        "p": "filename",
-        "pt": "msg",
-        "to": "payload.filename",
-        "tot": "msg"
-      },
-      {
-        "t": "set",
-        "p": "payload",
-        "pt": "msg",
-        "to": "payload.payload",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1360,
-    "y": 610,
-    "wires": [
-      [
-        "switch-report-file"
-      ]
-    ]
-  },
-  {
-    "id": "switch-report-file",
-    "type": "switch",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "Append oder ersetzen",
-    "property": "filename",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "regex",
-        "v": "run_summary\\.json$",
-        "vt": "str",
-        "case": false
-      },
-      {
-        "t": "else"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 2,
-    "x": 1510,
-    "y": 610,
-    "wires": [
-      [
-        "file-run-summary"
-      ],
-      [
-        "file-report-append"
-      ]
-    ]
-  },
-  {
-    "id": "file-report-append",
-    "type": "file",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "events.jsonl / summary.csv",
-    "filename": "filename",
-    "filenameType": "msg",
-    "appendNewline": false,
-    "createDir": true,
-    "overwriteFile": "false",
-    "encoding": "none",
-    "x": 1580,
-    "y": 660,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "file-run-summary",
-    "type": "file",
-    "z": "tab-ai-orchestration",
-    "g": "group-ai-reporting",
-    "name": "run_summary.json",
-    "filename": "filename",
-    "filenameType": "msg",
-    "appendNewline": false,
-    "createDir": true,
-    "overwriteFile": "true",
-    "encoding": "none",
-    "x": 1630,
-    "y": 590,
-    "wires": [
-      []
-    ]
   }
 ]

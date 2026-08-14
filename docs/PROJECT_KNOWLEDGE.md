@@ -1,5 +1,26 @@
 # Project Knowledge
 
+## Runtime V1.3.0-RC.1: Physiknahe virtuelle Flowstruktur
+
+- Die virtuelle Node-RED-Laufzeit ist in `00 Initialisierung`,
+  `10 Zustandserfassung`, `20 Virtuelle Module`, `30 Semaphor` und
+  `40 NN-Pipeline` gegliedert.
+- `ft/sim/factory/raw_state` ist ein rein virtuelles internes Topic. Es traegt
+  alle 50 ms den aktuellen Tracezustand; der eingefrorene Live-Vertrag
+  `log/logging/state` bleibt unveraendert.
+- VGR, HBW, MPO und SLD besitzen getrennte Command-/Delay-/Abschlusszweige.
+  Der Semaphor vergleicht die vier `sent_count`-/`accepted_count`-Paare und
+  verlangt pro Freigabe ein vollstaendiges neues Command-Set.
+- Externe Fachmodule in `functionGlobalContext` entfallen. Function-Nodes
+  bilden nur atomare Schritte ab; Topics, Idle-Seed und kleine Kataloge sind
+  direkt im Flow enthalten. Nur die drei versionierten Traces werden gelesen.
+- Der virtuelle Contract-Gate liegt unmittelbar vor Storage. Die physische
+  Black Box und alle physischen MQTT-Vertraege bleiben unveraendert.
+- Catch-/MQTT-Statuspfade laufen in einen gemeinsamen Fault-Latch. Das HMI
+  zeigt zusaetzlich Semaphorstatus, Rohsample- und Freigabezaehler.
+- `runtime-v1.2.0` bleibt die stabile Rueckfallversion. RC-Images erhalten
+  `runtime-v1.3.0-rc.1`; `latest-validated` bleibt bis V1.3.0 auf V1.2.0.
+
 ## Aktueller Zweck
 
 Das Repository stellt eine portable hybride Testumgebung bereit. Storage-,

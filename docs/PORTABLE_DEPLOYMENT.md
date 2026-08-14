@@ -21,11 +21,11 @@ sind der Betriebsstandard; lokale Builds bleiben der Entwicklungsweg.
 Empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.3.0-rc.1 \
+git clone --depth 1 --branch runtime-v1.3.0-rc.2 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.1 \
+  --mode virtual --release runtime-v1.3.0-rc.2 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images

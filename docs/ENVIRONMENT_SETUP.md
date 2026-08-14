@@ -28,7 +28,7 @@ Fuer einen Betriebsrechner wird wegen der grossen Forschungshistorie ein
 flacher Clone empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.3.0-rc.1 \
+git clone --depth 1 --branch runtime-v1.3.0-rc.2 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 ```
@@ -45,7 +45,7 @@ Preflight, Modellverwaltung, Beobachtung und Tests benoetigt.
 
 ```bash
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.1
+  --mode virtual --release runtime-v1.3.0-rc.2
 ```
 
 TensorFlow ist lokal nicht erforderlich, wenn Training und Modellpruefung in

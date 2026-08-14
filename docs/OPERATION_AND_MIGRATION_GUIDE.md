@@ -23,7 +23,7 @@ startet oder veraendert es nicht.
 2. Repository flach klonen:
 
    ```bash
-   git clone --depth 1 --branch runtime-v1.3.0-rc.1 \
+   git clone --depth 1 --branch runtime-v1.3.0-rc.2 \
      https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
    cd AI-CPS
    ```
@@ -32,7 +32,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init \
-     --mode virtual --release runtime-v1.3.0-rc.1 \
+     --mode virtual --release runtime-v1.3.0-rc.2 \
      --compose-project ai-cps-nn-runtime \
      --report-root "$PWD/reports"
    ```
@@ -41,7 +41,7 @@ startet oder veraendert es nicht.
 
    ```bash
    python3 tools/setup_portable_runtime.py init --mode physical \
-     --release runtime-v1.3.0-rc.1 --mqtt-host 192.168.0.5
+     --release runtime-v1.3.0-rc.2 --mqtt-host 192.168.0.5
    ```
 
 Das Setup erzeugt Secret, `.venv`, Reportpfad und `.env` mit Modus `0600`,
@@ -68,7 +68,7 @@ Das Bundle ist ein Klartextartefakt der isolierten Testumgebung. Bei spaeteren
 echten Credentials vor Weitergabe verschluesseln.
 
 Export und automatisches Ruecksicherungsbundle werden mit Dateimodus `0600`
-angelegt. `runtime-v1.3.0-rc.1` importiert Bundles aus V1.1.0, dem internen
+angelegt. `runtime-v1.3.0-rc.2` importiert Bundles aus V1.1.0, dem internen
 V1.1.1-Stand, V1.2.0 und V1.3.0-RC.1.
 Mit `--force` werden vorhandene Zielvolumes nach der Ruecksicherung kontrolliert
 mit passenden Compose-Labels neu angelegt, damit spaetere Starts keine

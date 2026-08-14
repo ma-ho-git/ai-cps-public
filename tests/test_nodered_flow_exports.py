@@ -8,9 +8,10 @@ from tools.export_nodered_ai_flow import OUTPUT, SOURCE, extract_ai_flow
 
 
 CORE_NODE_TYPES = {
-    "catch", "change", "comment", "debug", "delay", "file", "file in",
+    "catch", "change", "comment", "csv", "debug", "delay", "file", "file in",
     "function", "group", "inject", "join", "json", "link in", "link out",
-    "mqtt in", "mqtt out", "mqtt-broker", "split", "status", "switch", "tab",
+    "mqtt in", "mqtt out", "mqtt-broker", "split", "status", "subflow", "switch",
+    "tab", "trigger",
 }
 DASHBOARD_NODE_TYPES = {
     "ui-base", "ui-button", "ui-chart", "ui-form", "ui-group",
@@ -44,7 +45,8 @@ class NodeRedFlowExportTests(unittest.TestCase):
         flows = load_flows()
         self.assertEqual(len({node["id"] for node in flows}), len(flows))
         self.assertEqual(
-            {node["type"] for node in flows} - CORE_NODE_TYPES - DASHBOARD_NODE_TYPES,
+            {node["type"] for node in flows if not node["type"].startswith("subflow:")}
+            - CORE_NODE_TYPES - DASHBOARD_NODE_TYPES,
             set(),
         )
         for required in {
@@ -68,11 +70,12 @@ class NodeRedFlowExportTests(unittest.TestCase):
         for module in ("vgr", "hbw", "mpo", "sld"):
             group = nodes[f"group-module-{module}"]
             self.assertIn(module.upper(), group["name"])
-            self.assertEqual(nodes[f"delay-module-{module}"]["pauseType"], "delayv")
-            self.assertIn(f"sent_count", nodes[f"fn-module-{module}-gate"]["func"])
-            self.assertIn(f"accepted_count", nodes[f"fn-module-{module}-complete"]["func"])
-            self.assertIn("flow.get", nodes[f"fn-module-{module}-gate"]["func"])
-            self.assertIn("flow.set", nodes[f"fn-module-{module}-runtime"]["func"])
+            instance = nodes[f"subflow-module-{module}"]
+            self.assertEqual(instance["type"], "subflow:subflow-virtual-module")
+            self.assertEqual(instance["env"][0]["value"], module)
+        self.assertEqual(nodes["sub-module-delay"]["pauseType"], "delayv")
+        self.assertIn("sent_count++", nodes["sub-module-accept"]["info"])
+        self.assertIn("accepted_count++", nodes["sub-module-complete"]["info"])
 
     def test_function_nodes_are_self_contained_and_documented(self):
         flows = load_flows()
@@ -122,10 +125,11 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(nodes["in-raw-semaphore"]["topic"], "ft/sim/factory/raw_state")
         self.assertEqual(nodes["out-live-release"]["topic"], "log/logging/state")
         semaphore = nodes["fn-semaphore"]["func"]
-        for marker in ("sent", "accepted", "last_release_sent", "trace_index", "semaphore_stalled"):
+        for marker in ("sent", "accepted", "last_release_sent", "trace_index"):
             self.assertIn(marker, semaphore)
+        self.assertIn("semaphore_stalled", str(nodes["change-semaphore-fault"]["rules"]))
         self.assertNotIn("raw_state", nodes["debug-semaphore"].get("complete", ""))
-        self.assertEqual(nodes["change-debug-semaphore"]["wires"], [["debug-semaphore"]])
+        self.assertEqual(nodes["change-semaphore-debug"]["wires"], [["debug-semaphore"]])
 
     def test_initialization_publishes_exactly_four_idle_commands(self):
         flows = load_flows()
@@ -136,9 +140,10 @@ class NodeRedFlowExportTests(unittest.TestCase):
         }
         for module, topic in expected.items():
             out = nodes[f"out-module-{module}-idle"]
-            self.assertEqual(out["topic"], topic)
+            self.assertEqual(out["topic"], "")
             self.assertEqual(out["qos"], "2")
             self.assertEqual(out["retain"], "false")
+            self.assertIn(topic, str(nodes["sub-module-idle"]["rules"]))
         self.assertEqual(
             {node["id"] for node in flows if node.get("name") == "Initiales Idle"},
             {f"out-module-{module}-idle" for module in expected},
@@ -157,10 +162,28 @@ class NodeRedFlowExportTests(unittest.TestCase):
         for node_id, (topic, qos) in expected.items():
             self.assertEqual((nodes[node_id]["topic"], nodes[node_id]["qos"]), (topic, qos))
         self.assertIn("direct_mqtt", nodes["fn-contract-gate"]["func"])
-        self.assertIn("commandTopics", nodes["fn-contract-gate"]["func"])
-        self.assertEqual(nodes["fn-window-vgr"]["wires"][0][0], "json-vgr-request")
-        self.assertEqual(nodes["fn-window-hbw"]["wires"][0][0], "json-hbw-request")
-        self.assertIn("keine Command-Barriere", nodes["fn-cycle-result"]["info"])
+        self.assertIn("const topics", nodes["fn-contract-gate"]["func"])
+        self.assertEqual(nodes["subflow-window-vgr"]["type"], "subflow:subflow-lstm-window")
+        self.assertEqual(nodes["subflow-window-hbw"]["type"], "subflow:subflow-lstm-window")
+        self.assertIn("keine Command-Barriere", nodes["change-cycle-context"]["info"])
+
+    def test_cross_group_fan_out_uses_named_link_nodes(self):
+        nodes = nodes_by_id(load_flows())
+        for value in range(10):
+            self.assertEqual(nodes[f"change-onehot-{value}"]["wires"], [["link-storage-ready-out"]])
+        self.assertEqual(
+            set(nodes["link-storage-ready-out"]["links"]),
+            {"link-storage-vgr-in", "link-storage-hbw-in", "link-storage-idle-in", "link-storage-debug-in"},
+        )
+        self.assertEqual(
+            set(nodes["link-hmi-refresh-out"]["links"]),
+            {
+                "link-hmi-overview-in", "link-hmi-modules-in", "link-hmi-predictions-in",
+                "link-hmi-models-in", "link-hmi-cycles-in", "link-hmi-errors-in",
+                "link-hmi-latency-in", "link-hmi-notification-in",
+            },
+        )
+        self.assertEqual(nodes["change-hmi-overview"]["wires"], [["link-hmi-overview-out"]])
 
     def test_targeted_error_status_and_debug_nodes_exist(self):
         flows = load_flows()
@@ -181,10 +204,11 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(nodes["file-report-replace-inline"]["overwriteFile"], "true")
         self.assertEqual(nodes["in-report-factory-status"]["topic"], "ft/sim/factory/status")
         self.assertNotIn("fn-report-cycle-inline", nodes)
-        self.assertIn("CSV-Vertrag", nodes["fn-report-row"]["func"])
-        self.assertIn("factory_run_id", nodes["fn-report-state"]["func"])
-        self.assertIn("columns=[", nodes["fn-report-csv"]["func"])
-        self.assertIn("factory_status", nodes["fn-report-summary"]["func"])
+        self.assertEqual(nodes["csv-report-first"]["type"], "csv")
+        self.assertEqual(nodes["csv-report-next"]["type"], "csv")
+        self.assertIn("factory_run_id", str(nodes["change-report-state-update"]["rules"]))
+        self.assertIn("factory_status", str(nodes["change-report-summary"]["rules"]))
+        self.assertFalse(any(node["type"] == "function" and node.get("g") == "group-responses" for node in flows))
         for flow_group in (node for node in flows if node["type"] == "group"):
             for member_id in flow_group["nodes"]:
                 self.assertIn(member_id, nodes)
@@ -192,16 +216,17 @@ class NodeRedFlowExportTests(unittest.TestCase):
 
     def test_function_nodes_are_bounded_and_documented(self):
         functions = [node for node in load_flows() if node["type"] == "function"]
-        self.assertLessEqual(max(len(node["func"].splitlines()) for node in functions), 60)
+        self.assertEqual(
+            {node["id"] for node in functions},
+            {"fn-module-runtime", "fn-semaphore", "fn-contract-gate", "fn-lstm-window"},
+        )
+        self.assertLessEqual(max(len(node["func"].splitlines()) for node in functions), 45)
         for node in functions:
             self.assertIn("### Aufgabe", node.get("info", ""), node["name"])
             self.assertIn("### Eingang", node.get("info", ""), node["name"])
             self.assertIn("### Ausgang", node.get("info", ""), node["name"])
-        names = {node["name"] for node in functions}
-        self.assertIn("Widgetdaten bilden", names)
-        self.assertIn("Reportzaehler aktualisieren", names)
-        self.assertNotIn("HMI-Zustand aufbereiten", names)
-        self.assertNotIn("Reportdateien bilden", names)
+        self.assertFalse(any(node["type"] == "function" and node.get("z") == "tab-virtual-hmi" for node in load_flows()))
+        self.assertFalse(any(node["type"] == "function" and node.get("z") == "tab-init" for node in load_flows()))
 
     def test_virtual_hmi_exposes_semaphore_and_existing_controls(self):
         flows = load_flows()
@@ -216,7 +241,7 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(form["formValue"]["model_profile"], "deployment-current")
         self.assertIn("reproduziert Vollspeicherfehler", str(form["dropdownOptions"]))
         source_meta = nodes["ui-hmi-source-meta"]["format"]
-        self.assertIn("runtime-v1.3.0-rc.1", source_meta)
+        self.assertIn("runtime-v1.3.0-rc.2", source_meta)
         self.assertIn("AGPL-3.0", source_meta)
         self.assertEqual(nodes["ui-hmi-trace"]["className"], "hmi-run-summary")
         styles = nodes["ui-hmi-table-layout-style"]["format"]

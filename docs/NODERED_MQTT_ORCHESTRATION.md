@@ -111,13 +111,25 @@ Die virtuelle Laufzeit ist in fuenf Funktions-Tabs gegliedert:
 - `30 Semaphor`: atomarer Jobcountervergleich, Watchdog und Live-Freigabe;
 - `40 NN-Pipeline`: Contract-Gate, Storage, zwei Rolling Windows und Reporting.
 
-MQTT, Routing, Serialisierung, Dateizugriff und Laufzeitverzoegerungen werden
-mit Core-Nodes umgesetzt. Function-Nodes besitzen jeweils nur eine atomare
-Aufgabe, beispielsweise Countervergleich, Laufzeitberechnung oder Windowupdate.
-Die Function-Nodes enthalten ihre Fachlogik direkt; `settings.js` importiert
-keine Laufzeitbibliotheken oder Katalogdateien. Nur die drei versionierten
-Trace-Dateien werden gelesen. Reportdateien werden weiterhin ausschliesslich
-geschrieben.
+MQTT, Routing, Serialisierung, Dateizugriff, Reporting, HMI und
+Laufzeitverzoegerungen werden mit Core-Nodes umgesetzt. Wiederholte Ablaufe
+sind als dokumentierte Subflows sichtbar: vier Instanzen von `Virtuelles
+Modul`, zwei Instanzen von `LSTM-Fenster W=10` und zwei Instanzen von
+`NN-Response pruefen`.
+
+Im gesamten Flow bleiben exakt vier Function-Nodes:
+
+- `Laufzeit berechnen`: reproduzierbarer Faktor fuer den Core-Delay;
+- `Semaphor atomar entscheiden`: Counter und Traceindex gemeinsam aendern;
+- `Dynamischen Modellvertrag pruefen`: austauschbare Feature-/Klassenvertraege;
+- `LSTM-Fenster fortschreiben`: quell- und modellbezogenes Rolling Window.
+
+Jede Ausnahme besitzt im Node-RED-Editor die Hilfebereiche Aufgabe, Eingang,
+Zustand, Ausgang und Begruendung. Initialisierung, Responsepruefung, One-hot,
+Timeout, Reporting und HMI enthalten keine Function-Nodes. `settings.js`
+importiert keine Laufzeitbibliotheken oder Katalogdateien. Nur die drei
+versionierten Trace-Dateien werden gelesen; Reportdateien werden weiterhin
+ausschliesslich geschrieben.
 
 Jeder Funktionstab besitzt gezielte `catch`- und MQTT-`status`-Pfade. Kompakte
 Debug-Ausgaben zeigen nur IDs, Topic, Klasse, Laufzeit und Counter. Vollstaendige

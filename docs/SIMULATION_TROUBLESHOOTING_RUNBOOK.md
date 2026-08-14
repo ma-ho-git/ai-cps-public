@@ -70,7 +70,7 @@ Danach Preflight wiederholen. Reports nicht mit Root-Eigentum erzeugen.
 
 ```bash
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.1
+  --mode virtual --release runtime-v1.3.0-rc.2
 ```
 
 Der Preflight vergleicht digest-genaue Image-Referenzen und geschuetzte

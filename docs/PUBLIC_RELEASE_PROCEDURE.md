@@ -22,7 +22,7 @@ Release-Tag erzeugt.
 
 1. Vollstaendige Tests und Runtime-Abnahmen ausfuehren.
 2. Den freigegebenen Stand im privaten Repository als
-   `checkpoint/portable-runtime-v1.3.0-rc.1-ready-2026-08-14` sichern.
+   `checkpoint/portable-runtime-v1.3.0-rc.2-ready-2026-08-14` sichern.
 3. Den exakten Commit notieren. Der Worktree muss sauber sein.
 
 ## 3. Bereinigten Quellbaum Exportieren
@@ -62,7 +62,7 @@ Aenderungen.
 1. Branch-CI fuer `feature/nodered-physical-flow-parity` vollstaendig abwarten.
 2. Alle vier GHCR-Packages auf `public` stellen und anonymen Pull pruefen.
 3. Den zur Releasekonfiguration passenden unveraenderlichen Runtime-Tag
-   erzeugen und pushen, fuer diesen Release `runtime-v1.3.0-rc.1`.
+   erzeugen und pushen, fuer diesen Release `runtime-v1.3.0-rc.2`.
 4. Release-Manifest, `SHA256SUMS`, Source-SBOM, Notices, Citation und
    Image-Digests pruefen.
 5. Clean-Install und Standort-Restore mit getrennten Compose-Projekten und

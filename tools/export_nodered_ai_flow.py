@@ -18,6 +18,7 @@ SOURCE = NODE_RED_DIR / "flows.json"
 OUTPUT = NODE_RED_DIR / "flows_ai_orchestration.json"
 TAB_ID = "tab-pipeline"
 REQUIRED_CONFIG_IDS = {"mqtt-ai-cps"}
+REQUIRED_SUBFLOW_IDS = {"subflow-lstm-window", "subflow-model-response"}
 
 
 def extract_ai_flow(flows: list[dict]) -> list[dict]:
@@ -28,6 +29,8 @@ def extract_ai_flow(flows: list[dict]) -> list[dict]:
         if node.get("id") == TAB_ID
         or node.get("z") == TAB_ID
         or node.get("id") in REQUIRED_CONFIG_IDS
+        or node.get("id") in REQUIRED_SUBFLOW_IDS
+        or node.get("z") in REQUIRED_SUBFLOW_IDS
     ]
     if not any(node.get("id") == TAB_ID for node in selected):
         raise ValueError(f"Missing Node-RED tab {TAB_ID}")

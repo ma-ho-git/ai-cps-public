@@ -4,7 +4,7 @@ set -eu
 SOURCE_ROOT="${AI_CPS_RUNTIME_SOURCE:-/opt/ai-cps-node-red}"
 RUNTIME_ROOT="${AI_CPS_RUNTIME_ROOT:-/data/ai-cps-runtime}"
 MARKER="$RUNTIME_ROOT/.ai-cps-runtime-version"
-RUNTIME_VERSION="${AI_CPS_RUNTIME_VERSION:-1.3.0-rc.1-dashboard}"
+RUNTIME_VERSION="${AI_CPS_RUNTIME_VERSION:-1.3.0-rc.2-dashboard}"
 
 install_runtime() {
   force="${1:-false}"

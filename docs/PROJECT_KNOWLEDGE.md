@@ -1,5 +1,20 @@
 # Project Knowledge
 
+## Runtime V1.3.0-RC.2: Low-Code-Flowstruktur
+
+- RC.2 behaelt Ablauf und MQTT-Vertraege von RC.1 bei, ersetzt aber 39 der 43
+  Function-Nodes durch Node-RED-Core-Nodes.
+- Exakt vier Functions bleiben fuer deterministische Modullaufzeit, atomaren
+  Semaphor, dynamischen Modellvertrag und keyed LSTM-Fenster.
+- `Virtuelles Modul`, `LSTM-Fenster W=10` und `NN-Response pruefen` sind
+  dokumentierte Subflows. Ein Doppelklick zeigt die einzelnen Entscheidungen,
+  Counter, Delays und Zuweisungen.
+- Initialisierung, One-hot, Responses, Timeout, Reporting und HMI sind
+  Function-frei. JSONata dient nur Feldabbildungen, Context-Zuweisungen und
+  begrenzten Anzeigelisten; Fachentscheidungen bleiben als Switches sichtbar.
+- `runtime-v1.2.0` bleibt die stabile Rueckfallversion. RC-Images erhalten
+  `runtime-v1.3.0-rc.2`; `latest-validated` bleibt bis V1.3.0 auf V1.2.0.
+
 ## Runtime V1.3.0-RC.1: Physiknahe virtuelle Flowstruktur
 
 - Die virtuelle Node-RED-Laufzeit ist in `00 Initialisierung`,
@@ -18,8 +33,7 @@
   Black Box und alle physischen MQTT-Vertraege bleiben unveraendert.
 - Catch-/MQTT-Statuspfade laufen in einen gemeinsamen Fault-Latch. Das HMI
   zeigt zusaetzlich Semaphorstatus, Rohsample- und Freigabezaehler.
-- `runtime-v1.2.0` bleibt die stabile Rueckfallversion. RC-Images erhalten
-  `runtime-v1.3.0-rc.1`; `latest-validated` bleibt bis V1.3.0 auf V1.2.0.
+- RC.1 bleibt der vorherige physiknahe Ruecksprungpunkt.
 
 ## Aktueller Zweck
 

@@ -7,6 +7,410 @@
     "info": ""
   },
   {
+    "id": "subflow-lstm-window",
+    "type": "subflow",
+    "name": "LSTM-Fenster W=10",
+    "info": "### Ablauf\n- Domain setzen\n- Window + Bootstrap fortschreiben\n- Request-Metadaten setzen\n- MQTT-Request bilden\n\nEinzige Function: keyed Rolling Window.",
+    "category": "AI-CPS",
+    "in": [
+      {
+        "x": 40,
+        "y": 80,
+        "wires": [
+          {
+            "id": "sub-window-domain"
+          }
+        ]
+      }
+    ],
+    "out": [
+      {
+        "x": 980,
+        "y": 80,
+        "wires": [
+          {
+            "id": "sub-window-request",
+            "port": 0
+          }
+        ]
+      }
+    ],
+    "env": [
+      {
+        "name": "DOMAIN",
+        "type": "str",
+        "value": "vgr"
+      }
+    ],
+    "meta": {},
+    "color": "#C0DEED"
+  },
+  {
+    "id": "sub-window-domain",
+    "type": "change",
+    "z": "subflow-lstm-window",
+    "g": "",
+    "name": "Domain setzen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "$env('DOMAIN')",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 190,
+    "y": 80,
+    "wires": [
+      [
+        "fn-lstm-window"
+      ]
+    ],
+    "info": "VGR oder HBW aus Subflow-Parameter"
+  },
+  {
+    "id": "fn-lstm-window",
+    "type": "function",
+    "z": "subflow-lstm-window",
+    "g": "",
+    "name": "LSTM-Fenster fortschreiben",
+    "func": "// Kontext: Domain | Quelle | Modell\nconst pending = global.get('ai.pending');\nif (!pending) return null;\nconst domain = String(msg._domain);\nconst contract = pending.contracts[domain];\nconst steps = Number(contract.time_steps);\nconst key = `${pending.source_id}|${contract.model_id}`;\nconst windows = global.get('ai.windows') || {vgr:{},hbw:{}};\nlet rows = windows[domain]?.[key] || [];\n// Seed: neun Idle-Zeilen bei neuer Quelle\nconst seed = {IX_VGR_RefSwitchVerticalAxis_I1:1,IX_VGR_RefSwitchHorizontalAxis_I2:1,IX_VGR_RefSwitchRotate_I3:1,QX_VGR_M2_HorizontalAxisBackward_Q3:0,QX_VGR_M2_HorizontalAxisForward_Q4:0,QX_VGR_Compressor_Q7:0,QX_VGR_ValveVacuum_Q8:0,VGR_vertical_position:0,VGR_horizontal_position:0,VGR_rotate_position:0,IX_HBW_RefSwitchHorizontalAxis_I1:1,IX_HBW_LightBarrierInside_I2:1,IX_HBW_LightBarrierOutside_I3:1,IX_HBW_RefSwitchVerticalAxis_I4:1,IX_HBW_SwitchCantileverFront_I5:0,IX_HBW_SwitchCantileverBack_I6:1,HBW_vertical_position:0,HBW_horizontal_position:0,IX_SSC_LightBarrierStorage_I3:1};\nconst vector = (state) => contract.feature_cols.map((feature) => feature.startsWith('empty_storage_') ? pending.one_hot[feature] : Number(state[feature]));\nconst seeded = rows.length === 0 ? steps - 1 : 0;\nif (seeded) for (let index = 0; index < seeded; index += 1) rows.push(vector(seed));\n// Fenster: Echtzustand anhaengen | auf W begrenzen\nrows.push(vector(pending.raw_state));\nrows = rows.slice(-steps);\nwindows[domain] = windows[domain] || {};\nwindows[domain][key] = rows;\nglobal.set('ai.windows', windows);\nmsg._window = rows;\nmsg._bootstrap = {seeded_rows:seeded,time_steps:steps,template_version:'1.0'};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 80,
+    "wires": [
+      [
+        "sub-window-request"
+      ]
+    ],
+    "info": "### Aufgabe\nLSTM-Fenster je Quelle und Modell fortschreiben.\n\n### Eingang\nDomain, aktueller Zustand, One-hot-Wert und Modellvertrag.\n\n### Zustand\nRolling Window je Quelle und Modell-ID.\n\n### Ausgang\nVollstaendige Sequenz und Bootstrap-Metadaten.\n\n### Warum Function-Node?\nKeyed Window, Bootstrap und Abschneiden muessen gemeinsam erfolgen."
+  },
+  {
+    "id": "sub-window-request",
+    "type": "change",
+    "z": "subflow-lstm-window",
+    "g": "",
+    "name": "NN-Request bilden",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_request_id",
+        "pt": "msg",
+        "to": "_pending.cycle_id & ':' & _domain",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_started_ms",
+        "pt": "msg",
+        "to": "$millis()",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending",
+        "pt": "global",
+        "to": "$merge([_pending,{'bootstrap':$merge([_pending.bootstrap,{(_domain):_bootstrap}]),(_domain & '_request_id'):_request_id,(_domain & '_started_ms'):_started_ms,'deadline_ms':_started_ms+10000}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "'ft/nn/' & _domain & '/request'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "qos",
+        "pt": "msg",
+        "to": "1",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "retain",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'request_id':_request_id,'parent_request_id':_pending.parent_request_id,'source_id':_pending.source_id,'model_id':$lookup(_pending.contracts,_domain).model_id,'model_profile':_pending.model_profile,'sequence':_window}",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_request_summary",
+        "pt": "msg",
+        "to": "{'domain':_domain,'cycle_id':_pending.cycle_id,'model_profile':_pending.model_profile,'window':$string(_bootstrap.time_steps) & 'x' & $string($count($lookup(_pending.contracts,_domain).feature_cols))}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 720,
+    "y": 80,
+    "wires": [],
+    "info": "IDs | Modellprofil | Sequenz | Kurzinfo"
+  },
+  {
+    "id": "subflow-model-response",
+    "type": "subflow",
+    "name": "NN-Response pruefen",
+    "info": "### Ablauf\n- Domain setzen\n- Duplikat verwerfen\n- Korrelation / Modell / Klasse / Command pruefen\n- Diagnoseantwort markieren\n\nKeine Function-Node: Entscheidungen sind als Switches sichtbar.",
+    "category": "AI-CPS",
+    "in": [
+      {
+        "x": 40,
+        "y": 100,
+        "wires": [
+          {
+            "id": "sub-response-context"
+          }
+        ]
+      }
+    ],
+    "out": [
+      {
+        "x": 1100,
+        "y": 70,
+        "wires": [
+          {
+            "id": "sub-response-valid",
+            "port": 0
+          }
+        ]
+      },
+      {
+        "x": 1100,
+        "y": 150,
+        "wires": [
+          {
+            "id": "sub-response-error",
+            "port": 0
+          }
+        ]
+      }
+    ],
+    "env": [
+      {
+        "name": "DOMAIN",
+        "type": "str",
+        "value": "vgr"
+      }
+    ],
+    "meta": {},
+    "color": "#C7E9C0"
+  },
+  {
+    "id": "sub-response-context",
+    "type": "change",
+    "z": "subflow-model-response",
+    "g": "",
+    "name": "Domain + Pending lesen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "$env('DOMAIN')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_response",
+        "pt": "msg",
+        "to": "payload",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_seen",
+        "pt": "msg",
+        "to": "$globalContext('ai.seen_responses') ? $globalContext('ai.seen_responses') : []",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 240,
+    "y": 100,
+    "wires": [
+      [
+        "sub-response-duplicate"
+      ]
+    ],
+    "info": "Domain | Response | offener Zyklus"
+  },
+  {
+    "id": "sub-response-duplicate",
+    "type": "switch",
+    "z": "subflow-model-response",
+    "g": "",
+    "name": "Schon verarbeitet?",
+    "property": "_response.request_id in _seen",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 470,
+    "y": 100,
+    "wires": [
+      [
+        "sub-response-contract"
+      ]
+    ],
+    "info": "Duplikate still verwerfen"
+  },
+  {
+    "id": "sub-response-contract",
+    "type": "switch",
+    "z": "subflow-model-response",
+    "g": "",
+    "name": "Response gueltig?",
+    "property": "$exists(_pending) and _response.request_id=$lookup(_pending,_domain & '_request_id') and _response.cycle_id=_pending.cycle_id and $not($exists(_response.error)) and _response.model_profile=_pending.model_profile and _response.model_id=$lookup(_pending.contracts,_domain).model_id and $number(_response.cmd) in $lookup(_pending.contracts,_domain).class_ids and ($lowercase($env('COMMAND_OUTPUT_ENABLED'))!='true' or _response.command_output.published=true)",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 660,
+    "y": 100,
+    "wires": [
+      [
+        "sub-response-valid"
+      ],
+      [
+        "sub-response-error"
+      ]
+    ],
+    "info": "Korrelation | Modellprofil | Klasse | direkter Command"
+  },
+  {
+    "id": "sub-response-valid",
+    "type": "change",
+    "z": "subflow-model-response",
+    "g": "",
+    "name": "Response registrieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_latency",
+        "pt": "msg",
+        "to": "$millis()-$number($lookup(_pending,_domain & '_started_ms'))",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "_domain",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "$merge([_response,{'_diagnostic_latency_ms':_latency}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "parts",
+        "pt": "msg",
+        "to": "{'id':_pending.cycle_id,'type':'object','key':_domain,'count':2,'index':_domain='vgr'?0:1}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 900,
+    "y": 70,
+    "wires": [],
+    "info": "Latenz an Response | Join-Metadaten | keine gemeinsame Command-Barriere"
+  },
+  {
+    "id": "sub-response-error",
+    "type": "change",
+    "z": "subflow-model-response",
+    "g": "",
+    "name": "Responsefehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'model_response_error','detail':_domain & ' response invalid','cycle_id':_pending.cycle_id,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 900,
+    "y": 150,
+    "wires": [],
+    "info": "Ein normalisierter Fault-Payload"
+  },
+  {
     "id": "group-contracts",
     "type": "group",
     "z": "tab-pipeline",
@@ -18,19 +422,37 @@
     },
     "nodes": [
       "in-contracts",
-      "fn-contract-register",
+      "json-contract",
+      "switch-contract-topic",
+      "change-contract-storage",
+      "change-contract-vgr",
+      "change-contract-hbw",
+      "switch-contract-shape",
+      "switch-contract-change",
+      "change-contract-store",
+      "change-contract-error",
+      "change-contract-change-error",
       "in-model-statuses",
-      "fn-status-register",
-      "fn-readiness",
+      "json-model-status",
+      "switch-status-topic",
+      "change-status-storage",
+      "change-status-vgr",
+      "change-status-hbw",
+      "switch-status-offline",
+      "change-status-store",
+      "change-status-error",
+      "change-readiness-context",
       "json-ai-ready",
       "out-ai-ready",
       "in-ai-control",
-      "fn-ai-reset"
+      "json-ai-control",
+      "switch-ai-reset",
+      "change-ai-reset"
     ],
     "x": 20,
     "y": 20,
-    "w": 1660,
-    "h": 210
+    "w": 1980,
+    "h": 250
   },
   {
     "id": "group-storage",
@@ -44,18 +466,39 @@
     },
     "nodes": [
       "in-live-pipeline",
+      "json-live-pipeline",
       "fn-contract-gate",
-      "fn-storage-request",
+      "switch-storage-pending",
+      "change-storage-pending-error",
+      "change-storage-cycle",
+      "change-storage-request",
       "json-storage-request",
       "out-storage-request",
       "in-storage-result",
-      "fn-storage-response",
+      "json-storage-result",
+      "change-storage-response-context",
+      "switch-storage-duplicate",
+      "switch-storage-correlation",
+      "switch-storage-class",
+      "change-onehot-0",
+      "change-onehot-1",
+      "change-onehot-2",
+      "change-onehot-3",
+      "change-onehot-4",
+      "change-onehot-5",
+      "change-onehot-6",
+      "change-onehot-7",
+      "change-onehot-8",
+      "change-onehot-9",
+      "link-storage-ready-out",
+      "link-storage-debug-in",
+      "change-storage-response-error",
       "debug-storage"
     ],
     "x": 20,
-    "y": 250,
-    "w": 1660,
-    "h": 210
+    "y": 290,
+    "w": 1980,
+    "h": 260
   },
   {
     "id": "group-window",
@@ -68,24 +511,27 @@
       "fill": "none"
     },
     "nodes": [
-      "fn-window-vgr",
-      "fn-window-hbw",
+      "link-storage-vgr-in",
+      "link-storage-hbw-in",
+      "link-storage-idle-in",
+      "subflow-window-vgr",
+      "subflow-window-hbw",
       "json-vgr-request",
       "out-vgr-request",
       "json-hbw-request",
       "out-hbw-request",
-      "debug-request-vgr",
-      "debug-request-hbw",
       "change-debug-request-vgr",
+      "debug-request-vgr",
       "change-debug-request-hbw",
+      "debug-request-hbw",
       "change-idle-modules",
       "split-idle-modules",
       "change-idle-command",
       "out-idle-modules"
     ],
     "x": 20,
-    "y": 480,
-    "w": 1660,
+    "y": 570,
+    "w": 1980,
     "h": 250
   },
   {
@@ -100,35 +546,49 @@
     },
     "nodes": [
       "in-vgr-response",
-      "fn-vgr-response",
+      "json-vgr-response",
+      "subflow-response-vgr",
       "in-hbw-response",
-      "fn-hbw-response",
+      "json-hbw-response",
+      "subflow-response-hbw",
       "join-model-responses",
-      "fn-cycle-result",
+      "change-cycle-context",
+      "change-cycle-result",
       "json-cycle-result",
       "out-cycle-result",
-      "inject-ai-timeout",
-      "fn-timeout-check",
+      "change-timeout-arm",
+      "trigger-ai-timeout",
+      "change-timeout-error",
       "link-fault-pipeline",
-      "in-report-factory-status",
-      "switch-report-factory-status",
-      "change-report-factory-status",
-      "fn-report-row",
-      "fn-report-state",
+      "change-report-row",
+      "switch-report-state",
+      "change-report-state-init",
+      "change-report-state-read",
+      "change-report-row-map",
+      "change-report-state-update",
       "change-report-event",
       "json-report-event",
       "change-report-event-newline",
-      "fn-report-csv",
-      "fn-report-summary",
+      "switch-report-first-row",
+      "change-report-csv-first",
+      "change-report-csv-next",
+      "csv-report-first",
+      "csv-report-next",
+      "change-report-summary-running",
+      "in-report-factory-status",
+      "json-report-factory-status",
+      "switch-report-factory-status",
+      "switch-report-run-id",
+      "change-report-summary-final",
+      "change-report-summary",
+      "json-report-summary",
       "file-report-append-inline",
-      "file-report-replace-inline",
-      "catch-report",
-      "change-catch-report"
+      "file-report-replace-inline"
     ],
     "x": 20,
-    "y": 750,
-    "w": 1660,
-    "h": 300
+    "y": 840,
+    "w": 1980,
+    "h": 500
   },
   {
     "id": "comment-pipeline",
@@ -136,7 +596,7 @@
     "z": "tab-pipeline",
     "name": "Contract Gate | Storage | VGR/HBW parallel | Responses nur Reporting",
     "info": "",
-    "x": 340,
+    "x": 410,
     "y": 45,
     "wires": []
   },
@@ -154,35 +614,309 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 130,
-    "y": 90,
+    "x": 120,
+    "y": 95,
     "wires": [
       [
-        "fn-contract-register"
+        "json-contract"
       ]
     ]
   },
   {
-    "id": "fn-contract-register",
-    "type": "function",
+    "id": "json-contract",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-contracts",
-    "name": "Contract registrieren",
-    "func": "// Retained Contract speichern; Topicvertrag pr\u00fcfen\nconst match = /^ft\\/nn\\/(storage|vgr|hbw)\\/contract$/.exec(String(msg.topic));\nif (!match) return null;\nconst domain = match[1];\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nconst expected = {storage:['ft/nn/storage/request','ft/nn/response/storage'],vgr:['ft/nn/vgr/request','ft/nn/response/vgr'],hbw:['ft/nn/hbw/request','ft/nn/response/hbw']}[domain];\nif (!value || value.schema_version !== '1.0' || value.domain !== domain || !Array.isArray(value.feature_cols)\n    || !Array.isArray(value.class_ids) || value.request_topic !== expected[0] || value.response_topic !== expected[1]) {\n  node.error(`contract_invalid:${domain}`, msg);\n  return null;\n}\nconst contracts = global.get('ai.contracts') || {};\nif (contracts[domain]?.model_id && contracts[domain].model_id !== value.model_id) {\n  if (global.get('sim.run')?.running || global.get('ai.pending')) {\n    node.error(`model_changed_during_cycle:${domain}`, msg);\n    return null;\n  }\n  global.set('ai.windows', {vgr:{},hbw:{}});\n}\ncontracts[domain] = value;\nglobal.set('ai.contracts', contracts);\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 370,
-    "y": 90,
+    "name": "Contract JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 300,
+    "y": 95,
     "wires": [
       [
-        "fn-readiness"
+        "switch-contract-topic"
+      ]
+    ]
+  },
+  {
+    "id": "switch-contract-topic",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Domain aus Topic",
+    "property": "topic",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "ft/nn/storage/contract",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "ft/nn/vgr/contract",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "ft/nn/hbw/contract",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 3,
+    "x": 490,
+    "y": 95,
+    "wires": [
+      [
+        "change-contract-storage"
+      ],
+      [
+        "change-contract-vgr"
+      ],
+      [
+        "change-contract-hbw"
       ]
     ],
-    "info": "### Aufgabe\nEinen retained Modellvertrag gegen Domain und Topics pruefen und speichern.\n\n### Eingang\n`ft/nn/+/contract`.\n\n### Ausgang\nRegistry-Aktualisierung.\n\n### Warum Function-Node?\nEin Vertrag wird atomar validiert und ersetzt."
+    "info": "Wildcard sichtbar auf drei Domaenen aufteilen"
+  },
+  {
+    "id": "change-contract-storage",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "STORAGE markieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "storage",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 60,
+    "wires": [
+      [
+        "switch-contract-shape"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "change-contract-vgr",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "VGR markieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "vgr",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 100,
+    "wires": [
+      [
+        "switch-contract-shape"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "change-contract-hbw",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "HBW markieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "hbw",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 140,
+    "wires": [
+      [
+        "switch-contract-shape"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "switch-contract-shape",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Grundvertrag gueltig?",
+    "property": "payload.schema_version='1.0' and payload.domain=_domain and $type(payload.feature_cols)='array' and $type(payload.class_ids)='array' and payload.request_topic='ft/nn/' & _domain & '/request' and payload.response_topic='ft/nn/response/' & _domain",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 900,
+    "y": 95,
+    "wires": [
+      [
+        "switch-contract-change"
+      ],
+      [
+        "change-contract-error"
+      ]
+    ],
+    "info": "Schema | Domain | Featureliste | Klassen | Request/Response-Topic"
+  },
+  {
+    "id": "switch-contract-change",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Modellwechsel im Lauf?",
+    "property": "$exists($lookup($globalContext('ai.contracts'),_domain).model_id) and $lookup($globalContext('ai.contracts'),_domain).model_id != payload.model_id and ($globalContext('sim.run').running or $type($globalContext('ai.pending'))='object')",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "false"
+      },
+      {
+        "t": "true"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1120,
+    "y": 95,
+    "wires": [
+      [
+        "change-contract-store"
+      ],
+      [
+        "change-contract-change-error"
+      ]
+    ],
+    "info": "Profilwechsel nur zwischen Laeufen"
+  },
+  {
+    "id": "change-contract-store",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Contract speichern",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.contracts",
+        "pt": "global",
+        "to": "$merge([$globalContext('ai.contracts') ? $globalContext('ai.contracts') : {},{(_domain):payload}])",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1340,
+    "y": 75,
+    "wires": [
+      [
+        "change-readiness-context"
+      ]
+    ],
+    "info": "Retained Contract domainbezogen ersetzen"
+  },
+  {
+    "id": "change-contract-error",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Contractfehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'contract_invalid','detail':_domain,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1340,
+    "y": 115,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-contract-change-error",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Modellwechsel blockieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'model_changed_during_cycle','detail':_domain,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1340,
+    "y": 150,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": ""
   },
   {
     "id": "in-model-statuses",
@@ -198,57 +932,285 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 130,
-    "y": 150,
+    "x": 120,
+    "y": 190,
     "wires": [
       [
-        "fn-status-register"
+        "json-model-status"
       ]
     ]
   },
   {
-    "id": "fn-status-register",
-    "type": "function",
+    "id": "json-model-status",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-contracts",
-    "name": "Status registrieren",
-    "func": "// Retained Dienststatus speichern\nconst match = /^ft\\/nn\\/(storage|vgr|hbw)\\/status$/.exec(String(msg.topic));\nif (!match) return null;\nconst statuses = global.get('ai.statuses') || {};\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nif (value?.state !== 'online' && global.get('sim.run')?.running) {\n  node.error(`model_offline:${match[1]}`, msg);\n  return null;\n}\nstatuses[match[1]] = value;\nglobal.set('ai.statuses', statuses);\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 370,
-    "y": 150,
+    "name": "Status JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 300,
+    "y": 190,
     "wires": [
       [
-        "fn-readiness"
+        "switch-status-topic"
       ]
-    ],
-    "info": "### Aufgabe\nEinen retained Dienststatus domainbezogen speichern.\n\n### Eingang\n`ft/nn/+/status`.\n\n### Ausgang\nRegistry-Aktualisierung.\n\n### Warum Function-Node?\nWildcard-Topic und Domain werden gemeinsam ausgewertet."
+    ]
   },
   {
-    "id": "fn-readiness",
-    "type": "function",
+    "id": "switch-status-topic",
+    "type": "switch",
     "z": "tab-pipeline",
     "g": "group-contracts",
-    "name": "Bereitschaft pruefen",
-    "func": "// Drei Dienste gemeinsam bewerten\nconst contracts = global.get('ai.contracts') || {};\nconst statuses = global.get('ai.statuses') || {};\nconst domains = ['storage','vgr','hbw'];\nconst ready = domains.every((d) => contracts[d] && statuses[d]?.state === 'online' && statuses[d]?.model_id === contracts[d]?.model_id);\nmsg.topic = 'ft/ai/orchestration/status';\nmsg.qos = 1;\nmsg.retain = true;\nmsg.payload = {schema_version:'1.0', state:ready ? 'ready':'waiting_for_models',\n  detail:ready ? 'contracts_and_status_ready':'contracts_or_status_missing',\n  command_output_enabled:String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true',\n  fault_latched:Boolean(global.get('sim.run')?.fault),\n  model_ids:Object.fromEntries(domains.filter((d)=>contracts[d]).map((d)=>[d,contracts[d].model_id])), ts_ms:Date.now()};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 620,
-    "y": 120,
+    "name": "Statusdomain",
+    "property": "topic",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "ft/nn/storage/status",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "ft/nn/vgr/status",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "ft/nn/hbw/status",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 3,
+    "x": 490,
+    "y": 190,
+    "wires": [
+      [
+        "change-status-storage"
+      ],
+      [
+        "change-status-vgr"
+      ],
+      [
+        "change-status-hbw"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-status-storage",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "STORAGE Status",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "storage",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 160,
+    "wires": [
+      [
+        "switch-status-offline"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "change-status-vgr",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "VGR Status",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "vgr",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 195,
+    "wires": [
+      [
+        "switch-status-offline"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "change-status-hbw",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "HBW Status",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_domain",
+        "pt": "msg",
+        "to": "hbw",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 690,
+    "y": 230,
+    "wires": [
+      [
+        "switch-status-offline"
+      ]
+    ],
+    "info": "Domain explizit setzen"
+  },
+  {
+    "id": "switch-status-offline",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Offline im Lauf?",
+    "property": "payload.state!='online' and $globalContext('sim.run').running=true",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "false"
+      },
+      {
+        "t": "true"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 900,
+    "y": 190,
+    "wires": [
+      [
+        "change-status-store"
+      ],
+      [
+        "change-status-error"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-status-store",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Status speichern",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.statuses",
+        "pt": "global",
+        "to": "$merge([$globalContext('ai.statuses') ? $globalContext('ai.statuses') : {},{(_domain):payload}])",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1110,
+    "y": 180,
+    "wires": [
+      [
+        "change-readiness-context"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-status-error",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Offlinefehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'model_offline','detail':_domain,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1110,
+    "y": 220,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-readiness-context",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Bereitschaft abbilden",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_ready",
+        "pt": "msg",
+        "to": "$exists($globalContext('ai.contracts').storage) and $exists($globalContext('ai.contracts').vgr) and $exists($globalContext('ai.contracts').hbw) and $globalContext('ai.statuses').storage.state='online' and $globalContext('ai.statuses').vgr.state='online' and $globalContext('ai.statuses').hbw.state='online' and $globalContext('ai.statuses').storage.model_id=$globalContext('ai.contracts').storage.model_id and $globalContext('ai.statuses').vgr.model_id=$globalContext('ai.contracts').vgr.model_id and $globalContext('ai.statuses').hbw.model_id=$globalContext('ai.contracts').hbw.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'schema_version':'1.0','state':_ready?'ready':'waiting_for_models','detail':_ready?'contracts_and_status_ready':'contracts_or_status_missing','command_output_enabled':$lowercase($env('COMMAND_OUTPUT_ENABLED'))='true','fault_latched':$type($globalContext('sim.run').fault)='object','model_ids':{'storage':$globalContext('ai.contracts').storage.model_id,'vgr':$globalContext('ai.contracts').vgr.model_id,'hbw':$globalContext('ai.contracts').hbw.model_id},'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1550,
+    "y": 185,
     "wires": [
       [
         "json-ai-ready"
       ]
     ],
-    "info": "### Aufgabe\nDrei Contracts und Online-Status gemeinsam bewerten.\n\n### Eingang\nRegistry-Aktualisierung.\n\n### Ausgang\nRetained Orchestrierungsstatus.\n\n### Warum Function-Node?\nDie Bereitschaft ist ein atomarer Gesamtsnapshot."
+    "info": "Drei Contracts + drei Online-Status gemeinsam anzeigen"
   },
   {
     "id": "json-ai-ready",
@@ -259,8 +1221,8 @@
     "property": "payload",
     "action": "",
     "pretty": false,
-    "x": 830,
-    "y": 120,
+    "x": 1740,
+    "y": 185,
     "wires": [
       [
         "out-ai-ready"
@@ -282,8 +1244,8 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 1050,
-    "y": 120,
+    "x": 1920,
+    "y": 185,
     "wires": []
   },
   {
@@ -300,35 +1262,105 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 1180,
-    "y": 90,
+    "x": 1510,
+    "y": 70,
     "wires": [
       [
-        "fn-ai-reset"
+        "json-ai-control"
       ]
     ]
   },
   {
-    "id": "fn-ai-reset",
-    "type": "function",
+    "id": "json-ai-control",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Control JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 1690,
+    "y": 70,
+    "wires": [
+      [
+        "switch-ai-reset"
+      ]
+    ]
+  },
+  {
+    "id": "switch-ai-reset",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Reset?",
+    "property": "payload.cmd",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "reset",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 1840,
+    "y": 70,
+    "wires": [
+      [
+        "change-ai-reset"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-ai-reset",
+    "type": "change",
     "z": "tab-pipeline",
     "g": "group-contracts",
     "name": "KI-Zustand leeren",
-    "func": "// Offene NN-Anfragen und LSTM-Fenster zuruecksetzen\nconst value = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : (msg.payload || {});\nif (value.cmd !== 'reset') return null;\nglobal.set('ai.pending', null);\nglobal.set('ai.windows', {vgr:{},hbw:{}});\nglobal.set('ai.seen_responses', []);\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1380,
-    "y": 90,
+    "rules": [
+      {
+        "t": "delete",
+        "p": "ai.pending",
+        "pt": "global"
+      },
+      {
+        "t": "set",
+        "p": "ai.windows",
+        "pt": "global",
+        "to": "{\"vgr\": {}, \"hbw\": {}}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "[]",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "reset",
+        "pt": "msg",
+        "to": "true",
+        "tot": "bool"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1840,
+    "y": 115,
     "wires": [
       [
-        "fn-readiness"
+        "trigger-ai-timeout"
       ]
     ],
-    "info": "### Aufgabe\nOffene Requests, Antwort-Deduplizierung und LSTM-Fenster leeren.\n\n### Eingang\n`ft/ai/orchestration/control` mit `cmd=reset`.\n\n### Ausgang\nImpuls zur erneuten Bereitschaftspruefung.\n\n### Warum Function-Node?\nDie drei fluechtigen KI-Zustaende muessen gemeinsam zurueckgesetzt werden."
+    "info": "Pending | Windows | Deduplizierung | Timeout"
   },
   {
     "id": "in-live-pipeline",
@@ -344,8 +1376,25 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 150,
-    "y": 320,
+    "x": 130,
+    "y": 360,
+    "wires": [
+      [
+        "json-live-pipeline"
+      ]
+    ]
+  },
+  {
+    "id": "json-live-pipeline",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Anlagenzustand JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 330,
+    "y": 360,
     "wires": [
       [
         "fn-contract-gate"
@@ -357,50 +1406,221 @@
     "type": "function",
     "z": "tab-pipeline",
     "g": "group-storage",
-    "name": "Contract pruefen",
-    "func": "// Virtueller Feature-/Profilvertrag vor Storage pr\u00fcfen\nconst raw = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nconst contracts = global.get('ai.contracts') || {};\nconst statuses = global.get('ai.statuses') || {};\nconst profile = String(raw.model_profile || 'deployment-current');\nconst selected = {storage:contracts.storage};\nfor (const domain of ['vgr','hbw']) {\n  const service = contracts[domain];\n  selected[domain] = service?.model_profiles ? service.model_profiles[profile] : (profile === 'deployment-current' ? service : null);\n}\nlet error = '';\nfor (const domain of ['storage','vgr','hbw']) {\n  const c = selected[domain];\n  if (!c || statuses[domain]?.state !== 'online') { error = `contract_or_service_missing:${domain}`; break; }\n  if (!Array.isArray(c.feature_cols) || !Array.isArray(c.class_ids)) { error = `contract_invalid:${domain}`; break; }\n}\nif (!error) {\n  const commandTopics = {\n    vgr:{0:'ai/vgr/cmd0',101:'ai/vgr/cmd101',102:'ai/vgr/cmd102',103:'ai/vgr/cmd103',104:'ai/vgr/cmd104',105:'ai/vgr/cmd105',301:'ai/vgr/cmd301'},\n    hbw:{0:'ai/hbw/cmd000',102:'ai/hbw/cmd102',103:'ai/hbw/cmd103',104:'ai/hbw/cmd104',105:'ai/hbw/cmd105',107:'ai/hbw/cmd107',111:'ai/hbw/cmd111',116:'ai/hbw/cmd116',121:'ai/hbw/cmd121',126:'ai/hbw/cmd126',131:'ai/hbw/cmd131',136:'ai/hbw/cmd136',141:'ai/hbw/cmd141',146:'ai/hbw/cmd146',151:'ai/hbw/cmd151',156:'ai/hbw/cmd156',161:'ai/hbw/cmd161',166:'ai/hbw/cmd166',171:'ai/hbw/cmd171',176:'ai/hbw/cmd176',181:'ai/hbw/cmd181',186:'ai/hbw/cmd186',191:'ai/hbw/cmd191',196:'ai/hbw/cmd196',301:'ai/hbw/cmd301'}\n  };\n  for (const domain of ['vgr','hbw']) {\n    const output = selected[domain].command_output;\n    if (output?.mode !== 'direct_mqtt' || Number(output?.qos) !== 2 || Boolean(output?.retain) !== false) { error=`contract_invalid:${domain}:command_output`; break; }\n    for (const classId of selected[domain].class_ids.map(Number)) {\n      if (output?.topics?.[String(classId)] !== commandTopics[domain][classId]) { error=`contract_invalid:${domain}:class_${classId}`; break; }\n    }\n    if (error) break;\n  }\n}\nif (!error) {\n  const required = new Set(selected.storage.feature_cols);\n  for (const domain of ['vgr','hbw']) for (const f of selected[domain].feature_cols) if (!f.startsWith('empty_storage_')) required.add(f);\n  for (const f of required) if (!Object.hasOwn(raw,f) || !Number.isFinite(Number(raw[f]))) { error = `invalid_payload:${f}`; break; }\n}\nif (error) {\n  msg.payload = {code:error.split(':')[0], detail:error, cycle_id:null, ts_ms:Date.now()};\n  return [null,msg];\n}\nmsg._raw = raw;\nmsg._profile = profile;\nmsg._contracts = selected;\nreturn [msg,null];\n",
+    "name": "Dynamischen Modellvertrag pruefen",
+    "func": "// Profil: aktuellen oder historischen Vertrag waehlen\nconst raw = msg.payload || {};\nconst contracts = global.get('ai.contracts') || {};\nconst statuses = global.get('ai.statuses') || {};\nconst profile = String(raw.model_profile || 'deployment-current');\nconst selected = {storage:contracts.storage};\nfor (const domain of ['vgr','hbw']) {\n  const service = contracts[domain];\n  selected[domain] = service?.model_profiles ? service.model_profiles[profile] : (profile === 'deployment-current' ? service : null);\n}\n// Basis: Contract | Dienst | Feature- und Klassenlisten\nlet error = '';\nfor (const domain of ['storage','vgr','hbw']) {\n  const contract = selected[domain];\n  if (!contract || statuses[domain]?.state !== 'online') { error = `contract_or_service_missing:${domain}`; break; }\n  if (!Array.isArray(contract.feature_cols) || !Array.isArray(contract.class_ids)) { error = `contract_invalid:${domain}`; break; }\n}\n// Commands: direkter MQTT-Vertrag unveraendert\nconst topics = {vgr:{0:'ai/vgr/cmd0',101:'ai/vgr/cmd101',102:'ai/vgr/cmd102',103:'ai/vgr/cmd103',104:'ai/vgr/cmd104',105:'ai/vgr/cmd105',301:'ai/vgr/cmd301'},hbw:{0:'ai/hbw/cmd000',102:'ai/hbw/cmd102',103:'ai/hbw/cmd103',104:'ai/hbw/cmd104',105:'ai/hbw/cmd105',107:'ai/hbw/cmd107',111:'ai/hbw/cmd111',116:'ai/hbw/cmd116',121:'ai/hbw/cmd121',126:'ai/hbw/cmd126',131:'ai/hbw/cmd131',136:'ai/hbw/cmd136',141:'ai/hbw/cmd141',146:'ai/hbw/cmd146',151:'ai/hbw/cmd151',156:'ai/hbw/cmd156',161:'ai/hbw/cmd161',166:'ai/hbw/cmd166',171:'ai/hbw/cmd171',176:'ai/hbw/cmd176',181:'ai/hbw/cmd181',186:'ai/hbw/cmd186',191:'ai/hbw/cmd191',196:'ai/hbw/cmd196',301:'ai/hbw/cmd301'}};\nfor (const domain of ['vgr','hbw']) if (!error) {\n  const output = selected[domain].command_output;\n  if (output?.mode !== 'direct_mqtt' || Number(output?.qos) !== 2 || output?.retain !== false) error = `contract_invalid:${domain}:command_output`;\n  for (const classId of selected[domain].class_ids.map(Number)) if (!error && output?.topics?.[String(classId)] !== topics[domain][classId]) error = `contract_invalid:${domain}:class_${classId}`;\n}\n// Features: im aktuellen Rohzustand numerisch vorhanden\nconst required = new Set(selected.storage?.feature_cols || []);\nfor (const domain of ['vgr','hbw']) for (const feature of selected[domain]?.feature_cols || []) if (!feature.startsWith('empty_storage_')) required.add(feature);\nfor (const feature of required) if (!error && (!Object.hasOwn(raw, feature) || !Number.isFinite(Number(raw[feature])))) error = `invalid_payload:${feature}`;\nif (error) {\n  msg.payload = {code:error.split(':')[0],detail:error,cycle_id:null,ts_ms:Date.now()};\n  return [null,msg];\n}\nmsg._raw = raw;\nmsg._profile = profile;\nmsg._contracts = selected;\nreturn [msg,null];\n",
     "outputs": 2,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 390,
-    "y": 320,
+    "x": 560,
+    "y": 360,
     "wires": [
       [
-        "fn-storage-request"
+        "switch-storage-pending"
       ],
       [
         "link-fault-pipeline"
       ]
     ],
-    "info": "### Aufgabe\nVirtuell verfuegbare Features, Profil, Klassen und Dienststatus vor Storage pruefen.\n\n### Eingang\nFreigegebener Anlagenzustand.\n\n### Ausgang\nValidierter Zykluskontext oder Fault.\n\n### Warum Function-Node?\nDer virtuelle Contract-Gate muss einen konsistenten Snapshot pruefen."
+    "info": "### Aufgabe\nAktives Modellprofil und dynamischen Featurevertrag pruefen.\n\n### Eingang\nFreigegebener Anlagenzustand und retained Modellvertraege.\n\n### Zustand\nNur gelesene Contract- und Dienstregistries.\n\n### Ausgang\nAusgewaehlte Vertraege oder normalisierter Fehler.\n\n### Warum Function-Node?\nDynamische Feature- und Klassenlisten erfordern eine gemeinsame Vertragspruefung."
   },
   {
-    "id": "fn-storage-request",
-    "type": "function",
+    "id": "switch-storage-pending",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Zyklus bereits offen?",
+    "property": "$type($globalContext('ai.pending'))='object'",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "false"
+      },
+      {
+        "t": "true"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 800,
+    "y": 360,
+    "wires": [
+      [
+        "change-storage-cycle"
+      ],
+      [
+        "change-storage-pending-error"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-storage-pending-error",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Pendingfehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'invalid_payload','detail':'new live state while cycle pending','ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1020,
+    "y": 400,
+    "wires": [
+      [
+        "link-fault-pipeline"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-storage-cycle",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Cycle-ID + Pending",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_cycle_no",
+        "pt": "msg",
+        "to": "$number($globalContext('ai.cycle_counter') ? $globalContext('ai.cycle_counter') : 0)+1",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.cycle_counter",
+        "pt": "global",
+        "to": "_cycle_no",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_source_id",
+        "pt": "msg",
+        "to": "$string(_raw.source_id ? _raw.source_id : 'plc_live')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_parent_id",
+        "pt": "msg",
+        "to": "$string(_raw.request_id ? _raw.request_id : 'live-' & $string($millis()) & '-' & $string(_cycle_no))",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_correlation",
+        "pt": "msg",
+        "to": "$string(_raw.correlation_id ? _raw.correlation_id : _parent_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_cycle_id",
+        "pt": "msg",
+        "to": "'cycle-' & _source_id & '-' & _correlation & '-' & $formatNumber(_cycle_no,'000000')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_started",
+        "pt": "msg",
+        "to": "$millis()",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending",
+        "pt": "global",
+        "to": "{'cycle_id':_cycle_id,'parent_request_id':_parent_id,'source_id':_source_id,'raw_state':_raw,'model_profile':_profile,'model_profile_name':_raw.model_profile_name ? _raw.model_profile_name : _profile,'contracts':_contracts,'storage_request_id':_cycle_id & ':storage','storage_started_ms':_started,'deadline_ms':_started+10000,'responses':{},'bootstrap':{},'issued_commands':{}}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1030,
+    "y": 340,
+    "wires": [
+      [
+        "change-storage-request"
+      ]
+    ],
+    "info": "Cycle-ID | Quelle | Profil | Deadline gemeinsam setzen"
+  },
+  {
+    "id": "change-storage-request",
+    "type": "change",
     "z": "tab-pipeline",
     "g": "group-storage",
     "name": "Storage-Request bilden",
-    "func": "// Storage-Request erzeugen; einen Zyklus \u00f6ffnen\nif (global.get('ai.pending')) {\n  msg.payload = {code:'invalid_payload',detail:'new live state while cycle pending',ts_ms:Date.now()};\n  return [null,msg];\n}\nconst raw = msg._raw;\nconst contract = msg._contracts.storage;\nconst cycleNo = Number(global.get('ai.cycle_counter') || 0) + 1;\nglobal.set('ai.cycle_counter', cycleNo);\nconst sourceId = String(raw.source_id || 'plc_live');\nconst parent = String(raw.request_id || `live-${Date.now()}-${cycleNo}`);\nconst correlation = String(raw.correlation_id || parent);\nconst cycleId = `cycle-${sourceId}-${correlation}-${String(cycleNo).padStart(6,'0')}`;\nconst pending = {cycle_id:cycleId,parent_request_id:parent,source_id:sourceId,raw_state:raw,\n  model_profile:msg._profile,model_profile_name:String(raw.model_profile_name || msg._profile),\n  contracts:msg._contracts,storage_request_id:`${cycleId}:storage`,storage_started_ms:Date.now(),\n  deadline_ms:Date.now()+10000,responses:{},bootstrap:{},issued_commands:{}};\nglobal.set('ai.pending', pending);\nmsg.topic = contract.request_topic;\nmsg.qos = 1;\nmsg.retain = false;\nmsg.payload = {cycle_id:cycleId,request_id:pending.storage_request_id,parent_request_id:parent,\n  source_id:sourceId,model_id:contract.model_id,\n  features:Object.fromEntries(contract.feature_cols.map((f)=>[f,Number(raw[f])]))};\nreturn [msg,null];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 650,
-    "y": 320,
+    "rules": [
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "_pending.contracts.storage.request_topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "qos",
+        "pt": "msg",
+        "to": "1",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "retain",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'request_id':_pending.storage_request_id,'parent_request_id':_pending.parent_request_id,'source_id':_pending.source_id,'model_id':_pending.contracts.storage.model_id,'features':$merge($map(_pending.contracts.storage.feature_cols,function($feature){{($feature):$number($lookup(_pending.raw_state,$feature))}}))}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1260,
+    "y": 340,
     "wires": [
       [
-        "json-storage-request"
-      ],
-      [
-        "link-fault-pipeline"
+        "json-storage-request",
+        "change-timeout-arm"
       ]
     ],
-    "info": "### Aufgabe\nGenau einen Storage-Request und Korrelationszustand erzeugen.\n\n### Eingang\nValidierter Live-Zustand.\n\n### Ausgang\nStorage-Request oder Pending-Fehler.\n\n### Warum Function-Node?\nCycle-ID und Pending-Zustand muessen gemeinsam entstehen."
+    "info": "Features in Contract-Reihenfolge | MQTT-Metadaten"
   },
   {
     "id": "json-storage-request",
@@ -411,8 +1631,8 @@
     "property": "payload",
     "action": "",
     "pretty": false,
-    "x": 870,
-    "y": 320,
+    "x": 1490,
+    "y": 330,
     "wires": [
       [
         "out-storage-request"
@@ -434,8 +1654,8 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 1090,
-    "y": 320,
+    "x": 1700,
+    "y": 330,
     "wires": []
   },
   {
@@ -452,41 +1672,937 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 150,
-    "y": 400,
+    "x": 130,
+    "y": 470,
     "wires": [
       [
-        "fn-storage-response"
+        "json-storage-result"
       ]
     ]
   },
   {
-    "id": "fn-storage-response",
-    "type": "function",
+    "id": "json-storage-result",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-storage",
-    "name": "Storage-Ergebnis pruefen",
-    "func": "// Storage-Antwort korrelieren; One-hot erzeugen\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nif (!pending || response.request_id !== pending.storage_request_id || response.cycle_id !== pending.cycle_id || response.error) {\n  msg.payload = {code:'model_response_error',detail:'storage correlation or inference error',cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\nconst value = Number(response.empty_storage);\nif (!pending.contracts.storage.class_ids.map(Number).includes(value)) {\n  msg.payload = {code:'model_response_error',detail:`storage class ${value} unknown`,cycle_id:pending.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses.storage = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending.empty_storage = value;\npending.storage_latency_ms = Date.now()-pending.storage_started_ms;\npending.one_hot = Object.fromEntries(Array.from({length:10},(_,i)=>[`empty_storage_${i}`,i===value?1:0]));\nglobal.set('ai.pending', pending);\nmsg.payload = {cycle_id:pending.cycle_id,empty_storage:value,model_id:response.model_id,top3:response.top3||[]};\nreturn [msg,null];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 410,
-    "y": 400,
+    "name": "Storage JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 320,
+    "y": 470,
     "wires": [
       [
-        "fn-window-vgr",
-        "fn-window-hbw",
-        "change-idle-modules",
-        "debug-storage"
+        "change-storage-response-context"
+      ]
+    ]
+  },
+  {
+    "id": "change-storage-response-context",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Pending + Response lesen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_response",
+        "pt": "msg",
+        "to": "payload",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_seen",
+        "pt": "msg",
+        "to": "$globalContext('ai.seen_responses') ? $globalContext('ai.seen_responses') : []",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 550,
+    "y": 470,
+    "wires": [
+      [
+        "switch-storage-duplicate"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "switch-storage-duplicate",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Schon verarbeitet?",
+    "property": "_response.request_id in _seen",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 780,
+    "y": 470,
+    "wires": [
+      [
+        "switch-storage-correlation"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "switch-storage-correlation",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Korrelation gueltig?",
+    "property": "$exists(_pending) and _response.request_id=_pending.storage_request_id and _response.cycle_id=_pending.cycle_id and $not($exists(_response.error))",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1000,
+    "y": 470,
+    "wires": [
+      [
+        "switch-storage-class"
       ],
+      [
+        "change-storage-response-error"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "switch-storage-class",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Klasse",
+    "property": "payload.empty_storage",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "0",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "1",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "2",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "3",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "4",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "5",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "6",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "7",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "8",
+        "vt": "num"
+      },
+      {
+        "t": "eq",
+        "v": "9",
+        "vt": "num"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 11,
+    "x": 1210,
+    "y": 470,
+    "wires": [
+      [
+        "change-onehot-0"
+      ],
+      [
+        "change-onehot-1"
+      ],
+      [
+        "change-onehot-2"
+      ],
+      [
+        "change-onehot-3"
+      ],
+      [
+        "change-onehot-4"
+      ],
+      [
+        "change-onehot-5"
+      ],
+      [
+        "change-onehot-6"
+      ],
+      [
+        "change-onehot-7"
+      ],
+      [
+        "change-onehot-8"
+      ],
+      [
+        "change-onehot-9"
+      ],
+      [
+        "change-storage-response-error"
+      ]
+    ],
+    "info": "Zehn sichtbare Klassenwege | sonst Fault"
+  },
+  {
+    "id": "change-onehot-0",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 0",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":1,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 405,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_0=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-1",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 1",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "1",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":1,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 417,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_1=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-2",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 2",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "2",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":1,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 429,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_2=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-3",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 3",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "3",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":1,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 441,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_3=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-4",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 4",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "4",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":1,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 453,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_4=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-5",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 5",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "5",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":1,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 465,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_5=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-6",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 6",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "6",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":1,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 477,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_6=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-7",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 7",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "7",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":1,\"empty_storage_8\":0,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 489,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_7=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-8",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 8",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "8",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":1,\"empty_storage_9\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 501,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_8=1 | neun Werte=0"
+  },
+  {
+    "id": "change-onehot-9",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Fachklasse 9",
+    "rules": [
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "$merge([_pending.responses,{'storage':_response}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.empty_storage",
+        "pt": "global",
+        "to": "9",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_latency_ms",
+        "pt": "global",
+        "to": "$millis()-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.one_hot",
+        "pt": "global",
+        "to": "{\"empty_storage_0\":0,\"empty_storage_1\":0,\"empty_storage_2\":0,\"empty_storage_3\":0,\"empty_storage_4\":0,\"empty_storage_5\":0,\"empty_storage_6\":0,\"empty_storage_7\":0,\"empty_storage_8\":0,\"empty_storage_9\":1}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.seen_responses",
+        "pt": "global",
+        "to": "$append(_seen,_response.request_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'cycle_id':_pending.cycle_id,'empty_storage':$number(_response.empty_storage),'model_id':_response.model_id,'top3':_response.top3 ? _response.top3 : []}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1440,
+    "y": 513,
+    "wires": [
+      [
+        "link-storage-ready-out"
+      ]
+    ],
+    "info": "empty_storage_9=1 | neun Werte=0"
+  },
+  {
+    "id": "link-storage-ready-out",
+    "type": "link out",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Zu Windowing + Idle",
+    "mode": "link",
+    "links": [
+      "link-storage-vgr-in",
+      "link-storage-hbw-in",
+      "link-storage-idle-in",
+      "link-storage-debug-in"
+    ],
+    "x": 1660,
+    "y": 455,
+    "wires": []
+  },
+  {
+    "id": "link-storage-debug-in",
+    "type": "link in",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Debug",
+    "links": [
+      "link-storage-ready-out"
+    ],
+    "x": 1660,
+    "y": 505,
+    "wires": [
+      [
+        "debug-storage"
+      ]
+    ]
+  },
+  {
+    "id": "change-storage-response-error",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-storage",
+    "name": "Storage-Responsefehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'model_response_error','detail':'storage correlation, class or inference error','cycle_id':_pending.cycle_id,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1450,
+    "y": 530,
+    "wires": [
       [
         "link-fault-pipeline"
       ]
     ],
-    "info": "### Aufgabe\nStorage-Antwort korrelieren, Klasse pruefen und One-hot bilden.\n\n### Eingang\nStorage-Response.\n\n### Ausgang\nKlasse fuer zwei Window-Zweige und Idle-Zweig.\n\n### Warum Function-Node?\nKorrelation und One-hot muessen denselben Pending-Zyklus verwenden."
+    "info": ""
   },
   {
     "id": "debug-storage",
@@ -502,55 +2618,106 @@
     "targetType": "msg",
     "statusVal": "",
     "statusType": "auto",
-    "x": 700,
-    "y": 440,
+    "x": 1740,
+    "y": 470,
     "wires": []
   },
   {
-    "id": "fn-window-vgr",
-    "type": "function",
+    "id": "link-storage-vgr-in",
+    "type": "link in",
     "z": "tab-pipeline",
     "g": "group-window",
-    "name": "VGR W=10 bilden",
-    "func": "// vgr-Fenster W=10 aktualisieren\nconst domain = 'vgr';\nconst pending = global.get('ai.pending');\nif (!pending) return null;\nconst contract = pending.contracts[domain];\nconst steps = Number(contract.time_steps);\nconst key = `${pending.source_id}|${contract.model_id}`;\nconst windows = global.get('ai.windows') || {vgr:{},hbw:{}};\nlet rows = windows[domain]?.[key] || [];\nlet seeded = 0;\nconst seed = {\n  IX_VGR_RefSwitchVerticalAxis_I1:1,IX_VGR_RefSwitchHorizontalAxis_I2:1,IX_VGR_RefSwitchRotate_I3:1,\n  QX_VGR_M2_HorizontalAxisBackward_Q3:0,QX_VGR_M2_HorizontalAxisForward_Q4:0,QX_VGR_Compressor_Q7:0,QX_VGR_ValveVacuum_Q8:0,\n  VGR_vertical_position:0,VGR_horizontal_position:0,VGR_rotate_position:0,\n  IX_HBW_RefSwitchHorizontalAxis_I1:1,IX_HBW_LightBarrierInside_I2:1,IX_HBW_LightBarrierOutside_I3:1,\n  IX_HBW_RefSwitchVerticalAxis_I4:1,IX_HBW_SwitchCantileverFront_I5:0,IX_HBW_SwitchCantileverBack_I6:1,\n  HBW_vertical_position:0,HBW_horizontal_position:0,IX_SSC_LightBarrierStorage_I3:1\n};\nconst vector = (state) => contract.feature_cols.map((f) => f.startsWith('empty_storage_') ? pending.one_hot[f] : Number(state[f]));\nif (rows.length === 0) {\n  for (let i=0;i<steps-1;i+=1) rows.push(vector(seed));\n  seeded = steps-1;\n}\nrows.push(vector(pending.raw_state));\nrows = rows.slice(-steps);\nwindows[domain] = windows[domain] || {};\nwindows[domain][key] = rows;\nglobal.set('ai.windows', windows);\npending.bootstrap[domain] = {seeded_rows:seeded,time_steps:steps,template_version:'1.0'};\npending[`${domain}_request_id`] = `${pending.cycle_id}:${domain}`;\npending[`${domain}_started_ms`] = Date.now();\npending.deadline_ms = Date.now()+10000;\nglobal.set('ai.pending', pending);\nmsg.topic = domain === 'vgr' ? 'ft/nn/vgr/request':'ft/nn/hbw/request';\nmsg.qos = 1; msg.retain = false;\nmsg.payload = {cycle_id:pending.cycle_id,request_id:pending[`${domain}_request_id`],parent_request_id:pending.parent_request_id,\n  source_id:pending.source_id,model_id:contract.model_id,model_profile:pending.model_profile,sequence:rows};\nmsg._request_summary = {domain,cycle_id:pending.cycle_id,model_profile:pending.model_profile,window:`${steps}x${contract.feature_cols.length}`};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 390,
-    "y": 550,
+    "name": "Zu VGR-Fenster",
+    "links": [
+      "link-storage-ready-out"
+    ],
+    "x": 145,
+    "y": 650,
+    "wires": [
+      [
+        "subflow-window-vgr"
+      ]
+    ]
+  },
+  {
+    "id": "link-storage-hbw-in",
+    "type": "link in",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "Zu HBW-Fenster",
+    "links": [
+      "link-storage-ready-out"
+    ],
+    "x": 145,
+    "y": 720,
+    "wires": [
+      [
+        "subflow-window-hbw"
+      ]
+    ]
+  },
+  {
+    "id": "link-storage-idle-in",
+    "type": "link in",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "Zu MPO / SLD",
+    "links": [
+      "link-storage-ready-out"
+    ],
+    "x": 915,
+    "y": 690,
+    "wires": [
+      [
+        "change-idle-modules"
+      ]
+    ]
+  },
+  {
+    "id": "subflow-window-vgr",
+    "type": "subflow:subflow-lstm-window",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR W=10",
+    "env": [
+      {
+        "name": "DOMAIN",
+        "value": "vgr",
+        "type": "str"
+      }
+    ],
+    "x": 350,
+    "y": 650,
     "wires": [
       [
         "json-vgr-request",
-        "change-debug-request-vgr"
+        "change-debug-request-vgr",
+        "change-timeout-arm"
       ]
-    ],
-    "info": "### Aufgabe\nVGR-Rolling-Window aktualisieren und Request bilden.\n\n### Eingang\nStorage-Klasse und aktueller Zustand.\n\n### Zustand\nNur VGR-Fenster je Quelle und Modell-ID.\n\n### Ausgang\nVGR-Request `(10,29)`.\n\n### Warum Function-Node?\nWindowupdate und Bootstrap muessen atomar sein."
+    ]
   },
   {
-    "id": "fn-window-hbw",
-    "type": "function",
+    "id": "subflow-window-hbw",
+    "type": "subflow:subflow-lstm-window",
     "z": "tab-pipeline",
     "g": "group-window",
-    "name": "HBW W=10 bilden",
-    "func": "// hbw-Fenster W=10 aktualisieren\nconst domain = 'hbw';\nconst pending = global.get('ai.pending');\nif (!pending) return null;\nconst contract = pending.contracts[domain];\nconst steps = Number(contract.time_steps);\nconst key = `${pending.source_id}|${contract.model_id}`;\nconst windows = global.get('ai.windows') || {vgr:{},hbw:{}};\nlet rows = windows[domain]?.[key] || [];\nlet seeded = 0;\nconst seed = {\n  IX_VGR_RefSwitchVerticalAxis_I1:1,IX_VGR_RefSwitchHorizontalAxis_I2:1,IX_VGR_RefSwitchRotate_I3:1,\n  QX_VGR_M2_HorizontalAxisBackward_Q3:0,QX_VGR_M2_HorizontalAxisForward_Q4:0,QX_VGR_Compressor_Q7:0,QX_VGR_ValveVacuum_Q8:0,\n  VGR_vertical_position:0,VGR_horizontal_position:0,VGR_rotate_position:0,\n  IX_HBW_RefSwitchHorizontalAxis_I1:1,IX_HBW_LightBarrierInside_I2:1,IX_HBW_LightBarrierOutside_I3:1,\n  IX_HBW_RefSwitchVerticalAxis_I4:1,IX_HBW_SwitchCantileverFront_I5:0,IX_HBW_SwitchCantileverBack_I6:1,\n  HBW_vertical_position:0,HBW_horizontal_position:0,IX_SSC_LightBarrierStorage_I3:1\n};\nconst vector = (state) => contract.feature_cols.map((f) => f.startsWith('empty_storage_') ? pending.one_hot[f] : Number(state[f]));\nif (rows.length === 0) {\n  for (let i=0;i<steps-1;i+=1) rows.push(vector(seed));\n  seeded = steps-1;\n}\nrows.push(vector(pending.raw_state));\nrows = rows.slice(-steps);\nwindows[domain] = windows[domain] || {};\nwindows[domain][key] = rows;\nglobal.set('ai.windows', windows);\npending.bootstrap[domain] = {seeded_rows:seeded,time_steps:steps,template_version:'1.0'};\npending[`${domain}_request_id`] = `${pending.cycle_id}:${domain}`;\npending[`${domain}_started_ms`] = Date.now();\npending.deadline_ms = Date.now()+10000;\nglobal.set('ai.pending', pending);\nmsg.topic = domain === 'vgr' ? 'ft/nn/vgr/request':'ft/nn/hbw/request';\nmsg.qos = 1; msg.retain = false;\nmsg.payload = {cycle_id:pending.cycle_id,request_id:pending[`${domain}_request_id`],parent_request_id:pending.parent_request_id,\n  source_id:pending.source_id,model_id:contract.model_id,model_profile:pending.model_profile,sequence:rows};\nmsg._request_summary = {domain,cycle_id:pending.cycle_id,model_profile:pending.model_profile,window:`${steps}x${contract.feature_cols.length}`};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 390,
-    "y": 620,
+    "name": "HBW W=10",
+    "env": [
+      {
+        "name": "DOMAIN",
+        "value": "hbw",
+        "type": "str"
+      }
+    ],
+    "x": 350,
+    "y": 720,
     "wires": [
       [
         "json-hbw-request",
-        "change-debug-request-hbw"
+        "change-debug-request-hbw",
+        "change-timeout-arm"
       ]
-    ],
-    "info": "### Aufgabe\nHBW-Rolling-Window aktualisieren und Request bilden.\n\n### Eingang\nStorage-Klasse und aktueller Zustand.\n\n### Zustand\nNur HBW-Fenster je Quelle und Modell-ID.\n\n### Ausgang\nHBW-Request `(10,29)`.\n\n### Warum Function-Node?\nWindowupdate und Bootstrap muessen atomar sein."
+    ]
   },
   {
     "id": "json-vgr-request",
@@ -561,8 +2728,8 @@
     "property": "payload",
     "action": "",
     "pretty": false,
-    "x": 650,
-    "y": 550,
+    "x": 600,
+    "y": 650,
     "wires": [
       [
         "out-vgr-request"
@@ -584,8 +2751,8 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 860,
-    "y": 550,
+    "x": 810,
+    "y": 650,
     "wires": []
   },
   {
@@ -597,8 +2764,8 @@
     "property": "payload",
     "action": "",
     "pretty": false,
-    "x": 650,
-    "y": 620,
+    "x": 600,
+    "y": 720,
     "wires": [
       [
         "out-hbw-request"
@@ -620,44 +2787,8 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 860,
-    "y": 620,
-    "wires": []
-  },
-  {
-    "id": "debug-request-vgr",
-    "type": "debug",
-    "z": "tab-pipeline",
-    "g": "group-window",
-    "name": "VGR-Request Kurzinfo",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 650,
-    "y": 520,
-    "wires": []
-  },
-  {
-    "id": "debug-request-hbw",
-    "type": "debug",
-    "z": "tab-pipeline",
-    "g": "group-window",
-    "name": "HBW-Request Kurzinfo",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 650,
-    "y": 670,
+    "x": 810,
+    "y": 720,
     "wires": []
   },
   {
@@ -680,13 +2811,32 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 520,
-    "y": 520,
+    "x": 600,
+    "y": 610,
     "wires": [
       [
         "debug-request-vgr"
       ]
-    ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "debug-request-vgr",
+    "type": "debug",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "VGR-Request Kurzinfo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 810,
+    "y": 610,
+    "wires": []
   },
   {
     "id": "change-debug-request-hbw",
@@ -708,13 +2858,32 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 520,
-    "y": 670,
+    "x": 600,
+    "y": 770,
     "wires": [
       [
         "debug-request-hbw"
       ]
-    ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "debug-request-hbw",
+    "type": "debug",
+    "z": "tab-pipeline",
+    "g": "group-window",
+    "name": "HBW-Request Kurzinfo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 810,
+    "y": 770,
+    "wires": []
   },
   {
     "id": "change-idle-modules",
@@ -737,12 +2906,13 @@
     "to": "",
     "reg": false,
     "x": 1080,
-    "y": 585,
+    "y": 690,
     "wires": [
       [
         "split-idle-modules"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
     "id": "split-idle-modules",
@@ -758,7 +2928,7 @@
     "addname": "",
     "property": "payload",
     "x": 1300,
-    "y": 585,
+    "y": 690,
     "wires": [
       [
         "change-idle-command"
@@ -807,12 +2977,13 @@
     "to": "",
     "reg": false,
     "x": 1510,
-    "y": 585,
+    "y": 690,
     "wires": [
       [
         "out-idle-modules"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
     "id": "out-idle-modules",
@@ -829,8 +3000,8 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 1630,
-    "y": 585,
+    "x": 1720,
+    "y": 690,
     "wires": []
   },
   {
@@ -847,29 +3018,46 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 140,
-    "y": 820,
+    "x": 130,
+    "y": 910,
     "wires": [
       [
-        "fn-vgr-response"
+        "json-vgr-response"
       ]
     ]
   },
   {
-    "id": "fn-vgr-response",
-    "type": "function",
+    "id": "json-vgr-response",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "VGR-Response pruefen",
-    "func": "// vgr-Antwort validieren; nur Reporting freigeben\nconst domain = 'vgr';\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nconst contract = pending?.contracts?.[domain];\nlet error = '';\nif (!pending || response.request_id !== pending?.[`${domain}_request_id`] || response.cycle_id !== pending?.cycle_id) error = `${domain} correlation mismatch`;\nelse if (response.error) error = `${domain} inference error: ${response.error}`;\nelse if (response.model_profile !== pending.model_profile || response.model_id !== contract.model_id) error = `${domain} model mismatch`;\nelse if (!contract.class_ids.map(Number).includes(Number(response.cmd))) error = `${domain} class unknown`;\nelse if (String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true' && response.command_output?.published !== true) error = `${domain} command not published`;\nif (error) {\n  msg.payload = {code:'model_response_error',detail:error,cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses[domain] = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending[`${domain}_latency_ms`] = Date.now()-pending[`${domain}_started_ms`];\npending.issued_commands[domain] = {cmd:Number(response.cmd),topic:response.command_output?.topic,\n  publisher:'model_service',published:Boolean(response.command_output?.published),mid:response.command_output?.mid ?? null};\nglobal.set('ai.pending', pending);\nmsg.topic = domain;\nmsg.payload = response;\nmsg.parts = {id:pending.cycle_id,type:'object',key:domain,count:2,index:domain==='vgr'?0:1};\nreturn [msg,null];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 390,
-    "y": 820,
+    "name": "VGR JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 310,
+    "y": 910,
+    "wires": [
+      [
+        "subflow-response-vgr"
+      ]
+    ]
+  },
+  {
+    "id": "subflow-response-vgr",
+    "type": "subflow:subflow-model-response",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "VGR pruefen",
+    "env": [
+      {
+        "name": "DOMAIN",
+        "value": "vgr",
+        "type": "str"
+      }
+    ],
+    "x": 500,
+    "y": 910,
     "wires": [
       [
         "join-model-responses"
@@ -877,8 +3065,7 @@
       [
         "link-fault-pipeline"
       ]
-    ],
-    "info": "### Aufgabe\nVGR-Response korrelieren und fuer Reporting markieren.\n\n### Eingang\nVGR-Response.\n\n### Ausgang\nValidierte Diagnoseantwort.\n\n### Warum Function-Node?\nKorrelation und Command-Nachweis gehoeren zu einer Antwort."
+    ]
   },
   {
     "id": "in-hbw-response",
@@ -894,29 +3081,46 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 140,
-    "y": 880,
+    "x": 130,
+    "y": 970,
     "wires": [
       [
-        "fn-hbw-response"
+        "json-hbw-response"
       ]
     ]
   },
   {
-    "id": "fn-hbw-response",
-    "type": "function",
+    "id": "json-hbw-response",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "HBW-Response pruefen",
-    "func": "// hbw-Antwort validieren; nur Reporting freigeben\nconst domain = 'hbw';\nconst response = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\nlet seen = global.get('ai.seen_responses') || [];\nif (seen.includes(response.request_id)) return null;\nconst pending = global.get('ai.pending');\nconst contract = pending?.contracts?.[domain];\nlet error = '';\nif (!pending || response.request_id !== pending?.[`${domain}_request_id`] || response.cycle_id !== pending?.cycle_id) error = `${domain} correlation mismatch`;\nelse if (response.error) error = `${domain} inference error: ${response.error}`;\nelse if (response.model_profile !== pending.model_profile || response.model_id !== contract.model_id) error = `${domain} model mismatch`;\nelse if (!contract.class_ids.map(Number).includes(Number(response.cmd))) error = `${domain} class unknown`;\nelse if (String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true' && response.command_output?.published !== true) error = `${domain} command not published`;\nif (error) {\n  msg.payload = {code:'model_response_error',detail:error,cycle_id:pending?.cycle_id,ts_ms:Date.now()};\n  return [null,msg];\n}\npending.responses[domain] = response;\nseen.push(response.request_id); seen = seen.slice(-5000); global.set('ai.seen_responses', seen);\npending[`${domain}_latency_ms`] = Date.now()-pending[`${domain}_started_ms`];\npending.issued_commands[domain] = {cmd:Number(response.cmd),topic:response.command_output?.topic,\n  publisher:'model_service',published:Boolean(response.command_output?.published),mid:response.command_output?.mid ?? null};\nglobal.set('ai.pending', pending);\nmsg.topic = domain;\nmsg.payload = response;\nmsg.parts = {id:pending.cycle_id,type:'object',key:domain,count:2,index:domain==='vgr'?0:1};\nreturn [msg,null];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 390,
-    "y": 880,
+    "name": "HBW JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 310,
+    "y": 970,
+    "wires": [
+      [
+        "subflow-response-hbw"
+      ]
+    ]
+  },
+  {
+    "id": "subflow-response-hbw",
+    "type": "subflow:subflow-model-response",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "HBW pruefen",
+    "env": [
+      {
+        "name": "DOMAIN",
+        "value": "hbw",
+        "type": "str"
+      }
+    ],
+    "x": 500,
+    "y": 970,
     "wires": [
       [
         "join-model-responses"
@@ -924,8 +3128,7 @@
       [
         "link-fault-pipeline"
       ]
-    ],
-    "info": "### Aufgabe\nHBW-Response korrelieren und fuer Reporting markieren.\n\n### Eingang\nHBW-Response.\n\n### Ausgang\nValidierte Diagnoseantwort.\n\n### Warum Function-Node?\nKorrelation und Command-Nachweis gehoeren zu einer Antwort."
+    ]
   },
   {
     "id": "join-model-responses",
@@ -948,36 +3151,141 @@
     "reduceInit": "",
     "reduceInitType": "",
     "reduceFixup": "",
-    "x": 680,
-    "y": 850,
+    "x": 750,
+    "y": 940,
     "wires": [
       [
-        "fn-cycle-result"
+        "change-cycle-context"
       ]
     ]
   },
   {
-    "id": "fn-cycle-result",
-    "type": "function",
+    "id": "change-cycle-context",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Diagnose-Snapshot lesen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_finished",
+        "pt": "msg",
+        "to": "$millis()",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr",
+        "pt": "msg",
+        "to": "payload.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_hbw",
+        "pt": "msg",
+        "to": "payload.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_storage",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending').responses.storage",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_enabled",
+        "pt": "msg",
+        "to": "$lowercase($env('COMMAND_OUTPUT_ENABLED'))='true'",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 980,
+    "y": 940,
+    "wires": [
+      [
+        "change-cycle-result"
+      ]
+    ],
+    "info": "Nur Reporting | keine Command-Barriere"
+  },
+  {
+    "id": "change-cycle-result",
+    "type": "change",
     "z": "tab-pipeline",
     "g": "group-responses",
     "name": "Zyklusergebnis bilden",
-    "func": "// Zwei Diagnoseantworten zu einem Reportdatensatz verbinden\nconst pending = global.get('ai.pending');\nif (!pending || !msg.payload?.vgr || !msg.payload?.hbw) return null;\nconst finished = Date.now();\nconst vgr = msg.payload.vgr, hbw = msg.payload.hbw, storage = pending.responses.storage;\nconst enabled = String(env.get('COMMAND_OUTPUT_ENABLED') || 'false').toLowerCase() === 'true';\nconst commands = {\n  vgr:pending.issued_commands.vgr,hbw:pending.issued_commands.hbw,\n  mpo:{cmd:0,topic:'ai/mpo/cmd0',publisher:'ai_flow',published:enabled},\n  sld:{cmd:0,topic:'ai/sld/cmd0',publisher:'ai_flow',published:enabled}\n};\nmsg.topic = 'ft/ai/orchestration/cycle_result'; msg.qos=1; msg.retain=false;\nmsg.payload = {schema_version:'1.0',cycle_id:pending.cycle_id,request_id:pending.parent_request_id,\n  source_id:pending.source_id,status:'completed',model_profile:pending.model_profile,\n  model_profile_name:pending.model_profile_name,model_ids:{storage:storage.model_id,vgr:vgr.model_id,hbw:hbw.model_id},\n  model_contracts:pending.contracts,empty_storage:pending.empty_storage,vgr_cmd:Number(vgr.cmd),hbw_cmd:Number(hbw.cmd),\n  model_predictions:{storage:{empty_storage:storage.empty_storage,top3:storage.top3||[]},\n    vgr:{cmd:Number(vgr.cmd),name:vgr.name,top3:vgr.top3||[]},hbw:{cmd:Number(hbw.cmd),name:hbw.name,top3:hbw.top3||[]}},\n  commands,command_output_enabled:enabled,command_set_complete:Object.values(commands).every((c)=>c.published===enabled),\n  bootstrap:pending.bootstrap,storage_latency_ms:pending.storage_latency_ms,vgr_latency_ms:pending.vgr_latency_ms,\n  hbw_latency_ms:pending.hbw_latency_ms,duration_ms:finished-pending.storage_started_ms,input_metadata:pending.raw_state,\n  qos:2,retain:false,ts_ms:finished};\nglobal.set('ai.pending', null);\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 920,
-    "y": 850,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'schema_version':'1.0','cycle_id':_pending.cycle_id,'request_id':_pending.parent_request_id,'source_id':_pending.source_id,'status':'completed','model_profile':_pending.model_profile,'model_profile_name':_pending.model_profile_name,'model_ids':{'storage':_storage.model_id,'vgr':_vgr.model_id,'hbw':_hbw.model_id},'model_contracts':_pending.contracts,'empty_storage':_pending.empty_storage,'vgr_cmd':$number(_vgr.cmd),'hbw_cmd':$number(_hbw.cmd),'model_predictions':{'storage':{'empty_storage':_storage.empty_storage,'top3':_storage.top3 ? _storage.top3 : []},'vgr':{'cmd':$number(_vgr.cmd),'name':_vgr.name,'top3':_vgr.top3 ? _vgr.top3 : []},'hbw':{'cmd':$number(_hbw.cmd),'name':_hbw.name,'top3':_hbw.top3 ? _hbw.top3 : []}},'commands':{'vgr':{'cmd':$number(_vgr.cmd),'topic':_vgr.command_output.topic,'publisher':'model_service','published':_vgr.command_output.published=true,'mid':_vgr.command_output.mid},'hbw':{'cmd':$number(_hbw.cmd),'topic':_hbw.command_output.topic,'publisher':'model_service','published':_hbw.command_output.published=true,'mid':_hbw.command_output.mid},'mpo':{'cmd':0,'topic':'ai/mpo/cmd0','publisher':'ai_flow','published':_enabled},'sld':{'cmd':0,'topic':'ai/sld/cmd0','publisher':'ai_flow','published':_enabled}},'command_output_enabled':_enabled,'command_set_complete':((_vgr.command_output.published=true)=_enabled and (_hbw.command_output.published=true)=_enabled),'bootstrap':_pending.bootstrap,'storage_latency_ms':_pending.storage_latency_ms,'vgr_latency_ms':_vgr._diagnostic_latency_ms,'hbw_latency_ms':_hbw._diagnostic_latency_ms,'duration_ms':_finished-_pending.storage_started_ms,'input_metadata':_pending.raw_state,'qos':2,'retain':false,'ts_ms':_finished}",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "topic",
+        "pt": "msg",
+        "to": "ft/ai/orchestration/cycle_result",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "qos",
+        "pt": "msg",
+        "to": "1",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "retain",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "delete",
+        "p": "ai.pending",
+        "pt": "global"
+      },
+      {
+        "t": "set",
+        "p": "reset",
+        "pt": "msg",
+        "to": "true",
+        "tot": "bool"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1210,
+    "y": 940,
     "wires": [
       [
         "json-cycle-result",
-        "fn-report-row"
+        "change-report-row",
+        "trigger-ai-timeout"
       ]
     ],
-    "info": "### Aufgabe\nZwei bereits unabhaengig publizierte NN-Ergebnisse zu einem Diagnosebericht verbinden.\n\n### Eingang\nVGR- und HBW-Response.\n\n### Ausgang\nZyklusergebnis.\n\n### Warum Function-Node?\nDer Report braucht einen konsistenten Pending-Snapshot; er ist keine Command-Barriere."
+    "info": "Zwei Responses + Pending-Snapshot | Pending danach leeren"
   },
   {
     "id": "json-cycle-result",
@@ -988,8 +3296,8 @@
     "property": "payload",
     "action": "",
     "pretty": false,
-    "x": 1140,
-    "y": 820,
+    "x": 1450,
+    "y": 890,
     "wires": [
       [
         "out-cycle-result"
@@ -1011,56 +3319,110 @@
     "correl": "",
     "expiry": "",
     "broker": "mqtt-ai-cps",
-    "x": 1370,
-    "y": 820,
+    "x": 1680,
+    "y": 890,
     "wires": []
   },
   {
-    "id": "inject-ai-timeout",
-    "type": "inject",
+    "id": "change-timeout-arm",
+    "type": "change",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "Timeout alle 250 ms",
-    "props": [
+    "name": "Timeout neu starten",
+    "rules": [
       {
-        "p": "payload"
+        "t": "delete",
+        "p": "reset",
+        "pt": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "null",
+        "tot": "json"
       }
     ],
-    "repeat": "0.25",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "payload": "",
-    "payloadType": "date",
-    "x": 170,
-    "y": 960,
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 140,
+    "y": 1040,
     "wires": [
       [
-        "fn-timeout-check"
+        "trigger-ai-timeout"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "trigger-ai-timeout",
+    "type": "trigger",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "10 s Response-Timeout",
+    "op1": "",
+    "op2": "true",
+    "op1type": "nul",
+    "op2type": "bool",
+    "duration": "10",
+    "extend": true,
+    "overrideDelay": false,
+    "units": "s",
+    "reset": "",
+    "bytopic": "all",
+    "topic": "topic",
+    "outputs": 1,
+    "x": 390,
+    "y": 1040,
+    "wires": [
+      [
+        "change-timeout-error"
       ]
     ]
   },
   {
-    "id": "fn-timeout-check",
-    "type": "function",
+    "id": "change-timeout-error",
+    "type": "change",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "Timeout pruefen",
-    "func": "// Offenen Inferenzzyklus auf Timeout pr\u00fcfen\nconst pending = global.get('ai.pending');\nif (!pending || Date.now() < Number(pending.deadline_ms)) return null;\nglobal.set('ai.pending', null);\nmsg.payload = {code:'inference_timeout',detail:'model response deadline exceeded',cycle_id:pending.cycle_id,ts_ms:Date.now()};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 410,
-    "y": 960,
+    "name": "Timeoutfehler",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_pending",
+        "pt": "msg",
+        "to": "$globalContext('ai.pending')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "delete",
+        "p": "ai.pending",
+        "pt": "global"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "{'code':'inference_timeout','detail':'model response deadline exceeded','cycle_id':_pending.cycle_id,'ts_ms':$millis()}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 620,
+    "y": 1040,
     "wires": [
       [
         "link-fault-pipeline"
       ]
     ],
-    "info": "### Aufgabe\nDeadline eines offenen Inferenzzyklus pruefen.\n\n### Eingang\n250-ms-Tick.\n\n### Ausgang\nNur bei Timeout ein Fault.\n\n### Warum Function-Node?\nDeadline und Pending-Zyklus werden atomar gelesen."
+    "info": ""
   },
   {
     "id": "link-fault-pipeline",
@@ -1072,9 +3434,500 @@
     "links": [
       "link-fault-central"
     ],
-    "x": 650,
-    "y": 960,
+    "x": 850,
+    "y": 1040,
     "wires": []
+  },
+  {
+    "id": "change-report-row",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV-Felder abbilden",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_result",
+        "pt": "msg",
+        "to": "payload",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_meta",
+        "pt": "msg",
+        "to": "payload.input_metadata ? payload.input_metadata : {}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1450,
+    "y": 950,
+    "wires": [
+      [
+        "switch-report-state"
+      ]
+    ],
+    "info": "Ein Feld je stabiler Reportspalte"
+  },
+  {
+    "id": "switch-report-state",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Report bereits offen?",
+    "property": "$type($flowContext('report.state'))='object'",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1640,
+    "y": 950,
+    "wires": [
+      [
+        "change-report-state-read"
+      ],
+      [
+        "change-report-state-init"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-state-init",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportpfad initialisieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_report_id",
+        "pt": "msg",
+        "to": "$replace($fromMillis($millis()),/[-:TZ.]/,'') & '_nodered'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "report.state",
+        "pt": "flow",
+        "to": "{'run_id':_report_id,'run_dir':$replace($env('REPORT_ROOT'),/\\/$/,'') & '/' & _report_id,'started_at':$fromMillis($millis()),'rows':0,'matches':{'storage':0,'vgr':0,'hbw':0},'faults':0,'command_rows':0,'idle_fallback_rows':0,'factory_run_id':null,'last_cycle_status':null,'model_ids':{},'run_config':{}}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1840,
+    "y": 985,
+    "wires": [
+      [
+        "change-report-state-read"
+      ]
+    ],
+    "info": "Neuer Ordner je Lauf | Flow-Context"
+  },
+  {
+    "id": "change-report-state-read",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportzaehler lesen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_state",
+        "pt": "msg",
+        "to": "$flowContext('report.state')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row_index",
+        "pt": "msg",
+        "to": "$flowContext('report.state').rows",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1840,
+    "y": 930,
+    "wires": [
+      [
+        "change-report-row-map"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-row-map",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Tabellenzeile bilden",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_row",
+        "pt": "msg",
+        "to": "{'row_index':_row_index,'request_id_base':_result.request_id,'cycle_id':_result.cycle_id,'phase':_meta.phase ? _meta.phase : 'live_state','trace_phase':_meta.trace_phase,'attempt_repeat_idx':_meta.attempt_repeat_idx,'guard_episode_idx':_meta.guard_episode_idx,'guard_prefix_idx':_meta.guard_prefix_idx,'guard_process_step_idx':_meta.guard_process_step_idx,'guard_source_episode_id':_meta.guard_source_episode_id,'source_id':_result.source_id,'trace_profile':_meta.trace_profile,'trace_profile_name':_meta.trace_profile_name,'model_profile':_result.model_profile,'model_profile_name':_result.model_profile_name,'factory_seed':_meta.factory_seed,'factory_base_runtime_vgr_ms':_meta.factory_base_runtime_ms.vgr,'factory_base_runtime_hbw_ms':_meta.factory_base_runtime_ms.hbw,'factory_base_runtime_mpo_ms':_meta.factory_base_runtime_ms.mpo,'factory_base_runtime_sld_ms':_meta.factory_base_runtime_ms.sld,'storage_model_id':_result.model_ids.storage,'vgr_model_id':_result.model_ids.vgr,'hbw_model_id':_result.model_ids.hbw,'expected_empty_storage':_meta.expected_empty_storage,'vgr_storage_pred':_result.empty_storage,'hbw_storage_pred':_result.empty_storage,'storage_match_vgr':$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):'','storage_match_hbw':$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):'','storage_confidence':_result.model_predictions.storage.top3[0].p,'expected_label_VGR':_meta.expected_label_VGR,'predicted_label_VGR':_result.vgr_cmd,'vgr_match':$exists(_meta.expected_label_VGR)?$number(_result.vgr_cmd)=$number(_meta.expected_label_VGR):'','vgr_ready':_result.status='completed','vgr_confidence':_result.model_predictions.vgr.top3[0].p,'vgr_latency_s':$number(_result.vgr_latency_ms)/1000,'expected_label_HBW':_meta.expected_label_HBW,'predicted_label_HBW':_result.hbw_cmd,'hbw_match':$exists(_meta.expected_label_HBW)?$number(_result.hbw_cmd)=$number(_meta.expected_label_HBW):'','hbw_ready':_result.status='completed','hbw_confidence':_result.model_predictions.hbw.top3[0].p,'hbw_latency_s':$number(_result.hbw_latency_ms)/1000,'timeout':$contains($string(_result.error),'timeout'),'error':_result.error,'control_enabled':_result.command_output_enabled,'control_published':_result.command_output_enabled and _result.status='completed' and _result.command_set_complete,'control_reason':_result.status='completed'?(_result.command_output_enabled?'published_independently':'disabled'):_result.status,'control_command_set_complete':_result.command_set_complete,'control_vgr_cmd':_result.commands.vgr.cmd,'control_hbw_cmd':_result.commands.hbw.cmd,'control_mpo_cmd':_result.commands.mpo.cmd,'control_sld_cmd':_result.commands.sld.cmd,'control_vgr_topic':_result.commands.vgr.topic,'control_hbw_topic':_result.commands.hbw.topic,'control_mpo_topic':_result.commands.mpo.topic,'control_sld_topic':_result.commands.sld.topic,'control_vgr_publisher':_result.commands.vgr.publisher,'control_hbw_publisher':_result.commands.hbw.publisher,'control_mpo_publisher':_result.commands.mpo.publisher,'control_sld_publisher':_result.commands.sld.publisher,'control_qos':_result.qos,'control_retain':_result.retain,'bootstrap_vgr_rows':_result.bootstrap.vgr.seeded_rows,'bootstrap_hbw_rows':_result.bootstrap.hbw.seeded_rows,'module_runtime_vgr_ms':_meta.module_runtime_ms.vgr,'module_runtime_hbw_ms':_meta.module_runtime_ms.hbw,'module_runtime_mpo_ms':_meta.module_runtime_ms.mpo,'module_runtime_sld_ms':_meta.module_runtime_ms.sld,'job_sent_vgr':_meta.module_job_counts.sent.vgr,'job_sent_hbw':_meta.module_job_counts.sent.hbw,'job_sent_mpo':_meta.module_job_counts.sent.mpo,'job_sent_sld':_meta.module_job_counts.sent.sld,'job_accepted_vgr':_meta.module_job_counts.accepted.vgr,'job_accepted_hbw':_meta.module_job_counts.accepted.hbw,'job_accepted_mpo':_meta.module_job_counts.accepted.mpo,'job_accepted_sld':_meta.module_job_counts.accepted.sld}",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1840,
+    "y": 890,
+    "wires": [
+      [
+        "change-report-state-update"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-state-update",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Reportzaehler aktualisieren",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_report_state",
+        "pt": "msg",
+        "to": "$merge([_state,{'rows':_state.rows+1,'matches':{'storage':_state.matches.storage+(_row.storage_match_vgr=true?1:0),'vgr':_state.matches.vgr+(_row.vgr_match=true?1:0),'hbw':_state.matches.hbw+(_row.hbw_match=true?1:0)},'faults':_state.faults+(_result.status='fault_latched'?1:0),'command_rows':_state.command_rows+(_row.control_published=true?1:0),'factory_run_id':_state.factory_run_id?_state.factory_run_id:(_meta.simulation_run_id?_meta.simulation_run_id:_meta.correlation_id),'last_cycle_status':_result.status,'model_ids':_result.model_ids,'run_config':{'trace_profile':_row.trace_profile,'trace_profile_name':_row.trace_profile_name,'model_profile':_row.model_profile,'model_profile_name':_row.model_profile_name,'seed':_row.factory_seed,'base_runtime_ms':{'vgr':_row.factory_base_runtime_vgr_ms,'hbw':_row.factory_base_runtime_hbw_ms,'mpo':_row.factory_base_runtime_mpo_ms,'sld':_row.factory_base_runtime_sld_ms}}}])",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "report.state",
+        "pt": "flow",
+        "to": "_report_state",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1640,
+    "y": 890,
+    "wires": [
+      [
+        "change-report-event",
+        "switch-report-first-row",
+        "change-report-summary-running"
+      ]
+    ],
+    "info": "Zeile | Matches | Commands | Modell-IDs"
+  },
+  {
+    "id": "change-report-event",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Event JSONL",
+    "rules": [
+      {
+        "t": "set",
+        "p": "filename",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/events.jsonl'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_result",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1450,
+    "y": 1080,
+    "wires": [
+      [
+        "json-report-event"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "json-report-event",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Event JSON",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1630,
+    "y": 1080,
+    "wires": [
+      [
+        "change-report-event-newline"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-event-newline",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Zeilenabschluss",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "payload & '\n'",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1830,
+    "y": 1080,
+    "wires": [
+      [
+        "file-report-append-inline"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "switch-report-first-row",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Erste CSV-Zeile?",
+    "property": "_row_index",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "0",
+        "vt": "num"
+      },
+      {
+        "t": "else"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1420,
+    "y": 1140,
+    "wires": [
+      [
+        "change-report-csv-first"
+      ],
+      [
+        "change-report-csv-next"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-csv-first",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV + Header",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_row",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "filename",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/summary.csv'",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1620,
+    "y": 1125,
+    "wires": [
+      [
+        "csv-report-first"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-csv-next",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV-Zeile",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload",
+        "pt": "msg",
+        "to": "_row",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "filename",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/summary.csv'",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1620,
+    "y": 1175,
+    "wires": [
+      [
+        "csv-report-next"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "csv-report-first",
+    "type": "csv",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV mit Header",
+    "sep": ",",
+    "hdrin": "",
+    "hdrout": "all",
+    "multi": "one",
+    "ret": "\\n",
+    "temp": "row_index,request_id_base,cycle_id,phase,trace_phase,attempt_repeat_idx,guard_episode_idx,guard_prefix_idx,guard_process_step_idx,guard_source_episode_id,source_id,trace_profile,trace_profile_name,model_profile,model_profile_name,factory_seed,factory_base_runtime_vgr_ms,factory_base_runtime_hbw_ms,factory_base_runtime_mpo_ms,factory_base_runtime_sld_ms,storage_model_id,vgr_model_id,hbw_model_id,expected_empty_storage,vgr_storage_pred,hbw_storage_pred,storage_match_vgr,storage_match_hbw,storage_confidence,expected_label_VGR,predicted_label_VGR,vgr_match,vgr_ready,vgr_confidence,vgr_latency_s,expected_label_HBW,predicted_label_HBW,hbw_match,hbw_ready,hbw_confidence,hbw_latency_s,timeout,error,control_enabled,control_published,control_reason,control_command_set_complete,control_vgr_cmd,control_hbw_cmd,control_mpo_cmd,control_sld_cmd,control_vgr_topic,control_hbw_topic,control_mpo_topic,control_sld_topic,control_vgr_publisher,control_hbw_publisher,control_mpo_publisher,control_sld_publisher,control_qos,control_retain,bootstrap_vgr_rows,bootstrap_hbw_rows,module_runtime_vgr_ms,module_runtime_hbw_ms,module_runtime_mpo_ms,module_runtime_sld_ms,job_sent_vgr,job_sent_hbw,job_sent_mpo,job_sent_sld,job_accepted_vgr,job_accepted_hbw,job_accepted_mpo,job_accepted_sld",
+    "skip": "0",
+    "strings": true,
+    "include_empty_strings": "",
+    "include_null_values": "",
+    "x": 1820,
+    "y": 1125,
+    "wires": [
+      [
+        "file-report-append-inline"
+      ]
+    ]
+  },
+  {
+    "id": "csv-report-next",
+    "type": "csv",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "CSV ohne Header",
+    "sep": ",",
+    "hdrin": "",
+    "hdrout": "none",
+    "multi": "one",
+    "ret": "\\n",
+    "temp": "row_index,request_id_base,cycle_id,phase,trace_phase,attempt_repeat_idx,guard_episode_idx,guard_prefix_idx,guard_process_step_idx,guard_source_episode_id,source_id,trace_profile,trace_profile_name,model_profile,model_profile_name,factory_seed,factory_base_runtime_vgr_ms,factory_base_runtime_hbw_ms,factory_base_runtime_mpo_ms,factory_base_runtime_sld_ms,storage_model_id,vgr_model_id,hbw_model_id,expected_empty_storage,vgr_storage_pred,hbw_storage_pred,storage_match_vgr,storage_match_hbw,storage_confidence,expected_label_VGR,predicted_label_VGR,vgr_match,vgr_ready,vgr_confidence,vgr_latency_s,expected_label_HBW,predicted_label_HBW,hbw_match,hbw_ready,hbw_confidence,hbw_latency_s,timeout,error,control_enabled,control_published,control_reason,control_command_set_complete,control_vgr_cmd,control_hbw_cmd,control_mpo_cmd,control_sld_cmd,control_vgr_topic,control_hbw_topic,control_mpo_topic,control_sld_topic,control_vgr_publisher,control_hbw_publisher,control_mpo_publisher,control_sld_publisher,control_qos,control_retain,bootstrap_vgr_rows,bootstrap_hbw_rows,module_runtime_vgr_ms,module_runtime_hbw_ms,module_runtime_mpo_ms,module_runtime_sld_ms,job_sent_vgr,job_sent_hbw,job_sent_mpo,job_sent_sld,job_accepted_vgr,job_accepted_hbw,job_accepted_mpo,job_accepted_sld",
+    "skip": "0",
+    "strings": true,
+    "include_empty_strings": "",
+    "include_null_values": "",
+    "x": 1820,
+    "y": 1175,
+    "wires": [
+      [
+        "file-report-append-inline"
+      ]
+    ]
+  },
+  {
+    "id": "change-report-summary-running",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Laufende Summary",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_factory_status",
+        "pt": "msg",
+        "to": "null",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "_completed",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "set",
+        "p": "_stopped",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "set",
+        "p": "_stop_reason",
+        "pt": "msg",
+        "to": "running",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1420,
+    "y": 1220,
+    "wires": [
+      [
+        "change-report-summary"
+      ]
+    ],
+    "info": ""
   },
   {
     "id": "in-report-factory-status",
@@ -1090,8 +3943,25 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 920,
-    "y": 930,
+    "x": 930,
+    "y": 1220,
+    "wires": [
+      [
+        "json-report-factory-status"
+      ]
+    ]
+  },
+  {
+    "id": "json-report-factory-status",
+    "type": "json",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Status JSON",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 1120,
+    "y": 1220,
     "wires": [
       [
         "switch-report-factory-status"
@@ -1121,30 +3991,89 @@
     "checkall": "true",
     "repair": false,
     "outputs": 2,
-    "x": 1140,
-    "y": 930,
+    "x": 1300,
+    "y": 1260,
     "wires": [
       [
-        "change-report-factory-status"
+        "switch-report-run-id"
       ],
       [
-        "change-report-factory-status"
+        "switch-report-run-id"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
-    "id": "change-report-factory-status",
+    "id": "switch-report-run-id",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Passender Fabriklauf?",
+    "property": "$type($flowContext('report.state'))='object' and payload.run_id=$flowContext('report.state').factory_run_id",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 1500,
+    "y": 1270,
+    "wires": [
+      [
+        "change-report-summary-final"
+      ]
+    ],
+    "info": "Retained Fremdstatus ignorieren"
+  },
+  {
+    "id": "change-report-summary-final",
     "type": "change",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "Reportabschluss markieren",
+    "name": "Report finalisieren",
     "rules": [
       {
         "t": "set",
-        "p": "_report_event",
+        "p": "_report_state",
         "pt": "msg",
-        "to": "factory_status",
-        "tot": "str"
+        "to": "$flowContext('report.state')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_factory_status",
+        "pt": "msg",
+        "to": "payload",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_completed",
+        "pt": "msg",
+        "to": "payload.state='completed'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_stopped",
+        "pt": "msg",
+        "to": "payload.state='reset'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_stop_reason",
+        "pt": "msg",
+        "to": "payload.state",
+        "tot": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "report.state",
+        "pt": "flow"
       }
     ],
     "action": "",
@@ -1152,127 +4081,34 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1360,
-    "y": 930,
+    "x": 1710,
+    "y": 1270,
     "wires": [
       [
-        "fn-report-state"
-      ]
-    ]
-  },
-  {
-    "id": "fn-report-row",
-    "type": "function",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "CSV-Zeile abbilden",
-    "func": "// Zyklusergebnis auf den stabilen CSV-Vertrag abbilden\nconst result=msg.payload||{}, meta=result.input_metadata||{}, commands=result.commands||{};\nconst match=(a,b)=>a===null||a===undefined||b===null||b===undefined?'':Number(a)===Number(b);\nconst probability=(prediction,key,value)=>{const found=(prediction?.top3||[]).find((item)=>Number(item?.[key])===Number(value)); return found?.p===undefined?'':Number(found.p);};\nconst report=flow.get('report.state')||{rows:0};\nmsg._report_result=result;\nmsg._report_row={\n row_index:Number(report.rows||0),request_id_base:result.request_id||'',cycle_id:result.cycle_id||'',phase:meta.phase||'live_state',trace_phase:meta.trace_phase||'',attempt_repeat_idx:meta.attempt_repeat_idx,\n guard_episode_idx:meta.guard_episode_idx,guard_prefix_idx:meta.guard_prefix_idx,guard_process_step_idx:meta.guard_process_step_idx,guard_source_episode_id:meta.guard_source_episode_id,source_id:result.source_id||'',\n trace_profile:meta.trace_profile||'',trace_profile_name:meta.trace_profile_name||'',model_profile:result.model_profile||meta.model_profile||'deployment-current',model_profile_name:result.model_profile_name||meta.model_profile_name||'',factory_seed:meta.factory_seed,\n factory_base_runtime_vgr_ms:meta.factory_base_runtime_ms?.vgr,factory_base_runtime_hbw_ms:meta.factory_base_runtime_ms?.hbw,factory_base_runtime_mpo_ms:meta.factory_base_runtime_ms?.mpo,factory_base_runtime_sld_ms:meta.factory_base_runtime_ms?.sld,\n storage_model_id:result.model_ids?.storage||'',vgr_model_id:result.model_ids?.vgr||'',hbw_model_id:result.model_ids?.hbw||'',expected_empty_storage:meta.expected_empty_storage,\n vgr_storage_pred:result.empty_storage,hbw_storage_pred:result.empty_storage,storage_match_vgr:match(result.empty_storage,meta.expected_empty_storage),storage_match_hbw:match(result.empty_storage,meta.expected_empty_storage),storage_confidence:probability(result.model_predictions?.storage,'empty_storage',result.empty_storage),\n expected_label_VGR:meta.expected_label_VGR,predicted_label_VGR:result.vgr_cmd,vgr_match:match(result.vgr_cmd,meta.expected_label_VGR),vgr_ready:result.status==='completed',vgr_confidence:probability(result.model_predictions?.vgr,'cmd',result.vgr_cmd),vgr_latency_s:result.vgr_latency_ms===undefined?'':Number(result.vgr_latency_ms)/1000,\n expected_label_HBW:meta.expected_label_HBW,predicted_label_HBW:result.hbw_cmd,hbw_match:match(result.hbw_cmd,meta.expected_label_HBW),hbw_ready:result.status==='completed',hbw_confidence:probability(result.model_predictions?.hbw,'cmd',result.hbw_cmd),hbw_latency_s:result.hbw_latency_ms===undefined?'':Number(result.hbw_latency_ms)/1000,\n timeout:String(result.error||'').includes('timeout'),error:result.error||'',control_enabled:Boolean(result.command_output_enabled),control_published:Boolean(result.command_output_enabled&&result.status==='completed'&&result.command_set_complete),control_reason:result.status==='completed'?(result.command_output_enabled?'published_independently':'disabled'):result.status,\n control_command_set_complete:Boolean(result.command_set_complete),control_vgr_cmd:commands.vgr?.cmd,control_hbw_cmd:commands.hbw?.cmd,control_mpo_cmd:commands.mpo?.cmd,control_sld_cmd:commands.sld?.cmd,\n control_vgr_topic:commands.vgr?.topic,control_hbw_topic:commands.hbw?.topic,control_mpo_topic:commands.mpo?.topic,control_sld_topic:commands.sld?.topic,control_vgr_publisher:commands.vgr?.publisher,control_hbw_publisher:commands.hbw?.publisher,control_mpo_publisher:commands.mpo?.publisher,control_sld_publisher:commands.sld?.publisher,\n control_qos:result.qos,control_retain:result.retain,bootstrap_vgr_rows:result.bootstrap?.vgr?.seeded_rows,bootstrap_hbw_rows:result.bootstrap?.hbw?.seeded_rows,\n module_runtime_vgr_ms:meta.module_runtime_ms?.vgr,module_runtime_hbw_ms:meta.module_runtime_ms?.hbw,module_runtime_mpo_ms:meta.module_runtime_ms?.mpo,module_runtime_sld_ms:meta.module_runtime_ms?.sld,\n job_sent_vgr:meta.module_job_counts?.sent?.vgr,job_sent_hbw:meta.module_job_counts?.sent?.hbw,job_sent_mpo:meta.module_job_counts?.sent?.mpo,job_sent_sld:meta.module_job_counts?.sent?.sld,\n job_accepted_vgr:meta.module_job_counts?.accepted?.vgr,job_accepted_hbw:meta.module_job_counts?.accepted?.hbw,job_accepted_mpo:meta.module_job_counts?.accepted?.mpo,job_accepted_sld:meta.module_job_counts?.accepted?.sld\n};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1110,
-    "y": 850,
-    "wires": [
-      [
-        "fn-report-state"
+        "change-report-summary"
       ]
     ],
-    "info": "### Aufgabe\nEin Zyklusergebnis auf den stabilen CSV-Spaltenvertrag abbilden.\n\n### Eingang\nFertiges Zyklusergebnis.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nOriginalereignis und normalisierte Tabellenzeile.\n\n### Warum Function-Node?\nOptionale Metriken und Sollwerte werden typisiert zusammengefuehrt."
+    "info": ""
   },
   {
-    "id": "fn-report-state",
-    "type": "function",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "Reportzaehler aktualisieren",
-    "func": "// Einen Zyklus zaehlen oder einen korrelierten Laufabschluss erkennen\nlet state=flow.get('report.state');\nif (msg._report_event==='factory_status') {\n  if (!state || !state.factory_run_id || String(msg.payload?.run_id||'')!==String(state.factory_run_id)) return null;\n  if (!['completed','reset'].includes(msg.payload?.state)) return null;\n  msg._report_state=state; msg._factory_status=msg.payload;\n  flow.set('report.state',null);\n  return [null,msg];\n}\nconst now=Date.now(), result=msg._report_result||{}, row=msg._report_row||{};\nif (!state) {\n  const runId=new Date(now).toISOString().replace(/[-:TZ.]/g,'').slice(0,18)+'_nodered';\n  const root=String(env.get('REPORT_ROOT')||'/reports/orchestration_simulation').replace(/\\/$/,'');\n  state={run_id:runId,run_dir:`${root}/${runId}`,started_at:new Date(now).toISOString(),rows:0,matches:{storage:0,vgr:0,hbw:0},faults:0,command_rows:0,idle_fallback_rows:0,factory_run_id:null,last_cycle_status:null,model_ids:{},run_config:{}};\n}\nstate.rows+=1;\nif (row.storage_match_vgr===true) state.matches.storage+=1;\nif (row.vgr_match===true) state.matches.vgr+=1;\nif (row.hbw_match===true) state.matches.hbw+=1;\nif (result.status==='fault_latched') state.faults+=1;\nif (row.control_published) state.command_rows+=1;\nif (result.idle_set_published) state.idle_fallback_rows+=1;\nstate.factory_run_id=state.factory_run_id||result.input_metadata?.simulation_run_id||result.input_metadata?.correlation_id||null;\nstate.last_cycle_status=result.status||null; state.model_ids=result.model_ids||state.model_ids;\nstate.run_config={trace_profile:row.trace_profile,trace_profile_name:row.trace_profile_name,model_profile:row.model_profile,model_profile_name:row.model_profile_name,seed:row.factory_seed,base_runtime_ms:{vgr:row.factory_base_runtime_vgr_ms,hbw:row.factory_base_runtime_hbw_ms,mpo:row.factory_base_runtime_mpo_ms,sld:row.factory_base_runtime_sld_ms}};\nflow.set('report.state',state); msg._report_state=state;\nreturn [msg,null];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1280,
-    "y": 850,
-    "wires": [
-      [
-        "change-report-event",
-        "fn-report-csv",
-        "fn-report-summary"
-      ],
-      [
-        "fn-report-summary"
-      ]
-    ],
-    "info": "### Aufgabe\nEinen Zyklus zaehlen oder einen korrelierten Laufabschluss erkennen.\n\n### Eingang\nNormalisierte Zykluszeile oder finaler Fabrikstatus.\n\n### Zustand\nNur Reportzaehler, Pfad und Run-ID.\n\n### Ausgang\nLaufende oder finale Reportdaten.\n\n### Warum Function-Node?\nZaehler und Abschlusskorrelation muessen atomar bleiben."
-  },
-  {
-    "id": "change-report-event",
+    "id": "change-report-summary",
     "type": "change",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "Eventdatei waehlen",
+    "name": "Run Summary bilden",
     "rules": [
       {
         "t": "set",
         "p": "filename",
         "pt": "msg",
-        "to": "_report_state.run_dir & '/events.jsonl'",
+        "to": "_report_state.run_dir & '/run_summary.json'",
         "tot": "jsonata"
       },
       {
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "_report_result",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1450,
-    "y": 790,
-    "wires": [
-      [
-        "json-report-event"
-      ]
-    ]
-  },
-  {
-    "id": "json-report-event",
-    "type": "json",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "Event JSONL",
-    "property": "payload",
-    "action": "str",
-    "pretty": false,
-    "x": 1580,
-    "y": 790,
-    "wires": [
-      [
-        "change-report-event-newline"
-      ]
-    ]
-  },
-  {
-    "id": "change-report-event-newline",
-    "type": "change",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "Zeilenabschluss",
-    "rules": [
-      {
-        "t": "set",
-        "p": "payload",
-        "pt": "msg",
-        "to": "payload & '\\n'",
+        "to": "{'mode':'live_mqtt_nodered','completed':_completed,'stopped':_stopped,'stop_reason':_stop_reason,'last_cycle_status':_report_state.last_cycle_status,'rows_completed':_report_state.rows,'control_published_rows':_report_state.command_rows,'control_published_commands':_report_state.command_rows*4,'control_idle_fallback_rows':_report_state.idle_fallback_rows,'faults':_report_state.faults,'storage_matches_vgr':_report_state.matches.storage,'storage_matches_hbw':_report_state.matches.storage,'vgr_matches':_report_state.matches.vgr,'hbw_matches':_report_state.matches.hbw,'model_ids':_report_state.model_ids,'run_config':_report_state.run_config,'started_at':_report_state.started_at,'updated_at':$fromMillis($millis()),'events_path':_report_state.run_dir & '/events.jsonl','summary_path':_report_state.run_dir & '/summary.csv','factory_status':_factory_status?{'run_id':_factory_status.run_id,'trace_total':_factory_status.trace_total,'payloads_sent':_factory_status.payloads_sent,'progress_percent':_factory_status.progress_percent,'sent_counts':_factory_status.sent_counts,'accepted_counts':_factory_status.accepted_counts}:undefined}",
         "tot": "jsonata"
       }
     ],
@@ -1281,57 +4117,31 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1580,
-    "y": 820,
+    "x": 1620,
+    "y": 1220,
     "wires": [
       [
-        "file-report-append-inline"
-      ]
-    ]
-  },
-  {
-    "id": "fn-report-csv",
-    "type": "function",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "CSV formatieren",
-    "func": "// Genau eine CSV-Zeile mit stabilem Spaltenvertrag bilden\nconst columns=['row_index','request_id_base','cycle_id','phase','trace_phase','attempt_repeat_idx','guard_episode_idx','guard_prefix_idx','guard_process_step_idx','guard_source_episode_id','source_id','trace_profile','trace_profile_name','model_profile','model_profile_name','factory_seed','factory_base_runtime_vgr_ms','factory_base_runtime_hbw_ms','factory_base_runtime_mpo_ms','factory_base_runtime_sld_ms','storage_model_id','vgr_model_id','hbw_model_id','expected_empty_storage','vgr_storage_pred','hbw_storage_pred','storage_match_vgr','storage_match_hbw','storage_confidence','expected_label_VGR','predicted_label_VGR','vgr_match','vgr_ready','vgr_confidence','vgr_latency_s','expected_label_HBW','predicted_label_HBW','hbw_match','hbw_ready','hbw_confidence','hbw_latency_s','timeout','error','control_enabled','control_published','control_reason','control_command_set_complete','control_vgr_cmd','control_hbw_cmd','control_mpo_cmd','control_sld_cmd','control_vgr_topic','control_hbw_topic','control_mpo_topic','control_sld_topic','control_vgr_publisher','control_hbw_publisher','control_mpo_publisher','control_sld_publisher','control_qos','control_retain','bootstrap_vgr_rows','bootstrap_hbw_rows','module_runtime_vgr_ms','module_runtime_hbw_ms','module_runtime_mpo_ms','module_runtime_sld_ms','job_sent_vgr','job_sent_hbw','job_sent_mpo','job_sent_sld','job_accepted_vgr','job_accepted_hbw','job_accepted_mpo','job_accepted_sld'];\nconst csv=(value)=>{if(value===null||value===undefined)return '';const text=String(value);return /[\",\\n]/.test(text)?`\"${text.replaceAll('\"','\"\"')}\"`:text;};\nconst row=msg._report_row||{};\nmsg.filename=`${msg._report_state.run_dir}/summary.csv`;\nmsg.payload=(Number(row.row_index)===0?columns.join(',')+'\\n':'')+columns.map((key)=>csv(row[key])).join(',')+'\\n';\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1450,
-    "y": 850,
-    "wires": [
-      [
-        "file-report-append-inline"
+        "json-report-summary"
       ]
     ],
-    "info": "### Aufgabe\nGenau eine CSV-Zeile in stabiler Spaltenreihenfolge formatieren.\n\n### Eingang\nNormalisierte Tabellenzeile.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nDateiname und CSV-Text.\n\n### Warum Function-Node?\nHeader und CSV-Escaping muessen je Reportlauf konsistent sein."
+    "info": "Running | Completed | Reset"
   },
   {
-    "id": "fn-report-summary",
-    "type": "function",
+    "id": "json-report-summary",
+    "type": "json",
     "z": "tab-pipeline",
     "g": "group-responses",
-    "name": "Run Summary bilden",
-    "func": "// Laufende oder finale run_summary.json aus einem konsistenten Zaehlerstand bilden\nconst state=msg._report_state, factory=msg._factory_status||null, completed=factory?.state==='completed', stopped=factory?.state==='reset'||state.last_cycle_status==='fault_latched';\nconst summary={mode:'live_mqtt_nodered',completed,stopped,stop_reason:factory?(completed?'completed':'reset'):(stopped?'fault_latched':'running'),last_cycle_status:state.last_cycle_status,rows_completed:state.rows,control_published_rows:state.command_rows,control_published_commands:state.command_rows*4,control_idle_fallback_rows:state.idle_fallback_rows,faults:state.faults,storage_matches_vgr:state.matches.storage,storage_matches_hbw:state.matches.storage,vgr_matches:state.matches.vgr,hbw_matches:state.matches.hbw,model_ids:state.model_ids,run_config:state.run_config,started_at:state.started_at,updated_at:new Date().toISOString(),events_path:`${state.run_dir}/events.jsonl`,summary_path:`${state.run_dir}/summary.csv`};\nif (factory) summary.factory_status={run_id:factory.run_id,trace_total:factory.trace_total,payloads_sent:factory.payloads_sent,progress_percent:factory.progress_percent,sent_counts:factory.sent_counts,accepted_counts:factory.accepted_counts};\nmsg.filename=`${state.run_dir}/run_summary.json`; msg.payload=JSON.stringify(summary,null,2)+'\\n';\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1450,
-    "y": 900,
+    "name": "Summary JSON",
+    "property": "payload",
+    "action": "str",
+    "pretty": false,
+    "x": 1810,
+    "y": 1220,
     "wires": [
       [
         "file-report-replace-inline"
       ]
-    ],
-    "info": "### Aufgabe\nLaufende oder finale run_summary.json aus demselben Zaehlerstand bilden.\n\n### Eingang\nReportzustand und optional korrelierter Fabrikabschluss.\n\n### Zustand\nKein eigener Zustand.\n\n### Ausgang\nDateiname und JSON-Text.\n\n### Warum Function-Node?\nAbschlussflags und finale Zaehler gehoeren in einen Snapshot."
+    ]
   },
   {
     "id": "file-report-append-inline",
@@ -1345,8 +4155,8 @@
     "createDir": true,
     "overwriteFile": "false",
     "encoding": "none",
-    "x": 1600,
-    "y": 960,
+    "x": 1920,
+    "y": 1080,
     "wires": [
       []
     ]
@@ -1363,57 +4173,10 @@
     "createDir": true,
     "overwriteFile": "true",
     "encoding": "none",
-    "x": 1600,
-    "y": 1000,
+    "x": 1920,
+    "y": 1220,
     "wires": [
       []
-    ]
-  },
-  {
-    "id": "catch-report",
-    "type": "catch",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "Reportfehler",
-    "scope": [
-      "file-report-append-inline",
-      "file-report-replace-inline"
-    ],
-    "uncaught": false,
-    "x": 920,
-    "y": 1010,
-    "wires": [
-      [
-        "change-catch-report"
-      ]
-    ]
-  },
-  {
-    "id": "change-catch-report",
-    "type": "change",
-    "z": "tab-pipeline",
-    "g": "group-responses",
-    "name": "Reportfehler normalisieren",
-    "rules": [
-      {
-        "t": "set",
-        "p": "payload",
-        "pt": "msg",
-        "to": "{'code':'report_write_error','detail':error.message,'source':error.source.name}",
-        "tot": "jsonata"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1150,
-    "y": 1010,
-    "wires": [
-      [
-        "link-fault-pipeline"
-      ]
     ]
   },
   {
@@ -1422,27 +4185,18 @@
     "z": "tab-pipeline",
     "name": "Pipelinefehler",
     "scope": [
-      "fn-contract-register",
-      "fn-status-register",
-      "fn-readiness",
-      "fn-ai-reset",
       "fn-contract-gate",
-      "fn-storage-request",
-      "fn-storage-response",
-      "fn-window-vgr",
-      "fn-window-hbw",
-      "fn-vgr-response",
-      "fn-hbw-response",
-      "fn-cycle-result",
-      "fn-timeout-check",
-      "fn-report-row",
-      "fn-report-state",
-      "fn-report-csv",
-      "fn-report-summary"
+      "json-storage-request",
+      "json-vgr-request",
+      "json-hbw-request",
+      "change-storage-request",
+      "change-cycle-result",
+      "file-report-append-inline",
+      "file-report-replace-inline"
     ],
     "uncaught": false,
-    "x": 1150,
-    "y": 1000,
+    "x": 1230,
+    "y": 1300,
     "wires": [
       [
         "change-catch-pipeline"
@@ -1469,13 +4223,14 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1360,
-    "y": 1000,
+    "x": 1450,
+    "y": 1300,
     "wires": [
       [
         "link-fault-pipeline"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
     "id": "status-mqtt-pipeline",
@@ -1491,8 +4246,8 @@
       "out-hbw-request",
       "out-idle-modules"
     ],
-    "x": 1150,
-    "y": 1040,
+    "x": 1230,
+    "y": 1335,
     "wires": [
       [
         "switch-mqtt-pipeline"
@@ -1518,13 +4273,14 @@
     "checkall": "true",
     "repair": false,
     "outputs": 1,
-    "x": 1360,
-    "y": 1040,
+    "x": 1450,
+    "y": 1335,
     "wires": [
       [
         "change-mqtt-pipeline"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
     "id": "change-mqtt-pipeline",
@@ -1546,13 +4302,14 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1530,
-    "y": 1040,
+    "x": 1660,
+    "y": 1335,
     "wires": [
       [
         "link-fault-pipeline"
       ]
-    ]
+    ],
+    "info": ""
   },
   {
     "id": "mqtt-ai-cps",

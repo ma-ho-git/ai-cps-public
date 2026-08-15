@@ -55,6 +55,16 @@ uebernommen werden.
 - Node-RED synchronisiert nach den vier Modulabschluessen. Die Korrelation der
   NN-Responses dient der Beobachtung und ist keine Command-Barriere.
 
+## Readability Contract
+
+- Eine Funktion: eine benannte Aufgabe.
+- Produktion: maximal 60 Zeilen; Callback, `main()` und Test: maximal 40.
+- Kommentare/Docstrings: deutsch, kurz, Zweck oder Sicherheitsgrund.
+- Node-RED: Core-Nodes vor Function-Nodes; Flow nur aus Generator erzeugen.
+- Exakt vier Function-Ausnahmen; Hilfe mit Aufgabe, Ein-/Ausgang und Zustand.
+- JSONata: maximal 200 Zeichen; keine versteckte Prozesslogik.
+- Pflichtcheck: `python tools/check_code_readability.py`.
+
 ## Session Start Protocol
 
 1. `AGENTS.md` und diese Datei lesen.
@@ -71,6 +81,7 @@ uebernommen werden.
 |---|---|
 | Dokumentation | Links/Pfade, `git diff --check` |
 | Python | `py_compile`, relevante Unit-Tests |
+| Lesbarkeit | `python tools/check_code_readability.py` |
 | Compose/Umgebung | physische und virtuelle `docker compose config`, Preflight |
 | Release/Migration | Manifest-/Setup-/Bundle-Tests, Hashpruefung, Clean-Clone |
 | Node-RED/HMI | `npm test`, Flowexport, HTTP-Smoke; visuell bei UI-Aenderung |

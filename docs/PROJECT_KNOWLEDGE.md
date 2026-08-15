@@ -14,6 +14,11 @@
   begrenzten Anzeigelisten; Fachentscheidungen bleiben als Switches sichtbar.
 - `runtime-v1.2.0` bleibt die stabile Rueckfallversion. RC-Images erhalten
   `runtime-v1.3.0-rc.2`; `latest-validated` bleibt bis V1.3.0 auf V1.2.0.
+- Der Lesbarkeitsvertrag wird durch `tools/check_code_readability.py` und CI
+  erzwungen: Produktion maximal 60 Zeilen; Callback/`main()`/Test maximal 40;
+  Function-Node maximal 40; JSONata maximal 200 Zeichen.
+- Die frueheren Referenzkerne unter `node_red/lib/` werden nicht mehr geladen
+  und wurden nach Uebertragung ihrer Schutztests entfernt.
 
 ## Runtime V1.3.0-RC.1: Physiknahe virtuelle Flowstruktur
 

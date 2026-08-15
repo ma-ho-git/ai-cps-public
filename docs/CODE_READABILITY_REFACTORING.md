@@ -114,10 +114,10 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-026 | Vollspeicher-Analysewerkzeuge | Analysen 72 und 87 Zeilen | Laden, Filtern, Befund und Ausgabe trennen | Analyse-Suiten | completed |
 | AR-027 | `observe_nn_inference.main()` | 44 Zeilen | Parser, Client und Lauf trennen | Beobachtertests | completed |
 | AR-028 | `run_nodered_orchestration.sh` | grosser Modus-Dispatcher und Optionspfad | Parser-, Check- und Modusfunktionen | Shell- und CLI-Vertragstests | completed |
-| AR-029 | lange Python-Tests | 14 Tests ueber 40 Zeilen | eindeutige Fixture-Helfer; ein Verhalten je Test | vollstaendige Suite | pending |
-| AR-030 | Docker, Compose, CI | korrekt, aber Querverweise auf tote Libs moeglich | Namen/Phasen klaeren; tote Erwartungen entfernen | drei Compose-Ausgaben und CI | pending |
-| AR-031 | automatische Lesbarkeitspruefung | bisher nicht vorhanden | AST-, Function-, JSONata- und Totpfadcheck | CI und Unit-Test | pending |
-| AR-032 | Dokumentation | Regeln und Status noch nicht dauerhaft verankert | Audit fortschreiben; Wissen/Beitragshinweise | Doku-Test und `diff --check` | pending |
+| AR-029 | lange Python-Tests | 14 Tests ueber 40 Zeilen | eindeutige Fixture-Helfer; ein Verhalten je Test | vollstaendige Suite | completed |
+| AR-030 | Docker, Compose, CI | korrekt, aber Querverweise auf tote Libs moeglich | Namen/Phasen klaeren; tote Erwartungen entfernen | drei Compose-Ausgaben und CI | completed |
+| AR-031 | automatische Lesbarkeitspruefung | bisher nicht vorhanden | AST-, Function-, JSONata- und Totpfadcheck | CI und Unit-Test | completed |
+| AR-032 | Dokumentation | Regeln und Status noch nicht dauerhaft verankert | Audit fortschreiben; Wissen/Beitragshinweise | Doku-Test und `diff --check` | completed |
 
 ## Nicht Zu Aendernde Vertraege
 
@@ -135,11 +135,11 @@ Dieser Abschnitt wird nach Phase 2 ausgefuellt.
 
 | Messwert | Vorher | Nachher |
 |---|---:|---:|
-| Produktionsfunktionen ueber 60 Zeilen | 28 | pending |
-| Callbacks / `main()` ueber 40 Zeilen | 4 | pending |
+| Produktionsfunktionen ueber 60 Zeilen | 28 | 0 |
+| Callbacks / `main()` ueber 40 Zeilen | 4 | 0 |
 | Node-RED-Function-Nodes | 4 | 4 |
 | Function-Codezeilen, Maximum | 36 | 36 |
 | JSONata ueber 200 Zeichen | 27 | 0 |
 | Nicht geladene JavaScript-Kerne | 5 | 0 |
-| Python-Tests | 167 erfolgreich | pending |
+| Python-Tests | 167 erfolgreich | 174 erfolgreich |
 | Node-RED-Testdateien | 5 erfolgreich | 2 erfolgreich; aktive Pfade |

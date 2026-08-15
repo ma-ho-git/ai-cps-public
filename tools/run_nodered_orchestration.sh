@@ -9,6 +9,13 @@ VIRTUAL_COMPOSE="$SCENARIO_DIR/docker-compose.virtual.yml"
 ENV_FILE_DEFAULT="$REPO_ROOT/.env"
 
 usage() {
+  usage_commands
+  usage_options
+  usage_configuration
+  usage_examples
+}
+
+usage_commands() {
   cat <<'EOF'
 Usage: ./tools/run_nodered_orchestration.sh <command> [options]
 
@@ -31,6 +38,11 @@ Commands:
   flow-update     Aktualisiert den persistenten virtuellen Flow bewusst.
   down            Rueckwaertskompatibler Alias fuer virtual-down.
 
+EOF
+}
+
+usage_options() {
+  cat <<'EOF'
 Options:
   --no-build      Vorhandene Images verwenden.
   --images        Gepinnte Runtime-Images aus GHCR statt lokaler Builds verwenden.
@@ -46,6 +58,11 @@ Options:
   --env-file PATH Andere Umgebungsdatei statt .env verwenden.
   --skip-preflight Preflight bewusst ueberspringen.
 
+EOF
+}
+
+usage_configuration() {
+  cat <<'EOF'
 Model selection (.env):
   STORAGE_MODEL_DIR, VGR_MODEL_DIR, HBW_MODEL_DIR
                   Optionaler Pfad unter /model_registry; leer bedeutet den
@@ -77,6 +94,11 @@ Safe model change:
   waehlen, virtual-run ausfuehren und Reports mit compare_model_runs.py
   vergleichen. Kein Hot-Swap waehrend eines Zyklus.
 
+EOF
+}
+
+usage_examples() {
+  cat <<'EOF'
 Examples:
   MQTT_HOST=192.168.0.5 ./tools/run_nodered_orchestration.sh physical-up
   MQTT_HOST=192.168.0.5 ./tools/run_nodered_orchestration.sh physical-up --command-output-enabled
@@ -183,7 +205,7 @@ preserve_running_node_red_configuration() {
   info "Uebernehme die aktive virtuelle Laufkonfiguration fuer den erneuerten Node-RED-Container."
 }
 
-parse_options() {
+initialize_options() {
   BUILD=1
   USE_IMAGES=0
   DIAGNOSIS=0
@@ -194,6 +216,9 @@ parse_options() {
   TRACE_PROFILE_EXPLICIT=0
   MODEL_PROFILE_CLI=""
   MODEL_PROFILE_EXPLICIT=0
+}
+
+parse_option_values() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --no-build) BUILD=0 ;;
@@ -222,27 +247,29 @@ parse_options() {
     esac
     shift
   done
-  load_env_file "$ENV_FILE"
+}
+
+select_trace_profile() {
   TRACE_PROFILE="${TRACE_PROFILE_CLI:-${TRACE_PROFILE:-standard}}"
   case "$TRACE_PROFILE" in
-    standard)
-      LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_trace/payloads.jsonl"
-      ;;
-    full-storage-attempt)
-      LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_full_storage_attempt/payloads.jsonl"
-      ;;
-    full-storage-process-guard)
-      LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_full_storage_process_guard/payloads.jsonl"
-      ;;
+    standard) LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_trace/payloads.jsonl" ;;
+    full-storage-attempt) LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_full_storage_attempt/payloads.jsonl" ;;
+    full-storage-process-guard) LIVE_TRACE_PAYLOADS="/opt/ai-cps-node-red/data/live_plc_full_storage_process_guard/payloads.jsonl" ;;
     *) die "Unbekanntes Trace-Profil: $TRACE_PROFILE (erlaubt: standard, full-storage-attempt, full-storage-process-guard)" ;;
   esac
   export TRACE_PROFILE LIVE_TRACE_PAYLOADS
+}
+
+select_model_profile() {
   MODEL_PROFILE="${MODEL_PROFILE_CLI:-${MODEL_PROFILE:-deployment-current}}"
   case "$MODEL_PROFILE" in
     deployment-current|historical-full-storage-error) ;;
     *) die "Unbekanntes Modellprofil: $MODEL_PROFILE (erlaubt: deployment-current, historical-full-storage-error)" ;;
   esac
   export MODEL_PROFILE
+}
+
+apply_option_defaults() {
   MQTT_HOST="${MQTT_HOST:-localhost}"
   MQTT_PORT="${MQTT_PORT:-1883}"
   MQTT_CLI_HOST="${VIRTUAL_MQTT_HOST:-localhost}"
@@ -252,6 +279,15 @@ parse_options() {
     COMMAND_OUTPUT_ENABLED=true
     export COMMAND_OUTPUT_ENABLED
   fi
+}
+
+parse_options() {
+  initialize_options
+  parse_option_values "$@"
+  load_env_file "$ENV_FILE"
+  select_trace_profile
+  select_model_profile
+  apply_option_defaults
 }
 
 configure_image_mode() {
@@ -476,18 +512,8 @@ reset_all() {
   info "Fabrikemulator und KI-Buffer wurden zurueckgesetzt."
 }
 
-main() {
-  local command="${1:-help}"
-  [[ $# -gt 0 ]] && shift
-
-  # Hilfe muss auch mit einer unvollstaendigen oder release-gepinnten .env
-  # erreichbar bleiben. Sie liest deshalb bewusst keine Standortkonfiguration.
-  if [[ "$command" == "help" || "$command" == "-h" || "$command" == "--help" ]]; then
-    usage
-    return 0
-  fi
-
-  parse_options "$@"
+validate_command_options() {
+  local command="$1"
   if [[ "$DIAGNOSIS" == "1" && "$FORCE_COMMAND_OUTPUT" == "1" ]]; then
     die "--diagnosis und --command-output-enabled duerfen nicht gemeinsam verwendet werden."
   fi
@@ -503,34 +529,63 @@ main() {
   if [[ "$MODEL_PROFILE_EXPLICIT" == "1" && "$command" != "virtual-up" && "$command" != "virtual-hmi" && "$command" != "virtual-run" ]]; then
     die "--model-profile gilt nur fuer virtual-up/virtual-hmi/virtual-run."
   fi
-  if command_uses_runtime_images "$command"; then
-    configure_image_mode
-  fi
+}
+
+configure_mqtt_auth() {
   MQTT_AUTH_ARGS=()
   if [[ -n "${MQTT_USER:-}" ]]; then
     MQTT_AUTH_ARGS=(-u "$MQTT_USER")
     [[ -n "${MQTT_PASS:-}" ]] && MQTT_AUTH_ARGS+=(-P "$MQTT_PASS")
   fi
+}
+
+virtual_hmi() {
+  local ready_not_before_ms
+  virtual_up
+  ready_not_before_ms="$(date +%s%3N)"
+  wait_ready "$ready_not_before_ms" 1
+  wait_hmi_ready
+  info "Dashboard bereit: http://localhost:${NODE_RED_PORT:-1880}/dashboard/betrieb"
+  info "Modellprofil, Testszenario, Seed und Modulbasiszeiten werden vor dem Start im HMI gewaehlt."
+}
+
+virtual_run() {
+  local ready_not_before_ms
+  virtual_up
+  ready_not_before_ms="$(date +%s%3N)"
+  wait_ready "$ready_not_before_ms" 1
+  factory_start
+  info "Der Semaphor-Regelkreis laeuft jetzt selbststaendig bis zum Trace-Ende oder Reset."
+}
+
+monitor_topics() {
+  require_command mosquitto_sub
+  mosquitto_sub -h "$MQTT_CLI_HOST" -p "$MQTT_PORT" "${MQTT_AUTH_ARGS[@]}" -v \
+    -t 'log/logging/state' \
+    -t 'ft/nn/+/contract' \
+    -t 'ft/nn/+/status' \
+    -t 'ft/ai/orchestration/#' \
+    -t 'ft/sim/factory/#' \
+    -t 'ai/+/+'
+}
+
+update_persistent_flow() {
+  require_docker
+  preserve_running_node_red_configuration
+  info "Stoppe Node-RED und ersetze den persistenten Runtime-Stand explizit."
+  virtual_compose stop node_red
+  virtual_compose run --rm --no-deps \
+    -e AI_CPS_FORCE_RUNTIME_UPDATE=true node_red install-only
+  virtual_compose up -d --no-deps node_red
+}
+
+dispatch_command() {
+  local command="$1"
   case "$command" in
     physical-up) physical_up ;;
     virtual-up) virtual_up ;;
-    virtual-hmi)
-      local ready_not_before_ms
-      virtual_up
-      ready_not_before_ms="$(date +%s%3N)"
-      wait_ready "$ready_not_before_ms" 1
-      wait_hmi_ready
-      info "Dashboard bereit: http://localhost:${NODE_RED_PORT:-1880}/dashboard/betrieb"
-      info "Modellprofil, Testszenario, Seed und Modulbasiszeiten werden vor dem Start im HMI gewaehlt."
-      ;;
-    virtual-run)
-      local ready_not_before_ms
-      virtual_up
-      ready_not_before_ms="$(date +%s%3N)"
-      wait_ready "$ready_not_before_ms" 1
-      factory_start
-      info "Der Semaphor-Regelkreis laeuft jetzt selbststaendig bis zum Trace-Ende oder Reset."
-      ;;
+    virtual-hmi) virtual_hmi ;;
+    virtual-run) virtual_run ;;
     physical-preflight) run_preflight physical ;;
     virtual-preflight|preflight) run_preflight virtual ;;
     physical-status) physical_status ;;
@@ -539,30 +594,29 @@ main() {
     virtual-down|down) virtual_down ;;
     start) factory_start ;;
     reset) reset_all ;;
-    monitor)
-      require_command mosquitto_sub
-      mosquitto_sub -h "$MQTT_CLI_HOST" -p "$MQTT_PORT" "${MQTT_AUTH_ARGS[@]}" -v \
-        -t 'log/logging/state' \
-        -t 'ft/nn/+/contract' \
-        -t 'ft/nn/+/status' \
-        -t 'ft/ai/orchestration/#' \
-        -t 'ft/sim/factory/#' \
-        -t 'ai/+/+'
-      ;;
-    flow-update)
-      require_docker
-      preserve_running_node_red_configuration
-      info "Stoppe Node-RED und ersetze den persistenten Runtime-Stand explizit."
-      virtual_compose stop node_red
-      virtual_compose run --rm --no-deps \
-        -e AI_CPS_FORCE_RUNTIME_UPDATE=true node_red install-only
-      virtual_compose up -d --no-deps node_red
-      ;;
-    *)
-      usage
-      die "Unbekanntes Command: $command"
-      ;;
+    monitor) monitor_topics ;;
+    flow-update) update_persistent_flow ;;
+    *) usage; die "Unbekanntes Command: $command" ;;
   esac
+}
+
+main() {
+  local command="${1:-help}"
+  [[ $# -gt 0 ]] && shift
+
+  # Hilfe: ohne Standortkonfiguration
+  if [[ "$command" == "help" || "$command" == "-h" || "$command" == "--help" ]]; then
+    usage
+    return 0
+  fi
+
+  parse_options "$@"
+  validate_command_options "$command"
+  if command_uses_runtime_images "$command"; then
+    configure_image_mode
+  fi
+  configure_mqtt_auth
+  dispatch_command "$command"
 }
 
 main "$@"

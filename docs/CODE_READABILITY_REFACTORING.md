@@ -113,7 +113,7 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-025 | `check_deployment_readiness.py` | mehrere Funktionen 42-78 Zeilen | einzelne Checks und Sammler vereinfachen | Preflight-Suite | completed |
 | AR-026 | Vollspeicher-Analysewerkzeuge | Analysen 72 und 87 Zeilen | Laden, Filtern, Befund und Ausgabe trennen | Analyse-Suiten | completed |
 | AR-027 | `observe_nn_inference.main()` | 44 Zeilen | Parser, Client und Lauf trennen | Beobachtertests | completed |
-| AR-028 | `run_nodered_orchestration.sh` | grosser Modus-Dispatcher und Optionspfad | Parser-, Check- und Modusfunktionen | Shell- und CLI-Vertragstests | pending |
+| AR-028 | `run_nodered_orchestration.sh` | grosser Modus-Dispatcher und Optionspfad | Parser-, Check- und Modusfunktionen | Shell- und CLI-Vertragstests | completed |
 | AR-029 | lange Python-Tests | 14 Tests ueber 40 Zeilen | eindeutige Fixture-Helfer; ein Verhalten je Test | vollstaendige Suite | pending |
 | AR-030 | Docker, Compose, CI | korrekt, aber Querverweise auf tote Libs moeglich | Namen/Phasen klaeren; tote Erwartungen entfernen | drei Compose-Ausgaben und CI | pending |
 | AR-031 | automatische Lesbarkeitspruefung | bisher nicht vorhanden | AST-, Function-, JSONata- und Totpfadcheck | CI und Unit-Test | pending |

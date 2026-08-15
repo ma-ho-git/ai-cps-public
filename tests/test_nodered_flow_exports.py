@@ -166,6 +166,9 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(nodes["subflow-window-vgr"]["type"], "subflow:subflow-lstm-window")
         self.assertEqual(nodes["subflow-window-hbw"]["type"], "subflow:subflow-lstm-window")
         self.assertIn("keine Command-Barriere", nodes["change-cycle-context"]["info"])
+        readiness_rules = nodes["change-readiness-context"]["rules"]
+        model_ids = next(rule for rule in readiness_rules if rule.get("p") == "payload.model_ids")
+        self.assertEqual((model_ids["to"], model_ids["tot"]), ("{}", "json"))
 
     def test_cross_group_fan_out_uses_named_link_nodes(self):
         nodes = nodes_by_id(load_flows())

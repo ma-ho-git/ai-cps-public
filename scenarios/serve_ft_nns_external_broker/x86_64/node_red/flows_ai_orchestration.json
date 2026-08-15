@@ -1583,6 +1583,13 @@
       },
       {
         "t": "set",
+        "p": "payload.model_ids",
+        "pt": "msg",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
         "p": "payload.model_ids.storage",
         "pt": "msg",
         "to": "$globalContext('ai.contracts').storage.model_id",

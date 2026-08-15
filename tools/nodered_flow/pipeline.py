@@ -40,6 +40,7 @@ def _readiness_rules() -> list[dict]:
         ("detail", "_ready?'contracts_and_status_ready':'contracts_or_status_missing'", "jsonata"),
         ("command_output_enabled", "$lowercase($env('COMMAND_OUTPUT_ENABLED'))='true'", "jsonata"),
         ("fault_latched", "$type($globalContext('sim.run').fault)='object'", "jsonata"),
+        ("model_ids", "{}", "json"),
         ("model_ids.storage", "$globalContext('ai.contracts').storage.model_id", "jsonata"),
         ("model_ids.vgr", "$globalContext('ai.contracts').vgr.model_id", "jsonata"),
         ("model_ids.hbw", "$globalContext('ai.contracts').hbw.model_id", "jsonata"),

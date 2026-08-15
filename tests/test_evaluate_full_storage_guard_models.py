@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -11,6 +14,34 @@ from tools.evaluate_full_storage_guard_models import (
     prediction_metrics,
     profile_guard_mask,
 )
+
+
+def write_live_profile_fixture(root: Path) -> tuple[Path, Path]:
+    """Idle-Seeds und drei Zustandszeilen schreiben."""
+    seeds = {"rows": [{"sensor": 0.0}, {"sensor": 0.0}]}
+    payloads = [
+        {
+            "request_id": f"{source}-{index}",
+            "source_id": source,
+            "sensor": sensor,
+            "expected_empty_storage": storage,
+            "expected_label_VGR": label,
+            "trace_phase": "process",
+        }
+        for source, index, sensor, storage, label in (
+            ("a", 1, 1.0, 2, 101),
+            ("a", 2, 2.0, 3, 102),
+            ("b", 1, 3.0, 4, 103),
+        )
+    ]
+    seed_path = root / "seeds.json"
+    payload_path = root / "payloads.jsonl"
+    seed_path.write_text(json.dumps(seeds), encoding="utf-8")
+    payload_path.write_text(
+        "\n".join(json.dumps(row) for row in payloads),
+        encoding="utf-8",
+    )
+    return seed_path, payload_path
 
 
 class EvaluateFullStorageGuardModelsTests(unittest.TestCase):
@@ -42,43 +73,8 @@ class EvaluateFullStorageGuardModelsTests(unittest.TestCase):
         })
 
     def test_live_profile_windows_bootstrap_and_roll_per_source(self) -> None:
-        import json
-        import tempfile
-        from pathlib import Path
-
-        seeds = {"rows": [{"sensor": 0.0}, {"sensor": 0.0}]}
-        payloads = [
-            {
-                "request_id": "a-1",
-                "source_id": "a",
-                "sensor": 1.0,
-                "expected_empty_storage": 2,
-                "expected_label_VGR": 101,
-                "trace_phase": "process",
-            },
-            {
-                "request_id": "a-2",
-                "source_id": "a",
-                "sensor": 2.0,
-                "expected_empty_storage": 3,
-                "expected_label_VGR": 102,
-                "trace_phase": "process",
-            },
-            {
-                "request_id": "b-1",
-                "source_id": "b",
-                "sensor": 3.0,
-                "expected_empty_storage": 4,
-                "expected_label_VGR": 103,
-                "trace_phase": "process",
-            },
-        ]
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            seed_path = root / "seeds.json"
-            payload_path = root / "payloads.jsonl"
-            seed_path.write_text(json.dumps(seeds))
-            payload_path.write_text("\n".join(json.dumps(row) for row in payloads))
+            seed_path, payload_path = write_live_profile_fixture(Path(tmp))
             windows, labels, phases, request_ids = build_live_profile_windows(
                 payload_path,
                 idle_seeds_path=seed_path,

@@ -10,6 +10,36 @@ from unittest import mock
 from tools import check_deployment_readiness as preflight
 
 
+def collect_virtual_checks() -> list[preflight.CheckResult]:
+    """Virtuelle Abhaengigkeiten kontrolliert ersetzen."""
+    ok = preflight.CheckResult("stub", True, "ok")
+    with (
+        mock.patch.object(preflight, "check_architecture", return_value=ok),
+        mock.patch.object(preflight, "check_docker", return_value=[]),
+        mock.patch.object(preflight, "check_compose_configs", return_value=[]),
+        mock.patch.object(preflight, "check_model_artifacts", return_value=[]),
+        mock.patch.object(preflight, "check_dependency_pins", return_value=[]),
+        mock.patch.object(
+            preflight, "check_nodered_assets",
+            return_value=preflight.CheckResult("nodered-assets", True, "ok"),
+        ),
+        mock.patch.object(
+            preflight, "check_report_directory",
+            return_value=preflight.CheckResult("report-directory", True, "ok"),
+        ),
+        mock.patch.object(
+            preflight, "check_mqtt_credentials",
+            return_value=preflight.CheckResult("mqtt-credentials", True, "ok"),
+        ),
+        mock.patch.object(
+            preflight, "check_nodered_credential_secret",
+            return_value=preflight.CheckResult("nodered-credential-secret", True, "ok"),
+        ),
+        mock.patch.object(preflight, "check_conflicting_consumers", return_value=ok),
+    ):
+        return preflight.collect_checks(mode="virtual", settings={}, use_images=False)
+
+
 class DeploymentPreflightTests(unittest.TestCase):
     def test_virtual_port_owned_by_current_runtime_is_accepted(self):
         class BusySocket:
@@ -122,37 +152,7 @@ class DeploymentPreflightTests(unittest.TestCase):
         self.assertFalse(any(name.startswith("factory-base-runtime:") for name in names))
 
     def test_virtual_mode_requires_nodered_assets_reports_and_secret(self):
-        ok = preflight.CheckResult("stub", True, "ok")
-        with (
-            mock.patch.object(preflight, "check_architecture", return_value=ok),
-            mock.patch.object(preflight, "check_docker", return_value=[]),
-            mock.patch.object(preflight, "check_compose_configs", return_value=[]),
-            mock.patch.object(preflight, "check_model_artifacts", return_value=[]),
-            mock.patch.object(preflight, "check_dependency_pins", return_value=[]),
-            mock.patch.object(
-                preflight,
-                "check_nodered_assets",
-                return_value=preflight.CheckResult("nodered-assets", True, "ok"),
-            ),
-            mock.patch.object(
-                preflight,
-                "check_report_directory",
-                return_value=preflight.CheckResult("report-directory", True, "ok"),
-            ),
-            mock.patch.object(
-                preflight,
-                "check_mqtt_credentials",
-                return_value=preflight.CheckResult("mqtt-credentials", True, "ok"),
-            ),
-            mock.patch.object(
-                preflight,
-                "check_nodered_credential_secret",
-                return_value=preflight.CheckResult("nodered-credential-secret", True, "ok"),
-            ),
-            mock.patch.object(preflight, "check_conflicting_consumers", return_value=ok),
-        ):
-            checks = preflight.collect_checks(mode="virtual", settings={}, use_images=False)
-
+        checks = collect_virtual_checks()
         names = {check.name for check in checks}
         self.assertIn("nodered-assets", names)
         self.assertIn("report-directory", names)

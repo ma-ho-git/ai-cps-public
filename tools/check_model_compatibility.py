@@ -58,6 +58,24 @@ class CompatibilityReport:
         return all(check.ok for check in self.checks)
 
 
+@dataclass(frozen=True)
+class ModelFacts:
+    """Aufbereitete Fakten fuer die einzelnen Vertragspruefungen."""
+
+    domain: str
+    candidate: dict[str, Any]
+    features: list[str]
+    classes: list[int]
+    steps: int | None
+    expected_shape: list[int]
+    activation_shape: list[int]
+    model_shape: list[int]
+    output_units: int
+    topics: dict[str, Any]
+    cmd_map: dict[str, Any]
+    changes: dict[str, Any]
+
+
 def check(name: str, ok: bool, success: str, failure: str) -> CompatibilityCheck:
     return CompatibilityCheck(name=name, ok=ok, detail=success if ok else failure)
 
@@ -291,21 +309,18 @@ def idle_seed_check(
     ]
 
 
-def analyze_model(
-    *,
-    domain: str,
-    candidate_dir: Path,
-    mode: str,
-    root: Path = PROJECT_ROOT,
-) -> CompatibilityReport:
+def validate_analysis_request(domain: str, mode: str, candidate_dir: Path) -> None:
     if domain not in DOMAINS:
         raise ArtifactError(f"unsupported domain: {domain}")
     if mode not in {"virtual", "physical"}:
         raise ArtifactError(f"unsupported mode: {mode}")
-
     missing = [name for name in REQUIRED_ARTIFACTS if not (candidate_dir / name).is_file()]
     if missing:
         raise ArtifactError(f"candidate directory is missing artifacts: {missing}")
+
+
+def collect_model_facts(domain: str, candidate_dir: Path, root: Path) -> ModelFacts:
+    """Liest Artefakte einmalig und bereitet vergleichbare Werte auf."""
     candidate = load_activation(candidate_dir / "activation.json")
     load_json_object(candidate_dir / "metrics.json")
     current = load_activation(root / f"model_registry/{domain}/latest/activation.json")
@@ -319,120 +334,163 @@ def analyze_model(
     cmd_map = candidate.get("cmd_map")
     if not isinstance(cmd_map, dict):
         cmd_map = {}
-
     changes = feature_change_summary(current, candidate, domain)
-    same_contract = (
+    return ModelFacts(
+        domain=domain,
+        candidate=candidate,
+        features=features,
+        classes=classes,
+        steps=steps,
+        expected_shape=expected_shape,
+        activation_shape=activation_shape,
+        model_shape=model_shape,
+        output_units=output_units,
+        topics=topics,
+        cmd_map=cmd_map,
+        changes=changes,
+    )
+
+
+def basic_contract_checks(facts: ModelFacts) -> list[CompatibilityCheck]:
+    missing_cmd_classes = [value for value in facts.classes if str(value) not in facts.cmd_map]
+    return [
+        check(
+            "domain",
+            facts.candidate.get("domain") == facts.domain,
+            f"candidate domain is {facts.domain}",
+            f"candidate domain {facts.candidate.get('domain')!r} does not match {facts.domain}",
+        ),
+        check(
+            "features:unique",
+            len(facts.features) == len(set(facts.features)),
+            f"all {len(facts.features)} feature names are unique",
+            "feature_cols contains duplicate names",
+        ),
+        check(
+            "classes:unique",
+            len(facts.classes) == len(set(facts.classes)),
+            f"all {len(facts.classes)} class IDs are unique",
+            "class_ids contains duplicate values",
+        ),
+        check(
+            "activation:input-shape",
+            facts.activation_shape == facts.expected_shape,
+            f"activation input shape is {facts.expected_shape}",
+            f"activation input shape {facts.activation_shape} does not match {facts.expected_shape}",
+        ),
+        check(
+            "keras:input-shape",
+            facts.model_shape == facts.expected_shape,
+            f"Keras input shape is {facts.expected_shape}",
+            f"Keras input shape {facts.model_shape} does not match {facts.expected_shape}",
+        ),
+        check(
+            "keras:output-units",
+            facts.output_units == len(facts.classes),
+            f"Keras output has {facts.output_units} units for {len(facts.classes)} classes",
+            f"Keras output has {facts.output_units} units, activation declares {len(facts.classes)} classes",
+        ),
+        check(
+            "activation:n-classes",
+            facts.candidate.get("n_classes", len(facts.classes)) == len(facts.classes),
+            f"n_classes matches {len(facts.classes)} class IDs",
+            f"n_classes={facts.candidate.get('n_classes')} does not match {len(facts.classes)} class IDs",
+        ),
+        check(
+            "activation:cmd-map",
+            not missing_cmd_classes,
+            "activation cmd_map covers every class",
+            f"activation cmd_map misses classes: {missing_cmd_classes}",
+        ),
+    ]
+
+
+def storage_contract_checks(facts: ModelFacts) -> list[CompatibilityCheck]:
+    return [
+        check(
+            "storage:classes",
+            facts.classes == list(range(10)),
+            "Storage classes retain empty_storage semantics 0..9",
+            f"Storage classes must be ordered 0..9, got {facts.classes}",
+        ),
+        check(
+            "storage:time-steps",
+            facts.steps is None,
+            "Storage remains a non-temporal MLP contract",
+            f"Storage must not define time_steps, got {facts.steps}",
+        ),
+    ]
+
+
+def lstm_contract_checks(facts: ModelFacts, root: Path) -> list[CompatibilityCheck]:
+    one_hot = [feature for feature in facts.features if feature.startswith("empty_storage_")]
+    mapped = facts.topics.get("command_topics", {}).get(facts.domain, {})
+    missing_topics = [value for value in facts.classes if str(value) not in mapped]
+    checks = [
+        check(
+            "lstm:empty-storage-one-hot",
+            one_hot == list(EMPTY_STORAGE_FEATURES),
+            "LSTM contract contains ordered empty_storage_0..9",
+            f"expected ordered empty_storage_0..9, got {one_hot}",
+        ),
+        check(
+            "commands:topic-map",
+            not missing_topics,
+            "every model class has a physical command topic",
+            f"command topic mapping misses classes: {missing_topics}",
+        ),
+    ]
+    if facts.steps is not None and facts.steps > 0:
+        checks.extend(
+            idle_seed_check(
+                required=raw_features(facts.features),
+                steps=facts.steps,
+                root=root,
+            )
+        )
+    else:
+        checks.append(
+            CompatibilityCheck("lstm:time-steps", False, "time_steps must be positive")
+        )
+    return checks
+
+
+def same_feature_contract(changes: dict[str, Any]) -> bool:
+    return bool(
         not changes["added"]
         and not changes["removed"]
         and not changes["reordered"]
         and changes["time_steps_before"] == changes["time_steps_after"]
     )
-    checks = [
-        check(
-            "domain",
-            candidate.get("domain") == domain,
-            f"candidate domain is {domain}",
-            f"candidate domain {candidate.get('domain')!r} does not match {domain}",
-        ),
-        check(
-            "features:unique",
-            len(features) == len(set(features)),
-            f"all {len(features)} feature names are unique",
-            "feature_cols contains duplicate names",
-        ),
-        check(
-            "classes:unique",
-            len(classes) == len(set(classes)),
-            f"all {len(classes)} class IDs are unique",
-            "class_ids contains duplicate values",
-        ),
-        check(
-            "activation:input-shape",
-            activation_shape == expected_shape,
-            f"activation input shape is {expected_shape}",
-            f"activation input shape {activation_shape} does not match {expected_shape}",
-        ),
-        check(
-            "keras:input-shape",
-            model_shape == expected_shape,
-            f"Keras input shape is {expected_shape}",
-            f"Keras input shape {model_shape} does not match {expected_shape}",
-        ),
-        check(
-            "keras:output-units",
-            output_units == len(classes),
-            f"Keras output has {output_units} units for {len(classes)} classes",
-            f"Keras output has {output_units} units, activation declares {len(classes)} classes",
-        ),
-        check(
-            "activation:n-classes",
-            candidate.get("n_classes", len(classes)) == len(classes),
-            f"n_classes matches {len(classes)} class IDs",
-            f"n_classes={candidate.get('n_classes')} does not match {len(classes)} class IDs",
-        ),
-        check(
-            "activation:cmd-map",
-            not [value for value in classes if str(value) not in cmd_map],
-            "activation cmd_map covers every class",
-            f"activation cmd_map misses classes: {[value for value in classes if str(value) not in cmd_map]}",
-        ),
-    ]
 
+
+def analyze_model(
+    *,
+    domain: str,
+    candidate_dir: Path,
+    mode: str,
+    root: Path = PROJECT_ROOT,
+) -> CompatibilityReport:
+    validate_analysis_request(domain, mode, candidate_dir)
+    facts = collect_model_facts(domain, candidate_dir, root)
+    checks = basic_contract_checks(facts)
     if domain == "storage":
-        checks.append(
-            check(
-                "storage:classes",
-                classes == list(range(10)),
-                "Storage classes retain empty_storage semantics 0..9",
-                f"Storage classes must be ordered 0..9, got {classes}",
-            )
-        )
-        checks.append(
-            check(
-                "storage:time-steps",
-                steps is None,
-                "Storage remains a non-temporal MLP contract",
-                f"Storage must not define time_steps, got {steps}",
-            )
-        )
+        checks.extend(storage_contract_checks(facts))
     else:
-        one_hot = [feature for feature in features if feature.startswith("empty_storage_")]
-        checks.append(
-            check(
-                "lstm:empty-storage-one-hot",
-                one_hot == list(EMPTY_STORAGE_FEATURES),
-                "LSTM contract contains ordered empty_storage_0..9",
-                f"expected ordered empty_storage_0..9, got {one_hot}",
-            )
-        )
-        mapped = topics.get("command_topics", {}).get(domain, {})
-        missing_topics = [value for value in classes if str(value) not in mapped]
-        checks.append(
-            check(
-                "commands:topic-map",
-                not missing_topics,
-                "every model class has a physical command topic",
-                f"command topic mapping misses classes: {missing_topics}",
-            )
-        )
-        if steps is not None and steps > 0:
-            checks.extend(
-                idle_seed_check(required=raw_features(features), steps=steps, root=root)
-            )
-        else:
-            checks.append(
-                CompatibilityCheck("lstm:time-steps", False, "time_steps must be positive")
-            )
-
+        checks.extend(lstm_contract_checks(facts, root))
     checks.append(
-        raw_feature_check(mode=mode, required=raw_features(features), root=root)
+        raw_feature_check(mode=mode, required=raw_features(facts.features), root=root)
     )
     return CompatibilityReport(
         domain=domain,
         mode=mode,
         candidate_dir=str(candidate_dir),
-        classification="same_feature_contract" if same_contract else "changed_feature_contract",
-        feature_changes=changes,
+        classification=(
+            "same_feature_contract"
+            if same_feature_contract(facts.changes)
+            else "changed_feature_contract"
+        ),
+        feature_changes=facts.changes,
         checks=checks,
     )
 

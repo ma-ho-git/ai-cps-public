@@ -14,11 +14,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from tools.analyze_full_storage_attempt_run import (  # noqa: E402
-    MODULES,
-    as_bool,
     as_float,
     as_int,
+    guard_row_errors,
     load_report,
+    technical_run_errors,
+    unsafe_rows,
 )
 
 
@@ -62,72 +63,19 @@ def analyze_report(
     run_summary, rows = load_report(report_dir)
     rows = enrich_rows_from_manifest(rows, manifest_path)
     guard_rows = [row for row in rows if row.get("trace_phase") in GUARD_PHASES]
-    technical_errors: list[str] = []
-
-    if len(rows) != EXPECTED_ROWS or as_int(run_summary.get("rows_completed")) != EXPECTED_ROWS:
-        technical_errors.append(f"expected {EXPECTED_ROWS} completed rows")
-    if len(guard_rows) != EXPECTED_GUARD_ROWS:
-        technical_errors.append(f"expected {EXPECTED_GUARD_ROWS} process guard rows")
-    if as_int(run_summary.get("faults")) != 0:
-        technical_errors.append("run contains faults")
-    if as_int(run_summary.get("control_published_rows")) != EXPECTED_ROWS:
-        technical_errors.append("not every row published a complete command set")
-    if as_int(run_summary.get("control_published_commands")) != EXPECTED_ROWS * 4:
-        technical_errors.append("regular command count differs from four commands per row")
-    if as_int(run_summary.get("storage_matches_vgr")) != EXPECTED_ROWS:
-        technical_errors.append("storage results do not match all expected states")
-    if as_int(run_summary.get("storage_matches_hbw")) != EXPECTED_ROWS:
-        technical_errors.append("storage results do not match all expected states")
-    if any(as_bool(row.get("timeout")) or row.get("error") for row in rows):
-        technical_errors.append("summary contains timeout or error rows")
-
-    for row in guard_rows:
-        if as_int(row.get("expected_empty_storage"), -1) != 0:
-            technical_errors.append("guard row does not expect full storage")
-            break
-        if as_int(row.get("vgr_storage_pred"), -1) != 0:
-            technical_errors.append("storage model did not predict full storage")
-            break
-        if not as_bool(row.get("control_published")) or not as_bool(
-            row.get("control_command_set_complete")
-        ):
-            technical_errors.append("guard row has an incomplete command set")
-            break
-        for module in MODULES:
-            if as_int(row.get(f"job_sent_{module}"), -1) != as_int(
-                row.get(f"job_accepted_{module}"), -2
-            ):
-                technical_errors.append(f"{module} sent/accepted job counters differ")
-                break
+    technical_errors = technical_run_errors(
+        run_summary,
+        rows,
+        guard_rows,
+        expected_rows=EXPECTED_ROWS,
+        expected_special_rows=EXPECTED_GUARD_ROWS,
+        special_name="process guard rows",
+    )
+    technical_errors.extend(guard_row_errors(guard_rows, row_name="guard row"))
 
     unsafe_vgr = [row for row in guard_rows if as_int(row.get("predicted_label_VGR")) != 0]
     unsafe_hbw = [row for row in guard_rows if as_int(row.get("predicted_label_HBW")) != 0]
-    unsafe = [
-        row
-        for row in guard_rows
-        if as_int(row.get("predicted_label_VGR")) != 0
-        or as_int(row.get("predicted_label_HBW")) != 0
-    ]
-    first = None
-    if unsafe:
-        row = unsafe[0]
-        model_ids = {
-            domain: row.get(f"{domain}_model_id") or run_summary.get("model_ids", {}).get(domain)
-            for domain in ("vgr", "hbw")
-        }
-        first = {
-            "row_index": as_int(row.get("row_index")),
-            "guard_episode_idx": as_int(row.get("guard_episode_idx")),
-            "guard_process_step_idx": as_int(row.get("guard_process_step_idx"), -1),
-            "trace_phase": row.get("trace_phase", ""),
-            "vgr_cmd": as_int(row.get("predicted_label_VGR")),
-            "vgr_topic": row.get("control_vgr_topic", ""),
-            "vgr_confidence": as_float(row.get("vgr_confidence")),
-            "hbw_cmd": as_int(row.get("predicted_label_HBW")),
-            "hbw_topic": row.get("control_hbw_topic", ""),
-            "hbw_confidence": as_float(row.get("hbw_confidence")),
-            "model_ids": model_ids,
-        }
+    unsafe = unsafe_rows(guard_rows)
 
     return {
         "report_dir": str(Path(report_dir)),
@@ -138,8 +86,33 @@ def analyze_report(
         "unsafe_rows": len(unsafe),
         "vgr_unsafe_rows": len(unsafe_vgr),
         "hbw_unsafe_rows": len(unsafe_hbw),
-        "first_unsafe": first,
+        "first_unsafe": first_unsafe_process(unsafe, run_summary),
         "model_ids": run_summary.get("model_ids", {}),
+    }
+
+
+def first_unsafe_process(
+    rows: list[dict[str, str]], run_summary: dict[str, Any]
+) -> dict[str, Any] | None:
+    if not rows:
+        return None
+    row = rows[0]
+    model_ids = {
+        domain: row.get(f"{domain}_model_id") or run_summary.get("model_ids", {}).get(domain)
+        for domain in ("vgr", "hbw")
+    }
+    return {
+        "row_index": as_int(row.get("row_index")),
+        "guard_episode_idx": as_int(row.get("guard_episode_idx")),
+        "guard_process_step_idx": as_int(row.get("guard_process_step_idx"), -1),
+        "trace_phase": row.get("trace_phase", ""),
+        "vgr_cmd": as_int(row.get("predicted_label_VGR")),
+        "vgr_topic": row.get("control_vgr_topic", ""),
+        "vgr_confidence": as_float(row.get("vgr_confidence")),
+        "hbw_cmd": as_int(row.get("predicted_label_HBW")),
+        "hbw_topic": row.get("control_hbw_topic", ""),
+        "hbw_confidence": as_float(row.get("hbw_confidence")),
+        "model_ids": model_ids,
     }
 
 

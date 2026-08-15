@@ -44,76 +44,105 @@ def load_report(report_dir: str | Path) -> tuple[dict[str, Any], list[dict[str, 
     return run_summary, rows
 
 
-def analyze_report(report_dir: str | Path) -> dict[str, Any]:
-    """Trennt technische Laufguete von der fachlichen Vollspeicherverletzung."""
-    run_summary, rows = load_report(report_dir)
-    attempt_rows = [row for row in rows if row.get("trace_phase") == "full_storage_attempt"]
-    technical_errors: list[str] = []
-
-    if len(rows) != EXPECTED_ROWS or as_int(run_summary.get("rows_completed")) != EXPECTED_ROWS:
-        technical_errors.append(f"expected {EXPECTED_ROWS} completed rows")
-    if len(attempt_rows) != EXPECTED_ATTEMPTS:
-        technical_errors.append(f"expected {EXPECTED_ATTEMPTS} full-storage attempt rows")
+def technical_run_errors(
+    run_summary: dict[str, Any],
+    rows: list[dict[str, str]],
+    special_rows: list[dict[str, str]],
+    *,
+    expected_rows: int,
+    expected_special_rows: int,
+    special_name: str,
+) -> list[str]:
+    """Prueft Zaehler und technische Fehler eines Simulationslaufs."""
+    errors: list[str] = []
+    if len(rows) != expected_rows or as_int(run_summary.get("rows_completed")) != expected_rows:
+        errors.append(f"expected {expected_rows} completed rows")
+    if len(special_rows) != expected_special_rows:
+        errors.append(f"expected {expected_special_rows} {special_name}")
     if as_int(run_summary.get("faults")) != 0:
-        technical_errors.append("run contains faults")
-    if as_int(run_summary.get("control_published_rows")) != EXPECTED_ROWS:
-        technical_errors.append("not every row published a complete command set")
-    if as_int(run_summary.get("control_published_commands")) != EXPECTED_ROWS * 4:
-        technical_errors.append("regular command count differs from four commands per row")
-    if as_int(run_summary.get("storage_matches_vgr")) != EXPECTED_ROWS:
-        technical_errors.append("storage results do not match all expected states")
-    if as_int(run_summary.get("storage_matches_hbw")) != EXPECTED_ROWS:
-        technical_errors.append("storage results do not match all expected states")
+        errors.append("run contains faults")
+    if as_int(run_summary.get("control_published_rows")) != expected_rows:
+        errors.append("not every row published a complete command set")
+    if as_int(run_summary.get("control_published_commands")) != expected_rows * 4:
+        errors.append("regular command count differs from four commands per row")
+    if as_int(run_summary.get("storage_matches_vgr")) != expected_rows:
+        errors.append("storage results do not match all expected states")
+    if as_int(run_summary.get("storage_matches_hbw")) != expected_rows:
+        errors.append("storage results do not match all expected states")
     if any(as_bool(row.get("timeout")) or row.get("error") for row in rows):
-        technical_errors.append("summary contains timeout or error rows")
+        errors.append("summary contains timeout or error rows")
+    return errors
 
-    for row in attempt_rows:
+
+def guard_row_errors(rows: list[dict[str, str]], *, row_name: str) -> list[str]:
+    """Prueft Vollspeicherwert, Command-Set und Modulzaehler."""
+    for row in rows:
         if as_int(row.get("expected_empty_storage"), -1) != 0:
-            technical_errors.append("attempt row does not expect full storage")
-            break
+            return [f"{row_name} does not expect full storage"]
         if as_int(row.get("vgr_storage_pred"), -1) != 0:
-            technical_errors.append("storage model did not predict full storage")
-            break
+            return ["storage model did not predict full storage"]
         if not as_bool(row.get("control_published")) or not as_bool(row.get("control_command_set_complete")):
-            technical_errors.append("attempt row has an incomplete command set")
-            break
+            return [f"{row_name} has an incomplete command set"]
         for module in MODULES:
             if as_int(row.get(f"job_sent_{module}"), -1) != as_int(row.get(f"job_accepted_{module}"), -2):
-                technical_errors.append(f"{module} sent/accepted job counters differ")
-                break
+                return [f"{module} sent/accepted job counters differ"]
+    return []
 
-    unsafe = [
-        row for row in attempt_rows
+
+def unsafe_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        row for row in rows
         if as_int(row.get("predicted_label_VGR")) != 0
         or as_int(row.get("predicted_label_HBW")) != 0
     ]
-    first = None
-    if unsafe:
-        row = unsafe[0]
-        model_ids = {
-            domain: row.get(f"{domain}_model_id") or run_summary.get("model_ids", {}).get(domain)
-            for domain in ("vgr", "hbw")
-        }
-        first = {
-            "row_index": as_int(row.get("row_index")),
-            "attempt_repeat_idx": as_int(row.get("attempt_repeat_idx")),
-            "vgr_cmd": as_int(row.get("predicted_label_VGR")),
-            "vgr_topic": row.get("control_vgr_topic", ""),
-            "vgr_confidence": as_float(row.get("vgr_confidence")),
-            "hbw_cmd": as_int(row.get("predicted_label_HBW")),
-            "hbw_topic": row.get("control_hbw_topic", ""),
-            "hbw_confidence": as_float(row.get("hbw_confidence")),
-            "model_ids": model_ids,
-        }
+
+
+def first_unsafe_attempt(
+    rows: list[dict[str, str]], run_summary: dict[str, Any]
+) -> dict[str, Any] | None:
+    if not rows:
+        return None
+    row = rows[0]
+    model_ids = {
+        domain: row.get(f"{domain}_model_id") or run_summary.get("model_ids", {}).get(domain)
+        for domain in ("vgr", "hbw")
+    }
+    return {
+        "row_index": as_int(row.get("row_index")),
+        "attempt_repeat_idx": as_int(row.get("attempt_repeat_idx")),
+        "vgr_cmd": as_int(row.get("predicted_label_VGR")),
+        "vgr_topic": row.get("control_vgr_topic", ""),
+        "vgr_confidence": as_float(row.get("vgr_confidence")),
+        "hbw_cmd": as_int(row.get("predicted_label_HBW")),
+        "hbw_topic": row.get("control_hbw_topic", ""),
+        "hbw_confidence": as_float(row.get("hbw_confidence")),
+        "model_ids": model_ids,
+    }
+
+
+def analyze_report(report_dir: str | Path) -> dict[str, Any]:
+    """Trennt technische Laufguete von der fachlichen Vollspeicherverletzung."""
+    run_summary, rows = load_report(report_dir)
+    attempts = [row for row in rows if row.get("trace_phase") == "full_storage_attempt"]
+    errors = technical_run_errors(
+        run_summary,
+        rows,
+        attempts,
+        expected_rows=EXPECTED_ROWS,
+        expected_special_rows=EXPECTED_ATTEMPTS,
+        special_name="full-storage attempt rows",
+    )
+    errors.extend(guard_row_errors(attempts, row_name="attempt row"))
+    unsafe = unsafe_rows(attempts)
 
     return {
         "report_dir": str(Path(report_dir)),
-        "technical_ok": not technical_errors,
-        "technical_errors": technical_errors,
+        "technical_ok": not errors,
+        "technical_errors": errors,
         "rows_completed": len(rows),
-        "attempt_rows": len(attempt_rows),
+        "attempt_rows": len(attempts),
         "unsafe_rows": len(unsafe),
-        "first_unsafe": first,
+        "first_unsafe": first_unsafe_attempt(unsafe, run_summary),
         "model_ids": run_summary.get("model_ids", {}),
     }
 

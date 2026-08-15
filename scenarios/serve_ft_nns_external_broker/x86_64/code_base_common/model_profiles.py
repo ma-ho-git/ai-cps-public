@@ -41,6 +41,78 @@ def _profile_paths(
     return model_dir / "model.keras", model_dir / "activation.json", model_dir / "metrics.json"
 
 
+def _default_profile(active_model_path: str | Path, active_activation_path: str | Path) -> dict[str, Any]:
+    """Deploymentprofil ohne Katalog bereitstellen."""
+    return {
+        "display_name": "Aktueller Modellstand",
+        "virtual_only": False,
+        "model_path": Path(active_model_path),
+        "activation_path": Path(active_activation_path),
+        "metrics_path": None,
+    }
+
+
+def _catalog_profiles(catalog: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Katalogkopf und Profilmenge pruefen."""
+    if catalog.get("schema_version") != "1.0":
+        raise ValueError("model profile catalog schema_version must be 1.0")
+    default_profile = str(catalog.get("default_model_profile", DEFAULT_MODEL_PROFILE))
+    raw_profiles = catalog.get("model_profiles")
+    if not isinstance(raw_profiles, dict) or not raw_profiles:
+        raise ValueError("model profile catalog requires model_profiles")
+    if default_profile not in raw_profiles:
+        raise ValueError(f"default model profile {default_profile!r} is not defined")
+    return default_profile, raw_profiles
+
+
+def _verify_artifacts(profile_id: str, domain_config: dict[str, Any], paths: tuple[Path, Path, Path | None]) -> None:
+    """Dateien und optionale Hashes eines Profils pruefen."""
+    missing = [str(path) for path in paths if path is not None and not path.is_file()]
+    if missing:
+        raise ValueError(f"model profile {profile_id!r} is missing artifacts: {missing}")
+    keys = ("model_sha256", "activation_sha256", "metrics_sha256")
+    for key, path in zip(keys, paths):
+        expected = domain_config.get(key)
+        if not expected or path is None:
+            continue
+        actual = file_sha256(path)
+        if actual != str(expected):
+            raise ValueError(
+                f"model profile {profile_id!r} {key} mismatch: expected {expected}, got {actual}",
+            )
+
+
+def _resolve_profile(
+    profile_id: str,
+    raw_profile: Any,
+    *,
+    domain: str,
+    active_model_path: str | Path,
+    active_activation_path: str | Path,
+    model_registry_root: str | Path,
+) -> dict[str, Any]:
+    """Ein Katalogprofil in validierte Pfade aufloesen."""
+    if not isinstance(raw_profile, dict):
+        raise ValueError(f"model profile {profile_id!r} must be an object")
+    domain_config = raw_profile.get("domains", {}).get(domain)
+    if not isinstance(domain_config, dict):
+        raise ValueError(f"model profile {profile_id!r} has no {domain} configuration")
+    paths = _profile_paths(
+        domain_config,
+        active_model_path=active_model_path,
+        active_activation_path=active_activation_path,
+        model_registry_root=model_registry_root,
+    )
+    _verify_artifacts(profile_id, domain_config, paths)
+    return {
+        "display_name": str(raw_profile.get("display_name", profile_id)),
+        "description": str(raw_profile.get("description", "")),
+        "virtual_only": bool(raw_profile.get("virtual_only", False)),
+        "expected_model_id": domain_config.get("model_id"),
+        "model_path": paths[0], "activation_path": paths[1], "metrics_path": paths[2],
+    }
+
+
 def load_profile_specs(
     catalog_path: str | Path | None,
     *,
@@ -51,66 +123,19 @@ def load_profile_specs(
 ) -> tuple[str, dict[str, dict[str, Any]]]:
     """Resolve model paths and verify fixed artifacts without loading TensorFlow."""
     if not catalog_path:
-        return DEFAULT_MODEL_PROFILE, {
-            DEFAULT_MODEL_PROFILE: {
-                "display_name": "Aktueller Modellstand",
-                "virtual_only": False,
-                "model_path": Path(active_model_path),
-                "activation_path": Path(active_activation_path),
-                "metrics_path": None,
-            },
-        }
+        return DEFAULT_MODEL_PROFILE, {DEFAULT_MODEL_PROFILE: _default_profile(active_model_path, active_activation_path)}
 
     catalog = _json_object(Path(catalog_path))
-    if catalog.get("schema_version") != "1.0":
-        raise ValueError("model profile catalog schema_version must be 1.0")
-    default_profile = str(catalog.get("default_model_profile", DEFAULT_MODEL_PROFILE))
-    raw_profiles = catalog.get("model_profiles")
-    if not isinstance(raw_profiles, dict) or not raw_profiles:
-        raise ValueError("model profile catalog requires model_profiles")
-    if default_profile not in raw_profiles:
-        raise ValueError(f"default model profile {default_profile!r} is not defined")
-
-    profiles: dict[str, dict[str, Any]] = {}
-    for profile_id, raw_profile in raw_profiles.items():
-        if not isinstance(raw_profile, dict):
-            raise ValueError(f"model profile {profile_id!r} must be an object")
-        domain_config = raw_profile.get("domains", {}).get(domain)
-        if not isinstance(domain_config, dict):
-            raise ValueError(f"model profile {profile_id!r} has no {domain} configuration")
-        model_path, activation_path, metrics_path = _profile_paths(
-            domain_config,
+    default_profile, raw_profiles = _catalog_profiles(catalog)
+    profiles = {
+        str(profile_id): _resolve_profile(
+            str(profile_id), raw_profile, domain=domain,
             active_model_path=active_model_path,
             active_activation_path=active_activation_path,
             model_registry_root=model_registry_root,
         )
-        required = [model_path, activation_path] + ([metrics_path] if metrics_path else [])
-        missing = [str(path) for path in required if path is not None and not path.is_file()]
-        if missing:
-            raise ValueError(f"model profile {profile_id!r} is missing artifacts: {missing}")
-
-        for key, path in (
-            ("model_sha256", model_path),
-            ("activation_sha256", activation_path),
-            ("metrics_sha256", metrics_path),
-        ):
-            expected = domain_config.get(key)
-            if expected and path is not None:
-                actual = file_sha256(path)
-                if actual != str(expected):
-                    raise ValueError(
-                        f"model profile {profile_id!r} {key} mismatch: expected {expected}, got {actual}",
-                    )
-
-        profiles[str(profile_id)] = {
-            "display_name": str(raw_profile.get("display_name", profile_id)),
-            "description": str(raw_profile.get("description", "")),
-            "virtual_only": bool(raw_profile.get("virtual_only", False)),
-            "expected_model_id": domain_config.get("model_id"),
-            "model_path": model_path,
-            "activation_path": activation_path,
-            "metrics_path": metrics_path,
-        }
+        for profile_id, raw_profile in raw_profiles.items()
+    }
     return default_profile, profiles
 
 

@@ -175,6 +175,81 @@ def on_connect(client, userdata, connect_flags, reason_code, properties):
     )
     client.subscribe(MQTT_REQ_TOPIC, qos=MQTT_QOS)
 
+
+def _publish_response(client, payload):
+    """JSON-Response auf dem unveraenderten Topic senden."""
+    client.publish(MQTT_RES_TOPIC, json.dumps(payload), qos=MQTT_QOS, retain=False)
+
+
+def _request_profile(req):
+    """Angeforderten Modellstand und Vertrag waehlen."""
+    if LOADED_PROFILES:
+        profile_id, profile = select_profile(
+            req,
+            default_profile=ACTIVE_MODEL_PROFILE,
+            loaded_profiles=LOADED_PROFILES,
+        )
+        return profile_id, profile, profile["contract"]
+    profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
+    if profile_id != DEFAULT_MODEL_PROFILE:
+        raise ValueError(f"unknown model_profile {profile_id!r}")
+    return profile_id, None, CONTRACT
+
+
+def _process_request(client, req, request_id):
+    """Einmalige Inferenz, Command und Response ausfuehren."""
+    profile_id, profile, contract = _request_profile(req)
+    sequence = req["sequence"]
+    prediction = predict(sequence) if profile is None else predict(sequence, profile)
+    y_hat, y_name, top3 = prediction
+    command_output = publish_direct_command(
+        client,
+        domain="vgr",
+        command=y_hat,
+        command_topics=COMMAND_TOPICS,
+        enabled=COMMAND_OUTPUT_ENABLED,
+    )
+    response = response_payload(
+        req,
+        model_id=contract["model_id"],
+        model_profile=profile_id,
+        cmd=y_hat,
+        name=y_name,
+        top3=top3,
+        command_output=command_output,
+    )
+    RESPONSE_CACHE.remember(request_id, response)
+    _publish_response(client, response)
+    print(
+        f"[MQTT] request_id={request_id} -> cmd={y_hat} ({y_name}) "
+        f"command_output={command_output['reason']}",
+        flush=True,
+    )
+
+
+def _error_identity(req):
+    """Profil und Modell-ID fuer eine Fehlerresponse bestimmen."""
+    profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
+    profile = LOADED_PROFILES.get(profile_id)
+    model_id = profile["contract"]["model_id"] if profile is not None else CONTRACT["model_id"]
+    return profile_id, model_id
+
+
+def _publish_error(client, req, error):
+    """Korrelierbare Fehlerresponse bilden und zwischenspeichern."""
+    profile_id, model_id = _error_identity(req)
+    response = response_payload(
+        req,
+        model_id=model_id,
+        model_profile=profile_id,
+        error=str(error),
+    )
+    request_id = str(req.get("request_id", ""))
+    if request_id and RESPONSE_CACHE.get(request_id) is None:
+        RESPONSE_CACHE.remember(request_id, response)
+    _publish_response(client, response)
+
+
 def on_message(client, userdata, msg):
     """Publiziert VGR-Command und korrelierbare JSON-Response unabhaengig."""
     req = {}
@@ -183,106 +258,63 @@ def on_message(client, userdata, msg):
         request_id = str(req.get("request_id", ""))
         if not request_id:
             raise ValueError("request_id is required")
-
         cached = RESPONSE_CACHE.get(request_id)
         if cached is not None:
-            client.publish(MQTT_RES_TOPIC, json.dumps(cached), qos=MQTT_QOS, retain=False)
+            _publish_response(client, cached)
             print(f"[MQTT] duplicate request_id={request_id} -> response replayed without command", flush=True)
             return
-        if LOADED_PROFILES:
-            selected_profile_id, selected_profile = select_profile(
-                req,
-                default_profile=ACTIVE_MODEL_PROFILE,
-                loaded_profiles=LOADED_PROFILES,
-            )
-            selected_contract = selected_profile["contract"]
-        else:
-            selected_profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
-            if selected_profile_id != DEFAULT_MODEL_PROFILE:
-                raise ValueError(f"unknown model_profile {selected_profile_id!r}")
-            selected_profile = None
-            selected_contract = CONTRACT
-        sequence = req["sequence"]
+        _process_request(client, req, request_id)
+    except Exception as error:
+        _publish_error(client, req, error)
+        print("[ERR]", repr(error), flush=True)
 
-        y_hat, y_name, top3 = predict(sequence) if selected_profile is None else predict(sequence, selected_profile)
-        command_output = publish_direct_command(
-            client,
-            domain="vgr",
-            command=y_hat,
-            command_topics=COMMAND_TOPICS,
-            enabled=COMMAND_OUTPUT_ENABLED,
-        )
-        res = response_payload(
-            req,
-            model_id=selected_contract["model_id"],
-            model_profile=selected_profile_id,
-            cmd=y_hat,
-            name=y_name,
-            top3=top3,
-            command_output=command_output,
-        )
-        RESPONSE_CACHE.remember(request_id, res)
-        client.publish(MQTT_RES_TOPIC, json.dumps(res), qos=MQTT_QOS, retain=False)
-        print(
-            f"[MQTT] request_id={request_id} -> cmd={y_hat} ({y_name}) "
-            f"command_output={command_output['reason']}",
-            flush=True,
-        )
 
-    except Exception as e:
-        error_profile_id = str(req.get("model_profile") or DEFAULT_MODEL_PROFILE)
-        error_profile = LOADED_PROFILES.get(error_profile_id)
-        error_model_id = (
-            error_profile["contract"]["model_id"]
-            if error_profile is not None
-            else CONTRACT["model_id"]
-        )
-        err = response_payload(
-            req,
-            model_id=error_model_id,
-            model_profile=error_profile_id,
-            error=str(e),
-        )
-        request_id = str(req.get("request_id", ""))
-        if request_id and RESPONSE_CACHE.get(request_id) is None:
-            RESPONSE_CACHE.remember(request_id, err)
-        client.publish(MQTT_RES_TOPIC, json.dumps(err), qos=MQTT_QOS, retain=False)
-        print("[ERR]", repr(e), flush=True)
+def _validate_command_topics():
+    """Jede Modellklasse gegen ein physisches Topic pruefen."""
+    for profile_id, profile in LOADED_PROFILES.items():
+        classes = set(int(value) for value in profile["activation"]["class_ids"])
+        missing_topics = sorted(classes - set(COMMAND_TOPICS))
+        if missing_topics:
+            raise ValueError(f"VGR profile {profile_id!r} classes without physical command topics: {missing_topics}")
 
-def main():
-    """Startet den VGR-Inferenzcontainer als MQTT-Client."""
+
+def _initialize_service():
+    """Dateien, Topics und Modellprofile vor MQTT laden."""
     global COMMAND_TOPICS
-    try:
-        print(f"[INIT] waiting for KB={KB_PATH} and AB={AB_PATH}", flush=True)
-        wait_for_files([KB_PATH, AB_PATH], timeout_s=180, interval_s=1)
-        COMMAND_TOPICS = load_command_topic_map(COMMAND_TOPICS_PATH, "vgr")
-        ensure_loaded()
-        for profile_id, profile in LOADED_PROFILES.items():
-            missing_topics = sorted(
-                set(int(value) for value in profile["activation"]["class_ids"]) - set(COMMAND_TOPICS),
-            )
-            if missing_topics:
-                raise ValueError(f"VGR profile {profile_id!r} classes without physical command topics: {missing_topics}")
-        print("[INIT] model+activation loaded OK", flush=True)
-        print(
-            f"[INIT] broker={MQTT_HOST}:{MQTT_PORT} req={MQTT_REQ_TOPIC} "
-            f"res={MQTT_RES_TOPIC} direct_commands={COMMAND_OUTPUT_ENABLED} "
-            f"profiles={','.join(LOADED_PROFILES)}",
-            flush=True,
-        )
-    except Exception as e:
-        # Ein Inferenzcontainer ohne Modellvertrag waere gefaehrlicher als ein
-        # frueher, sichtbarer Abbruch.
-        print("[FATAL]", repr(e), flush=True)
-        raise
+    print(f"[INIT] waiting for KB={KB_PATH} and AB={AB_PATH}", flush=True)
+    wait_for_files([KB_PATH, AB_PATH], timeout_s=180, interval_s=1)
+    COMMAND_TOPICS = load_command_topic_map(COMMAND_TOPICS_PATH, "vgr")
+    ensure_loaded()
+    _validate_command_topics()
+    print("[INIT] model+activation loaded OK", flush=True)
+    print(
+        f"[INIT] broker={MQTT_HOST}:{MQTT_PORT} req={MQTT_REQ_TOPIC} "
+        f"res={MQTT_RES_TOPIC} direct_commands={COMMAND_OUTPUT_ENABLED} "
+        f"profiles={','.join(LOADED_PROFILES)}",
+        flush=True,
+    )
 
+
+def _mqtt_client():
+    """Konfigurierten MQTT-Client erzeugen."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
     configure_last_will(client, status_topic=MQTT_STATUS_TOPIC, domain="vgr", qos=MQTT_QOS)
     if MQTT_USER:
         client.username_pw_set(MQTT_USER, MQTT_PASS)
+    return client
 
+def main():
+    """Startet den VGR-Inferenzcontainer als MQTT-Client."""
+    try:
+        _initialize_service()
+    except Exception as error:
+        # Ein Inferenzcontainer ohne Modellvertrag waere gefaehrlicher als ein
+        # frueher, sichtbarer Abbruch.
+        print("[FATAL]", repr(error), flush=True)
+        raise
+    client = _mqtt_client()
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
     client.loop_forever()
 

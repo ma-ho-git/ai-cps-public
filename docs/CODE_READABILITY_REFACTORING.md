@@ -102,8 +102,8 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-014 | `training/hbw/train.py:main()` | 189 Zeilen | Ablauf in benannte Schritte zerlegen | Trainingsvertrag und Smoke | pending |
 | AR-015 | `training/hbw/validate_input_data()` | 64 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | pending |
 | AR-016 | `training/storage/train.py:main()` | 152 Zeilen | Daten, Fit, Evaluation und Ablage trennen | Truth-Table-Test | pending |
-| AR-017 | VGR/HBW `mqtt_infer.py:on_message()` | je 73 Zeilen | Lesen, Profil, Inferenz, Command und Response trennen | MQTT- und Direct-Command-Tests | pending |
-| AR-018 | `model_profiles.load_profile_specs()` | 71 Zeilen | Kataloglesen und Profilvalidierung trennen | Profilvertragstest | pending |
+| AR-017 | VGR/HBW `mqtt_infer.py:on_message()` | je 73 Zeilen | Lesen, Profil, Inferenz, Command und Response trennen | MQTT- und Direct-Command-Tests | completed |
+| AR-018 | `model_profiles.load_profile_specs()` | 71 Zeilen | Kataloglesen und Profilvalidierung trennen | Profilvertragstest | completed |
 | AR-019 | `check_model_compatibility.analyze_model()` | 144 Zeilen | Artefakt-, Form-, Feature- und Mappingchecks trennen | Kompatibilitaetstests | pending |
 | AR-020 | `compare_model_runs.compare_runs()` | 117 Zeilen | Reports lesen, vergleichen und Ergebnis bauen trennen | Vergleichstests | pending |
 | AR-021 | `evaluate_full_storage_guard_models.evaluate_domain()` | 113 Zeilen | Modellladen, Fenster, Metriken und Ausgabe trennen | Guard-Evaluationstest | pending |

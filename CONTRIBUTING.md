@@ -32,8 +32,15 @@ The sign-off certifies the Developer Certificate of Origin 1.1:
 
 - Python: relevant unit tests and `py_compile`
 - Node-RED/MQTT: JavaScript tests, Flow export and Compose validation
+- Readability: `python tools/check_code_readability.py`
 - Runtime behavior: standard trace and affected guard profiles
 - Documentation: links, paths and `git diff --check`
 
 Pull requests must describe the behavioral effect, validation evidence,
 scientific implications and any remaining risk.
+
+Code should remain approachable for contributors with basic programming
+experience. Production functions are limited to 60 lines; callbacks, `main()`
+and test methods to 40 lines. Node-RED process decisions should use visible
+Core nodes. The four documented Function-node exceptions and JSONata
+expressions up to 200 characters are enforced automatically.

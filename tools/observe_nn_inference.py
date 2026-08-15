@@ -308,13 +308,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    """Verbindet den passiven Beobachter und gibt Treffer bis Ctrl+C aus."""
-    args = parse_args()
-    observer = InferenceObserver(pending_ttl_s=args.pending_ttl_s)
-    client_id = f"ai-cps-inference-observer-{socket.gethostname()}-{os.getpid()}"
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
-
+def connect_callback(args: argparse.Namespace) -> Any:
     def on_connect(
         connected_client: mqtt.Client,
         _userdata: Any,
@@ -332,7 +326,10 @@ def main() -> None:
             "waiting for Storage/VGR/HBW requests and responses (Ctrl+C to stop)",
             flush=True,
         )
+    return on_connect
 
+
+def message_callback(observer: InferenceObserver) -> Any:
     def on_message(
         _client: mqtt.Client,
         _userdata: Any,
@@ -340,11 +337,22 @@ def main() -> None:
     ) -> None:
         for line in observer.handle_message(str(message.topic), message.payload):
             print(line, flush=True)
+    return on_message
 
-    client.on_connect = on_connect
-    client.on_message = on_message
+
+def configured_client(args: argparse.Namespace, observer: InferenceObserver) -> mqtt.Client:
+    client_id = f"ai-cps-inference-observer-{socket.gethostname()}-{os.getpid()}"
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
+    client.on_connect = connect_callback(args)
+    client.on_message = message_callback(observer)
     if args.username:
         client.username_pw_set(args.username, args.password)
+    return client
+
+
+def run_observer(args: argparse.Namespace) -> None:
+    observer = InferenceObserver(pending_ttl_s=args.pending_ttl_s)
+    client = configured_client(args, observer)
     client.connect(args.host, args.port, keepalive=60)
     try:
         client.loop_forever()
@@ -352,6 +360,11 @@ def main() -> None:
         print("\n[OBSERVER] stopped", flush=True)
     finally:
         client.disconnect()
+
+
+def main() -> None:
+    """Verbindet den passiven Beobachter und gibt Treffer bis Ctrl+C aus."""
+    run_observer(parse_args())
 
 
 if __name__ == "__main__":

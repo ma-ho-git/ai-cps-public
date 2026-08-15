@@ -7,10 +7,11 @@ LABEL org.opencontainers.image.source="https://github.com/ma-ho-git/ai-cps-runti
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 WORKDIR /app
-COPY requirements-training.lock /app/requirements-training.lock
+COPY training/hbw/requirements-training.lock /app/requirements-training.lock
 RUN pip install --no-cache-dir --require-hashes -r /app/requirements-training.lock \
     && pip check
 
-COPY train.py /app/train.py
+COPY training/hbw/train.py /app/train.py
+COPY training/lstm_common.py /app/training/lstm_common.py
 
 CMD ["python", "/app/train.py", "--config", "/configs/train_hbw.json"]

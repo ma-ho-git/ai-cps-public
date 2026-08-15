@@ -17,6 +17,44 @@ DIGEST = "sha256:" + "b" * 64
 
 
 class PortableRuntimeSetupTests(unittest.TestCase):
+    def run_setup(
+        self, root: Path, example_text: str, **overrides: object
+    ) -> tuple[argparse.Namespace, dict[str, str]]:
+        scenario = root / "scenario"
+        scenario.mkdir()
+        config = root / "runtime_release.json"
+        config.write_text(json.dumps({
+            "release": "runtime-v1.1.0", "repository": "owner/repo",
+            "compose_project": "ai-cps-default",
+        }), encoding="utf-8")
+        example = root / ".env.example"
+        example.write_text(example_text, encoding="utf-8")
+        images = {key: f"ghcr.io/example/{key}@{DIGEST}" for key in setup.IMAGE_ENV_KEYS}
+        manifest = root / "manifest.json"
+        manifest.write_text(json.dumps({
+            "release": "runtime-v1.1.0", "platform": "linux/amd64",
+            "source_commit": "1" * 40, "images": images,
+            "protected_files": {"file": "hash"},
+        }), encoding="utf-8")
+        values: dict[str, object] = {
+            "release": "runtime-v1.1.0", "manifest": manifest, "mode": "virtual",
+            "env_file": root / ".env", "mqtt_host": None, "mqtt_port": 1883,
+            "mqtt_user": "", "force": False, "skip_venv": True,
+            "skip_pull": True, "skip_preflight": True,
+            "report_root": root / "reports",
+        }
+        values.update(overrides)
+        args = argparse.Namespace(**values)
+        with (
+            mock.patch.object(setup, "RELEASE_CONFIG", config),
+            mock.patch.object(setup, "ENV_EXAMPLE", example),
+            mock.patch.object(setup, "SCENARIO_ROOT", scenario),
+            mock.patch.object(setup, "DEPLOYMENT_LOCK", root / ".runtime/lock.json"),
+            mock.patch.object(setup, "verify_source_tree"),
+        ):
+            setup.init_runtime(args)
+        return args, images
+
     def test_atomic_env_update_preserves_values_and_restricts_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             env_file = Path(temp) / ".env"
@@ -76,192 +114,43 @@ class PortableRuntimeSetupTests(unittest.TestCase):
     def test_init_creates_release_env_without_overwriting_site_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            scenario = root / "scenarios/serve_ft_nns_external_broker/x86_64"
-            scenario.mkdir(parents=True)
-            config = root / "runtime_release.json"
-            config.write_text(
-                json.dumps(
-                    {
-                        "release": "runtime-v1.1.0",
-                        "repository": "owner/repo",
-                        "compose_project": "ai-cps-default",
-                    }
-                ),
-                encoding="utf-8",
-            )
-            example = root / ".env.example"
-            example.write_text(
+            args, images = self.run_setup(
+                root,
                 "MQTT_HOST=site-broker\nKEEP=site-value\n"
                 "NODE_RED_CREDENTIAL_SECRET=replace-with-a-long-random-site-secret\n",
-                encoding="utf-8",
             )
-            manifest_path = root / "manifest.json"
-            images = {
-                key: f"ghcr.io/example/{key}@{DIGEST}" for key in setup.IMAGE_ENV_KEYS
-            }
-            manifest_path.write_text(
-                json.dumps(
-                    {
-                        "release": "runtime-v1.1.0",
-                        "platform": "linux/amd64",
-                        "source_commit": "1" * 40,
-                        "images": images,
-                        "protected_files": {"file": "hash"},
-                    }
-                ),
-                encoding="utf-8",
-            )
-            env_file = root / ".env"
-            args = argparse.Namespace(
-                release="runtime-v1.1.0",
-                manifest=manifest_path,
-                mode="virtual",
-                env_file=env_file,
-                mqtt_host=None,
-                mqtt_port=1883,
-                mqtt_user="",
-                force=False,
-                skip_venv=True,
-                skip_pull=True,
-                skip_preflight=True,
-            )
-            with (
-                mock.patch.object(setup, "RELEASE_CONFIG", config),
-                mock.patch.object(setup, "ENV_EXAMPLE", example),
-                mock.patch.object(setup, "SCENARIO_ROOT", scenario),
-                mock.patch.object(setup, "DEPLOYMENT_LOCK", root / ".runtime/lock.json"),
-                mock.patch.object(setup, "verify_source_tree"),
-            ):
-                setup.init_runtime(args)
-
-            values = setup.load_env(env_file)
+            values = setup.load_env(args.env_file)
             self.assertEqual(values["KEEP"], "site-value")
             self.assertEqual(values["MQTT_HOST"], "site-broker")
             self.assertEqual(values["IMAGE_TAG"], "runtime-v1.1.0")
             self.assertEqual(values["VGR_IMAGE"], images["vgr"])
             self.assertNotIn("replace-with", values["NODE_RED_CREDENTIAL_SECRET"])
-            self.assertEqual(env_file.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(args.env_file.stat().st_mode & 0o777, 0o600)
 
     def test_fresh_env_accepts_release_image_tag_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            scenario = root / "scenario"
-            scenario.mkdir()
-            config = root / "runtime_release.json"
-            config.write_text(
-                json.dumps(
-                    {
-                        "release": "runtime-v1.1.0",
-                        "repository": "owner/repo",
-                        "compose_project": "ai-cps-default",
-                    }
-                ),
-                encoding="utf-8",
-            )
-            example = root / ".env.example"
-            example.write_text(
+            args, _ = self.run_setup(
+                root,
                 "IMAGE_TAG=local\n"
                 "REPORT_ROOT_HOST=reports\n"
                 "NODE_RED_CREDENTIAL_SECRET=replace-with-a-long-random-site-secret\n",
-                encoding="utf-8",
             )
-            manifest = {
-                "release": "runtime-v1.1.0",
-                "platform": "linux/amd64",
-                "source_commit": "1" * 40,
-                "images": {
-                    key: f"ghcr.io/example/{key}@{DIGEST}"
-                    for key in setup.IMAGE_ENV_KEYS
-                },
-                "protected_files": {"file": "hash"},
-            }
-            manifest_path = root / "manifest.json"
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            args = argparse.Namespace(
-                release="runtime-v1.1.0",
-                manifest=manifest_path,
-                mode="virtual",
-                env_file=root / ".env",
-                mqtt_host=None,
-                mqtt_port=1883,
-                mqtt_user="",
-                force=False,
-                skip_venv=True,
-                skip_pull=True,
-                skip_preflight=True,
-            )
-            with (
-                mock.patch.object(setup, "RELEASE_CONFIG", config),
-                mock.patch.object(setup, "ENV_EXAMPLE", example),
-                mock.patch.object(setup, "SCENARIO_ROOT", scenario),
-                mock.patch.object(setup, "DEPLOYMENT_LOCK", root / ".runtime/lock.json"),
-                mock.patch.object(setup, "verify_source_tree"),
-            ):
-                setup.init_runtime(args)
-
             values = setup.load_env(args.env_file)
             self.assertEqual(values["IMAGE_TAG"], "runtime-v1.1.0")
 
     def test_init_applies_isolated_project_and_report_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            scenario = root / "scenario"
-            scenario.mkdir()
-            config = root / "runtime_release.json"
-            config.write_text(
-                json.dumps(
-                    {
-                        "release": "runtime-v1.1.0",
-                        "repository": "owner/repo",
-                        "compose_project": "ai-cps-default",
-                    }
-                ),
-                encoding="utf-8",
-            )
-            example = root / ".env.example"
-            example.write_text(
+            report_root = root / "isolated-reports"
+            args, _ = self.run_setup(
+                root,
                 "COMPOSE_PROJECT_NAME=ai-cps-default\n"
                 "REPORT_ROOT_HOST=reports\n"
                 "NODE_RED_CREDENTIAL_SECRET=replace-with-a-long-random-site-secret\n",
-                encoding="utf-8",
-            )
-            manifest = {
-                "release": "runtime-v1.1.0",
-                "platform": "linux/amd64",
-                "source_commit": "1" * 40,
-                "images": {
-                    key: f"ghcr.io/example/{key}@{DIGEST}"
-                    for key in setup.IMAGE_ENV_KEYS
-                },
-                "protected_files": {"file": "hash"},
-            }
-            manifest_path = root / "manifest.json"
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            report_root = root / "isolated-reports"
-            args = argparse.Namespace(
-                release="runtime-v1.1.0",
-                manifest=manifest_path,
-                mode="virtual",
-                env_file=root / ".env",
                 compose_project="ai-cps-v11-clean",
                 report_root=report_root,
-                mqtt_host=None,
-                mqtt_port=1883,
-                mqtt_user="",
-                force=False,
-                skip_venv=True,
-                skip_pull=True,
-                skip_preflight=True,
             )
-            with (
-                mock.patch.object(setup, "RELEASE_CONFIG", config),
-                mock.patch.object(setup, "ENV_EXAMPLE", example),
-                mock.patch.object(setup, "SCENARIO_ROOT", scenario),
-                mock.patch.object(setup, "DEPLOYMENT_LOCK", root / ".runtime/lock.json"),
-                mock.patch.object(setup, "verify_source_tree"),
-            ):
-                setup.init_runtime(args)
-
             values = setup.load_env(args.env_file)
             self.assertEqual(values["COMPOSE_PROJECT_NAME"], "ai-cps-v11-clean")
             self.assertEqual(values["REPORT_ROOT_HOST"], str(report_root.resolve()))

@@ -164,10 +164,6 @@ def required_nodered_assets(root: Path = PROJECT_ROOT) -> list[Path]:
         base / "config/idle_seed_templates.json",
         base / "config/model_contract.schema.json",
         base / "config/virtual_experiment_catalog.json",
-        base / "lib/orchestration.js",
-        base / "lib/hmi.js",
-        base / "lib/reporting.js",
-        base / "lib/virtual_factory.js",
         base / "mosquitto/mosquitto.conf",
         scenario / "test_payloads/live_plc_trace/payloads.jsonl",
         scenario / "test_payloads/live_plc_trace/manifest.csv",
@@ -188,19 +184,10 @@ def check_nodered_assets(root: Path = PROJECT_ROOT) -> CheckResult:
     )
 
 
-def check_virtual_experiment_catalog(root: Path = PROJECT_ROOT) -> list[CheckResult]:
-    """Prueft sichtbare Szenarien und fest versionierte historische Modelle."""
-    scenario = root / "scenarios/serve_ft_nns_external_broker/x86_64"
-    catalog_path = scenario / "node_red/config/virtual_experiment_catalog.json"
-    try:
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return [CheckResult("virtual-experiment-catalog", False, str(exc))]
-
-    checks: list[CheckResult] = []
+def catalog_model_checks(catalog: dict[str, Any], root: Path) -> list[CheckResult]:
     profiles = catalog.get("model_profiles", {})
     default_profile = catalog.get("default_model_profile")
-    checks.append(
+    checks = [
         result(
             "virtual-model-profiles",
             catalog.get("schema_version") == "1.0"
@@ -209,46 +196,64 @@ def check_virtual_experiment_catalog(root: Path = PROJECT_ROOT) -> list[CheckRes
             f"model profiles available: {', '.join(sorted(profiles))}",
             "invalid virtual model profile catalog",
         )
-    )
+    ]
     for profile_id, profile in profiles.items() if isinstance(profiles, dict) else ():
         for domain in ("vgr", "hbw"):
             domain_config = profile.get("domains", {}).get(domain, {})
             if domain_config.get("source") == "active":
                 continue
-            relative = Path(str(domain_config.get("model_dir", "")))
-            model_dir = root / "model_registry" / relative
-            invalid: list[str] = []
-            for filename, hash_key in (
-                ("model.keras", "model_sha256"),
-                ("activation.json", "activation_sha256"),
-                ("metrics.json", "metrics_sha256"),
-            ):
-                artifact = model_dir / filename
-                expected = str(domain_config.get(hash_key, ""))
-                if not artifact.is_file() or not expected or sha256_file(artifact) != expected:
-                    invalid.append(filename)
-            model_hash = str(domain_config.get("model_sha256", ""))
-            expected_id = str(domain_config.get("model_id", ""))
-            try:
-                activation = json.loads((model_dir / "activation.json").read_text(encoding="utf-8"))
-                actual_id = f"{domain}:{activation.get('trained_at', 'unknown')}:{model_hash[:12]}"
-            except (OSError, json.JSONDecodeError):
-                actual_id = ""
-            checks.append(
-                result(
-                    f"virtual-model-profile:{profile_id}:{domain}",
-                    not invalid and actual_id == expected_id,
-                    f"verified {expected_id}",
-                    f"invalid artifacts={invalid} or model_id={expected_id!r}/{actual_id!r}",
-                )
-            )
+            checks.append(catalog_model_result(root, profile_id, domain, domain_config))
+    return checks
 
+
+def catalog_model_result(
+    root: Path,
+    profile_id: str,
+    domain: str,
+    config: dict[str, Any],
+) -> CheckResult:
+    relative = Path(str(config.get("model_dir", "")))
+    model_dir = root / "model_registry" / relative
+    artifacts = (
+        ("model.keras", "model_sha256"),
+        ("activation.json", "activation_sha256"),
+        ("metrics.json", "metrics_sha256"),
+    )
+    invalid = [
+        filename for filename, hash_key in artifacts
+        if not artifact_hash_matches(model_dir / filename, str(config.get(hash_key, "")))
+    ]
+    model_hash = str(config.get("model_sha256", ""))
+    expected_id = str(config.get("model_id", ""))
+    actual_id = catalog_model_id(domain, model_dir, model_hash)
+    return result(
+        f"virtual-model-profile:{profile_id}:{domain}",
+        not invalid and actual_id == expected_id,
+        f"verified {expected_id}",
+        f"invalid artifacts={invalid} or model_id={expected_id!r}/{actual_id!r}",
+    )
+
+
+def artifact_hash_matches(path: Path, expected: str) -> bool:
+    return path.is_file() and bool(expected) and sha256_file(path) == expected
+
+
+def catalog_model_id(domain: str, model_dir: Path, model_hash: str) -> str:
+    try:
+        activation = json.loads((model_dir / "activation.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return f"{domain}:{activation.get('trained_at', 'unknown')}:{model_hash[:12]}"
+
+
+def catalog_trace_checks(catalog: dict[str, Any], scenario: Path) -> list[CheckResult]:
     trace_profiles = catalog.get("trace_profiles", {})
     trace_paths = {
         "standard": scenario / "test_payloads/live_plc_trace/payloads.jsonl",
         "full-storage-attempt": scenario / "test_payloads/live_plc_full_storage_attempt/payloads.jsonl",
         "full-storage-process-guard": scenario / "test_payloads/live_plc_full_storage_process_guard/payloads.jsonl",
     }
+    checks: list[CheckResult] = []
     for profile_id, payload_path in trace_paths.items():
         configured = trace_profiles.get(profile_id, {}) if isinstance(trace_profiles, dict) else {}
         try:
@@ -266,6 +271,17 @@ def check_virtual_experiment_catalog(root: Path = PROJECT_ROOT) -> list[CheckRes
             )
         )
     return checks
+
+
+def check_virtual_experiment_catalog(root: Path = PROJECT_ROOT) -> list[CheckResult]:
+    """Prueft sichtbare Szenarien und fest versionierte historische Modelle."""
+    scenario = root / "scenarios/serve_ft_nns_external_broker/x86_64"
+    path = scenario / "node_red/config/virtual_experiment_catalog.json"
+    try:
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [CheckResult("virtual-experiment-catalog", False, str(exc))]
+    return catalog_model_checks(catalog, root) + catalog_trace_checks(catalog, scenario)
 
 
 def check_dependency_pins(root: Path = PROJECT_ROOT) -> list[CheckResult]:
@@ -793,64 +809,66 @@ def check_local_release_images(
     settings: Mapping[str, str], *, include_node_red: bool
 ) -> list[CheckResult]:
     domains = list(MODEL_DOMAINS) + (["node_red"] if include_node_red else [])
-    lock: dict[str, object] = {}
-    if DEPLOYMENT_LOCK.is_file():
-        try:
-            lock = json.loads(DEPLOYMENT_LOCK.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            lock = {}
+    lock = load_deployment_lock()
     source_commit = str(lock.get("source_commit", ""))
     checks: list[CheckResult] = []
     for domain in domains:
         reference = settings.get(f"{domain.upper()}_IMAGE", "").strip()
         if not reference:
             continue
-        process = run_command(
-            [
-                "docker",
-                "image",
-                "inspect",
-                reference,
-                "--format",
-                "{{json .}}",
-            ]
-        )
-        if process.returncode != 0:
-            checks.append(
-                CheckResult(
-                    f"image-local:{domain}",
-                    False,
-                    process.stderr.strip() or f"image is not available locally: {reference}",
-                )
-            )
-            continue
-        try:
-            descriptor = json.loads(process.stdout)
-        except json.JSONDecodeError as exc:
-            checks.append(CheckResult(f"image-local:{domain}", False, str(exc)))
-            continue
-        os_name = str(descriptor.get("Os", "")).lower()
-        architecture = str(descriptor.get("Architecture", "")).lower()
-        checks.append(
-            result(
-                f"image-platform:{domain}",
-                os_name == "linux" and architecture == "amd64",
-                f"{reference} is linux/amd64",
-                f"{reference} has platform {os_name}/{architecture}",
-            )
-        )
-        labels = descriptor.get("Config", {}).get("Labels", {}) or {}
-        revision = str(labels.get("org.opencontainers.image.revision", ""))
-        if source_commit:
-            checks.append(
-                result(
-                    f"image-revision:{domain}",
-                    revision == source_commit,
-                    f"image source revision matches {source_commit}",
-                    f"image revision {revision or 'missing'} differs from {source_commit}",
-                )
-            )
+        checks.extend(inspect_release_image(domain, reference, source_commit))
     return checks
+
+
+def load_deployment_lock() -> dict[str, object]:
+    if not DEPLOYMENT_LOCK.is_file():
+        return {}
+    try:
+        value = json.loads(DEPLOYMENT_LOCK.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def inspect_release_image(domain: str, reference: str, source_commit: str) -> list[CheckResult]:
+    process = run_command([
+        "docker", "image", "inspect", reference, "--format", "{{json .}}",
+    ])
+    if process.returncode != 0:
+        detail = process.stderr.strip() or f"image is not available locally: {reference}"
+        return [CheckResult(f"image-local:{domain}", False, detail)]
+    try:
+        descriptor = json.loads(process.stdout)
+    except json.JSONDecodeError as exc:
+        return [CheckResult(f"image-local:{domain}", False, str(exc))]
+    checks = [image_platform_result(domain, reference, descriptor)]
+    if source_commit:
+        checks.append(image_revision_result(domain, descriptor, source_commit))
+    return checks
+
+
+def image_platform_result(domain: str, reference: str, descriptor: dict[str, Any]) -> CheckResult:
+    os_name = str(descriptor.get("Os", "")).lower()
+    architecture = str(descriptor.get("Architecture", "")).lower()
+    return result(
+        f"image-platform:{domain}",
+        os_name == "linux" and architecture == "amd64",
+        f"{reference} is linux/amd64",
+        f"{reference} has platform {os_name}/{architecture}",
+    )
+
+
+def image_revision_result(
+    domain: str, descriptor: dict[str, Any], source_commit: str
+) -> CheckResult:
+    labels = descriptor.get("Config", {}).get("Labels", {}) or {}
+    revision = str(labels.get("org.opencontainers.image.revision", ""))
+    return result(
+        f"image-revision:{domain}",
+        revision == source_commit,
+        f"image source revision matches {source_commit}",
+        f"image revision {revision or 'missing'} differs from {source_commit}",
+    )
 
 
 def collect_checks(

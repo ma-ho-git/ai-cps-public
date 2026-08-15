@@ -244,31 +244,36 @@ def require_physical_mqtt_host(value: str | None) -> str:
     return mqtt_host
 
 
-def init_runtime(args: argparse.Namespace) -> None:
+def release_manifest(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     config = load_object(RELEASE_CONFIG)
     if args.release != config.get("release"):
-        raise SetupError(
-            f"this source tree prepares {config.get('release')}, not {args.release}"
-        )
-    manifest = obtain_manifest(
-        release=args.release, config=config, manifest_path=args.manifest
-    )
+        raise SetupError(f"this source tree prepares {config.get('release')}, not {args.release}")
+    manifest = obtain_manifest(release=args.release, config=config, manifest_path=args.manifest)
     verify_source_tree(manifest)
-    env_file = args.env_file.resolve()
-    env_was_present = env_file.exists()
-    if not env_was_present:
-        shutil.copy2(ENV_EXAMPLE, env_file)
-    settings = load_env(env_file)
-    if args.mode == "physical":
-        mqtt_host = require_physical_mqtt_host(args.mqtt_host)
-    else:
-        mqtt_host = settings.get("MQTT_HOST", "")
+    return config, manifest
 
+
+def ensure_env_file(env_file: Path) -> bool:
+    """Erzeugt .env nur beim ersten Setup."""
+    was_present = env_file.exists()
+    if not was_present:
+        shutil.copy2(ENV_EXAMPLE, env_file)
+    return was_present
+
+
+def credential_secret(settings: Mapping[str, str]) -> str:
     secret = settings.get("NODE_RED_CREDENTIAL_SECRET", "")
     if not secret or secret == "replace-with-a-long-random-site-secret":
-        secret = secrets.token_urlsafe(48)
+        return secrets.token_urlsafe(48)
+    return secret
 
-    images = manifest["images"]
+
+def runtime_env_updates(
+    args: argparse.Namespace,
+    config: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    settings: Mapping[str, str],
+) -> dict[str, str]:
     compose_project = validate_compose_project(
         getattr(args, "compose_project", None)
         or settings.get("COMPOSE_PROJECT_NAME", "")
@@ -279,56 +284,74 @@ def init_runtime(args: argparse.Namespace) -> None:
         "AI_CPS_UID": str(os.getuid()),
         "AI_CPS_GID": str(os.getgid()),
         "IMAGE_TAG": args.release,
-        "NODE_RED_CREDENTIAL_SECRET": secret,
-        **{env_key: str(images[key]) for key, env_key in IMAGE_ENV_KEYS.items()},
+        "NODE_RED_CREDENTIAL_SECRET": credential_secret(settings),
+        **{
+            env_key: str(manifest["images"][key])
+            for key, env_key in IMAGE_ENV_KEYS.items()
+        },
     }
     requested_report_root = getattr(args, "report_root", None)
     if requested_report_root is not None:
         updates["REPORT_ROOT_HOST"] = str(requested_report_root.expanduser().resolve())
     if args.mode == "physical":
-        updates.update(
-            {
-                "MQTT_HOST": mqtt_host,
-                "MQTT_PORT": str(args.mqtt_port),
-                "MQTT_USER": args.mqtt_user or settings.get("MQTT_USER", ""),
-            }
+        updates["MQTT_HOST"] = require_physical_mqtt_host(args.mqtt_host)
+        updates["MQTT_PORT"] = str(args.mqtt_port)
+        updates["MQTT_USER"] = args.mqtt_user or settings.get("MQTT_USER", "")
+    return updates
+
+
+def reject_image_conflicts(
+    settings: Mapping[str, str], updates: Mapping[str, str], *, force: bool
+) -> None:
+    if force:
+        return
+    protected_keys = set(IMAGE_ENV_KEYS.values()) | {"IMAGE_TAG"}
+    conflicting = {
+        key for key, value in updates.items()
+        if key in protected_keys
+        and settings.get(key)
+        and settings[key] != value
+    }
+    if conflicting:
+        raise SetupError(
+            "existing image selection differs from the release; use --force: "
+            + ", ".join(sorted(conflicting))
         )
-    if env_was_present and not args.force:
-        conflicting = {
-            key: settings[key]
-            for key, value in updates.items()
-            if key in settings
-            and settings[key]
-            and settings[key] != value
-            and key in set(IMAGE_ENV_KEYS.values()) | {"IMAGE_TAG"}
-        }
-        if conflicting:
-            raise SetupError(
-                "existing image selection differs from the release; use --force: "
-                + ", ".join(sorted(conflicting))
-            )
-    atomic_update_env(env_file, updates)
-    write_deployment_lock(manifest)
-    settings = load_env(env_file)
+
+
+def prepare_report_directory(settings: Mapping[str, str]) -> None:
     reports = report_path(settings)
     reports.mkdir(parents=True, exist_ok=True)
     reports.chmod(reports.stat().st_mode | 0o770)
 
+
+def prepare_runtime_dependencies(args: argparse.Namespace, env_file: Path) -> None:
     python = Path(sys.executable) if args.skip_venv else create_venv()
     if not args.skip_pull:
         run_checked(compose_command(args.mode, env_file) + ["pull"])
-    if not args.skip_preflight:
-        run_checked(
-            [
-                str(python),
-                str(PROJECT_ROOT / "tools/check_deployment_readiness.py"),
-                "--mode",
-                args.mode,
-                "--env-file",
-                str(env_file),
-                "--images",
-            ]
-        )
+    if args.skip_preflight:
+        return
+    run_checked([
+        str(python),
+        str(PROJECT_ROOT / "tools/check_deployment_readiness.py"),
+        "--mode", args.mode,
+        "--env-file", str(env_file),
+        "--images",
+    ])
+
+
+def init_runtime(args: argparse.Namespace) -> None:
+    config, manifest = release_manifest(args)
+    env_file = args.env_file.resolve()
+    env_was_present = ensure_env_file(env_file)
+    settings = load_env(env_file)
+    updates = runtime_env_updates(args, config, manifest, settings)
+    if env_was_present:
+        reject_image_conflicts(settings, updates, force=args.force)
+    atomic_update_env(env_file, updates)
+    write_deployment_lock(manifest)
+    prepare_report_directory(load_env(env_file))
+    prepare_runtime_dependencies(args, env_file)
     print(f"Portable {args.mode} runtime prepared in {PROJECT_ROOT}")
     print(f"Release: {args.release}")
     print(f"Configuration: {env_file}")

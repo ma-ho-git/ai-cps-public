@@ -194,6 +194,134 @@ def validate_contract(
             raise ValueError(f"Candidate {key} differs from training config")
 
 
+def load_evaluation_context(
+    baseline_dir: str | Path,
+    candidate_dir: str | Path,
+    original_config_path: str | Path,
+    guard_config_path: str | Path,
+) -> dict[str, Any]:
+    """Laedt Modelle, Configs und den gemeinsamen Modellvertrag."""
+    original_config = load_config(original_config_path)
+    guard_config = load_config(guard_config_path)
+    baseline_model, baseline_activation, baseline_id = load_model_bundle(baseline_dir)
+    candidate_model, candidate_activation, candidate_id = load_model_bundle(candidate_dir)
+    validate_contract(baseline_activation, candidate_activation, original_config)
+    return {
+        "original_config": original_config,
+        "guard_config": guard_config,
+        "baseline_model": baseline_model,
+        "candidate_model": candidate_model,
+        "baseline_id": baseline_id,
+        "candidate_id": candidate_id,
+        "features": list(original_config["feature_cols"]),
+        "label_col": str(original_config["label_col"]),
+        "time_steps": int(original_config["time_steps"]),
+        "group_col": str(original_config["group_col"]),
+        "class_ids": [int(value) for value in original_config["class_ids"]],
+    }
+
+
+def config_test_windows(config: dict[str, Any], context: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    frame = pd.read_csv(resolve_repo_path(str(config["csv_path"])))
+    return build_grouped_test_windows(
+        frame,
+        feature_cols=context["features"],
+        label_col=context["label_col"],
+        time_steps=context["time_steps"],
+        group_col=context["group_col"],
+    )
+
+
+def evaluate_original_test(context: dict[str, Any]) -> dict[str, Any]:
+    windows, expected = config_test_windows(context["original_config"], context)
+    baseline = predict_class_ids(context["baseline_model"], windows, context["class_ids"])
+    candidate = predict_class_ids(context["candidate_model"], windows, context["class_ids"])
+    return {
+        "windows": int(len(windows)),
+        "baseline_metrics": prediction_metrics(expected, baseline),
+        "candidate_metrics": prediction_metrics(expected, candidate),
+        "changed_predictions": int(np.sum(baseline != candidate)),
+    }
+
+
+def evaluate_guard_test(context: dict[str, Any]) -> dict[str, Any]:
+    windows, expected = config_test_windows(context["guard_config"], context)
+    empty_zero_index = context["features"].index("empty_storage_0")
+    mask = np.all(windows[:, :, empty_zero_index] == 1.0, axis=1)
+    full_windows = windows[mask]
+    full_expected = expected[mask]
+    if len(full_windows) == 0 or np.any(full_expected != 0):
+        raise ValueError("Guard test must contain full-storage windows with label 0 only")
+    baseline = predict_class_ids(context["baseline_model"], full_windows, context["class_ids"])
+    candidate = predict_class_ids(context["candidate_model"], full_windows, context["class_ids"])
+    return {
+        "windows": int(len(full_windows)),
+        "baseline_unsafe": int(np.sum(baseline != 0)),
+        "candidate_unsafe": int(np.sum(candidate != 0)),
+    }
+
+
+def evaluate_profile(
+    domain: str,
+    profile_name: str,
+    payloads_path: Path,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    windows, expected, phases, request_ids = build_live_profile_windows(
+        payloads_path,
+        idle_seeds_path=IDLE_SEEDS_PATH,
+        feature_cols=context["features"],
+        expected_label_key=f"expected_label_{domain.upper()}",
+        time_steps=context["time_steps"],
+    )
+    baseline = predict_class_ids(context["baseline_model"], windows, context["class_ids"])
+    candidate = predict_class_ids(context["candidate_model"], windows, context["class_ids"])
+    result: dict[str, Any] = {
+        "windows": int(len(windows)),
+        "baseline_metrics": prediction_metrics(expected, baseline),
+        "candidate_metrics": prediction_metrics(expected, candidate),
+        "changed_predictions": int(np.sum(baseline != candidate)),
+        "candidate_mismatches": int(np.sum(candidate != expected)),
+    }
+    guard_mask = profile_guard_mask(profile_name, phases)
+    if not np.any(guard_mask):
+        return result
+    unsafe_indices = np.flatnonzero(guard_mask & (candidate != 0))
+    result.update({
+        "guard_windows": int(np.sum(guard_mask)),
+        "baseline_unsafe": int(np.sum(guard_mask & (baseline != 0))),
+        "candidate_unsafe": int(len(unsafe_indices)),
+        "first_candidate_unsafe_request_id": (
+            request_ids[int(unsafe_indices[0])] if len(unsafe_indices) else None
+        ),
+    })
+    return result
+
+
+def evaluate_profiles(domain: str, context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        name: evaluate_profile(domain, name, payloads_path, context)
+        for name, payloads_path in PROFILE_PAYLOADS.items()
+    }
+
+
+def strict_acceptance(result: dict[str, Any]) -> bool:
+    original = result["original_test"]
+    metrics = original["candidate_metrics"]
+    profiles = result["virtual_profiles"]
+    return bool(
+        all(float(metrics[key]) == 1.0 for key in metrics)
+        and original["changed_predictions"] == 0
+        and result["full_storage_guard_test"]["candidate_unsafe"] == 0
+        and profiles["standard"]["candidate_mismatches"] == 0
+        and profiles["standard"]["changed_predictions"] == 0
+        and profiles["stationary_guard"]["guard_windows"] == 20
+        and profiles["stationary_guard"]["candidate_unsafe"] == 0
+        and profiles["process_guard"]["guard_windows"] == 171
+        and profiles["process_guard"]["candidate_unsafe"] == 0
+    )
+
+
 def evaluate_domain(
     *,
     domain: str,
@@ -202,110 +330,21 @@ def evaluate_domain(
     original_config_path: str | Path,
     guard_config_path: str | Path,
 ) -> dict[str, Any]:
-    original_config = load_config(original_config_path)
-    guard_config = load_config(guard_config_path)
-    baseline_model, baseline_activation, baseline_id = load_model_bundle(baseline_dir)
-    candidate_model, candidate_activation, candidate_id = load_model_bundle(candidate_dir)
-    validate_contract(baseline_activation, candidate_activation, original_config)
-
-    feature_cols = list(original_config["feature_cols"])
-    label_col = str(original_config["label_col"])
-    time_steps = int(original_config["time_steps"])
-    group_col = str(original_config["group_col"])
-    class_ids = [int(value) for value in original_config["class_ids"]]
-
-    original_frame = pd.read_csv(resolve_repo_path(str(original_config["csv_path"])))
-    original_windows, original_expected = build_grouped_test_windows(
-        original_frame,
-        feature_cols=feature_cols,
-        label_col=label_col,
-        time_steps=time_steps,
-        group_col=group_col,
+    context = load_evaluation_context(
+        baseline_dir,
+        candidate_dir,
+        original_config_path,
+        guard_config_path,
     )
-    baseline_original = predict_class_ids(baseline_model, original_windows, class_ids)
-    candidate_original = predict_class_ids(candidate_model, original_windows, class_ids)
-
-    guard_frame = pd.read_csv(resolve_repo_path(str(guard_config["csv_path"])))
-    guard_windows, guard_expected = build_grouped_test_windows(
-        guard_frame,
-        feature_cols=feature_cols,
-        label_col=label_col,
-        time_steps=time_steps,
-        group_col=group_col,
-    )
-    empty_zero_idx = feature_cols.index("empty_storage_0")
-    full_storage_mask = np.all(guard_windows[:, :, empty_zero_idx] == 1.0, axis=1)
-    full_storage_windows = guard_windows[full_storage_mask]
-    full_storage_expected = guard_expected[full_storage_mask]
-    if len(full_storage_windows) == 0 or np.any(full_storage_expected != 0):
-        raise ValueError("Guard test must contain full-storage windows with label 0 only")
-    baseline_guard = predict_class_ids(baseline_model, full_storage_windows, class_ids)
-    candidate_guard = predict_class_ids(candidate_model, full_storage_windows, class_ids)
-
-    profile_results: dict[str, Any] = {}
-    expected_label_key = f"expected_label_{domain.upper()}"
-    for profile_name, payloads_path in PROFILE_PAYLOADS.items():
-        profile_windows, profile_expected, phases, request_ids = build_live_profile_windows(
-            payloads_path,
-            idle_seeds_path=IDLE_SEEDS_PATH,
-            feature_cols=feature_cols,
-            expected_label_key=expected_label_key,
-            time_steps=time_steps,
-        )
-        baseline_profile = predict_class_ids(baseline_model, profile_windows, class_ids)
-        candidate_profile = predict_class_ids(candidate_model, profile_windows, class_ids)
-        profile_result: dict[str, Any] = {
-            "windows": int(len(profile_windows)),
-            "baseline_metrics": prediction_metrics(profile_expected, baseline_profile),
-            "candidate_metrics": prediction_metrics(profile_expected, candidate_profile),
-            "changed_predictions": int(np.sum(baseline_profile != candidate_profile)),
-            "candidate_mismatches": int(np.sum(candidate_profile != profile_expected)),
-        }
-        guard_mask = profile_guard_mask(profile_name, phases)
-        if np.any(guard_mask):
-            unsafe_indices = np.flatnonzero(guard_mask & (candidate_profile != 0))
-            profile_result.update({
-                "guard_windows": int(np.sum(guard_mask)),
-                "baseline_unsafe": int(np.sum(guard_mask & (baseline_profile != 0))),
-                "candidate_unsafe": int(len(unsafe_indices)),
-                "first_candidate_unsafe_request_id": (
-                    request_ids[int(unsafe_indices[0])] if len(unsafe_indices) else None
-                ),
-            })
-        profile_results[profile_name] = profile_result
-
     result = {
         "domain": domain,
-        "baseline_model_id": baseline_id,
-        "candidate_model_id": candidate_id,
-        "original_test": {
-            "windows": int(len(original_windows)),
-            "baseline_metrics": prediction_metrics(original_expected, baseline_original),
-            "candidate_metrics": prediction_metrics(original_expected, candidate_original),
-            "changed_predictions": int(np.sum(baseline_original != candidate_original)),
-        },
-        "full_storage_guard_test": {
-            "windows": int(len(full_storage_windows)),
-            "baseline_unsafe": int(np.sum(baseline_guard != 0)),
-            "candidate_unsafe": int(np.sum(candidate_guard != 0)),
-        },
-        "virtual_profiles": profile_results,
+        "baseline_model_id": context["baseline_id"],
+        "candidate_model_id": context["candidate_id"],
+        "original_test": evaluate_original_test(context),
+        "full_storage_guard_test": evaluate_guard_test(context),
+        "virtual_profiles": evaluate_profiles(domain, context),
     }
-    candidate_metrics = result["original_test"]["candidate_metrics"]
-    standard = result["virtual_profiles"]["standard"]
-    stationary = result["virtual_profiles"]["stationary_guard"]
-    process = result["virtual_profiles"]["process_guard"]
-    result["strict_pass"] = bool(
-        all(float(candidate_metrics[key]) == 1.0 for key in candidate_metrics)
-        and result["original_test"]["changed_predictions"] == 0
-        and result["full_storage_guard_test"]["candidate_unsafe"] == 0
-        and standard["candidate_mismatches"] == 0
-        and standard["changed_predictions"] == 0
-        and stationary["guard_windows"] == 20
-        and stationary["candidate_unsafe"] == 0
-        and process["guard_windows"] == 171
-        and process["candidate_unsafe"] == 0
-    )
+    result["strict_pass"] = strict_acceptance(result)
     return result
 
 

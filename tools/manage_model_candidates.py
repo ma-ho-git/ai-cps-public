@@ -510,6 +510,41 @@ def promote_candidate(
         model_id=model_id,
         report_dir=report_dir,
     )
+    paths = prepare_promotion_paths(root, domain)
+    copy_promotion_artifacts(source, paths["staged"])
+    displaced_backup = activate_staged_model(paths)
+    save_promoted_selection(
+        root=root,
+        env_file=env_file,
+        domain=domain,
+        target=target,
+        model_id=model_id,
+        model_hash=model_hash,
+    )
+    record_promotion(
+        root=root,
+        domain=domain,
+        name=name,
+        model_id=model_id,
+        model_hash=model_hash,
+        backup=paths["backup"],
+        displaced_backup=displaced_backup,
+        report_dir=report_dir,
+        quality=quality,
+    )
+    return {
+        "domain": domain,
+        "candidate": name,
+        "model_id": model_id,
+        "backup": str(paths["backup"]),
+        "displaced_backup": str(displaced_backup) if displaced_backup else None,
+        "latest": str(paths["latest"]),
+        "quality": quality,
+    }
+
+
+def prepare_promotion_paths(root: Path, domain: str) -> dict[str, Path]:
+    """Sichert latest und erzeugt eindeutige Arbeitsverzeichnisse."""
     domain_root = root / "model_registry" / domain
     latest = domain_root / "latest"
     versions = domain_root / "versions"
@@ -517,11 +552,25 @@ def promote_candidate(
     backup = versions / f"{filesystem_timestamp()}_pre_promotion"
     if latest.is_dir():
         shutil.copytree(latest, backup)
-    staged = domain_root / f".latest-promote-{uuid.uuid4().hex}"
-    displaced = domain_root / f".latest-previous-{uuid.uuid4().hex}"
+    return {
+        "latest": latest,
+        "backup": backup,
+        "staged": domain_root / f".latest-promote-{uuid.uuid4().hex}",
+        "displaced": domain_root / f".latest-previous-{uuid.uuid4().hex}",
+    }
+
+
+def copy_promotion_artifacts(source: Path, staged: Path) -> None:
     staged.mkdir()
     for artifact in ARTIFACTS:
         shutil.copy2(source / artifact, staged / artifact)
+
+
+def activate_staged_model(paths: dict[str, Path]) -> Path | None:
+    """Tauscht latest atomar; stellt es bei Fehler wieder her."""
+    latest = paths["latest"]
+    staged = paths["staged"]
+    displaced = paths["displaced"]
     try:
         if latest.exists():
             os.replace(latest, displaced)
@@ -538,13 +587,23 @@ def promote_candidate(
         try:
             shutil.rmtree(displaced)
         except PermissionError:
-            # Docker training may leave a root/nobody-owned latest directory.
-            # The atomically displaced hidden directory is already outside the
-            # active path and ignored by Git. Keep it as an additional local
-            # rollback artifact rather than requiring sudo/chown.
+            # Docker-Rechte: lokales Rollback-Artefakt behalten
             displaced_backup = displaced
+    return displaced_backup
+
+
+def save_promoted_selection(
+    *,
+    root: Path,
+    env_file: Path,
+    domain: str,
+    target: str,
+    model_id: str,
+    model_hash: str,
+) -> None:
     key = f"{domain.upper()}_MODEL_DIR"
     atomic_update_env(env_file, {key: None})
+    state = load_state(root)
     state.setdefault("domains", {})[domain] = {
         "model_dir": None,
         "target": target,
@@ -555,6 +614,20 @@ def promote_candidate(
         "rollback": [],
     }
     save_state(root, state)
+
+
+def record_promotion(
+    *,
+    root: Path,
+    domain: str,
+    name: str,
+    model_id: str,
+    model_hash: str,
+    backup: Path,
+    displaced_backup: Path | None,
+    report_dir: Path,
+    quality: dict[str, Any],
+) -> None:
     append_history(
         root,
         {
@@ -569,15 +642,6 @@ def promote_candidate(
             "quality": quality,
         },
     )
-    return {
-        "domain": domain,
-        "candidate": name,
-        "model_id": model_id,
-        "backup": str(backup),
-        "displaced_backup": str(displaced_backup) if displaced_backup else None,
-        "latest": str(latest),
-        "quality": quality,
-    }
 
 
 def status(*, root: Path = PROJECT_ROOT, env_file: Path | None = None) -> dict[str, Any]:
@@ -615,8 +679,8 @@ def add_common_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
+def argument_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Beispiele:
@@ -632,72 +696,81 @@ Auswahl, Rollback und Promotion sind nur bei gestopptem Stack erlaubt.
 `physical` prueft zusaetzlich zum virtuellen Trace den eingefrorenen Live-Vertrag.
 Die Auswahl gilt ueber dieselbe .env fuer den jeweils naechsten Stackstart.""",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    add_parser = subparsers.add_parser(
+
+def add_candidate_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
         "add",
         help="Kandidaten pruefen und lokal aufnehmen.",
         description="Prueft drei zusammengehoerige Artefakte und kopiert sie in die lokale Candidate-Registry.",
     )
-    add_parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu ersetzender NN-Dienst.")
-    add_parser.add_argument("--name", required=True, help="Lokaler, eindeutiger Kandidatenname.")
-    add_parser.add_argument(
-        "--source",
-        required=True,
-        type=Path,
+    parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu ersetzender NN-Dienst.")
+    parser.add_argument("--name", required=True, help="Lokaler, eindeutiger Kandidatenname.")
+    parser.add_argument(
+        "--source", required=True, type=Path,
         help="Ordner mit model.keras, activation.json und metrics.json.",
     )
-    add_parser.add_argument(
-        "--target",
-        required=True,
-        choices=("virtual", "physical"),
+    parser.add_argument(
+        "--target", required=True, choices=("virtual", "physical"),
         help="Pruefumfang; physical schliesst die virtuelle Pruefung ein.",
     )
 
-    select_parser = subparsers.add_parser(
+
+def add_selection_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
         "select",
         help="Kandidaten fuer den naechsten Start waehlen.",
         description="Validiert erneut und schreibt den Container-Modellpfad atomar in die lokale .env.",
     )
-    select_parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu ersetzender NN-Dienst.")
-    select_parser.add_argument("--name", required=True, help="Zuvor mit add aufgenommener Kandidat.")
-    select_parser.add_argument(
-        "--target",
-        required=True,
-        choices=("virtual", "physical"),
+    parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu ersetzender NN-Dienst.")
+    parser.add_argument("--name", required=True, help="Zuvor mit add aufgenommener Kandidat.")
+    parser.add_argument(
+        "--target", required=True, choices=("virtual", "physical"),
         help="Ziel des naechsten Starts; der betreffende Stack muss gestoppt sein.",
     )
-    add_common_options(select_parser)
+    add_common_options(parser)
 
+
+def add_status_and_rollback_parsers(subparsers: Any) -> None:
     status_parser = subparsers.add_parser(
         "status",
         help="Aktuelle Modell- und Imageauswahl anzeigen.",
         description="Zeigt aufgeloeste Modellpfade, Modell-IDs, Hashes und optionale Image-Overrides.",
     )
     add_common_options(status_parser)
-
     rollback_parser = subparsers.add_parser(
         "rollback",
         help="Vorherige Modellauswahl wiederherstellen.",
         description="Stellt die letzte mit diesem Werkzeug protokollierte Auswahl wieder her; manuelle .env-Aenderungen sind nicht rollbackfaehig.",
     )
-    rollback_parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zurueckzurollender NN-Dienst.")
+    rollback_parser.add_argument(
+        "--domain", required=True, choices=DOMAINS, help="Zurueckzurollender NN-Dienst."
+    )
     add_common_options(rollback_parser)
 
-    promote_parser = subparsers.add_parser(
+
+def add_promotion_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
         "promote",
         help="Geprueften Kandidaten nach latest uebernehmen.",
         description="Foerdert nur nach einem abgeschlossenen 320-Zustaende-Lauf ohne technische Faults und mit passender model_id.",
     )
-    promote_parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu promovierender NN-Dienst.")
-    promote_parser.add_argument("--name", required=True, help="Getesteter lokaler Kandidat.")
-    promote_parser.add_argument(
-        "--report-dir",
-        required=True,
-        type=Path,
+    parser.add_argument("--domain", required=True, choices=DOMAINS, help="Zu promovierender NN-Dienst.")
+    parser.add_argument("--name", required=True, help="Getesteter lokaler Kandidat.")
+    parser.add_argument(
+        "--report-dir", required=True, type=Path,
         help="Reportordner mit run_summary.json und 320-zeiliger summary.csv.",
     )
-    add_common_options(promote_parser)
+    add_common_options(parser)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argument_parser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    add_candidate_parser(subparsers)
+    add_selection_parser(subparsers)
+    add_status_and_rollback_parsers(subparsers)
+    add_promotion_parser(subparsers)
     return parser.parse_args()
 
 

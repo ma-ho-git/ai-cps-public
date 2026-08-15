@@ -135,6 +135,124 @@ def technical_stats(summary: dict[str, Any], rows: list[dict[str, str]]) -> dict
     }
 
 
+COMMAND_COLUMNS = (
+    "control_vgr_cmd",
+    "control_hbw_cmd",
+    "control_mpo_cmd",
+    "control_sld_cmd",
+    "control_vgr_topic",
+    "control_hbw_topic",
+    "control_mpo_topic",
+    "control_sld_topic",
+)
+
+
+def require_same_trace(
+    baseline_rows: dict[str, dict[str, str]],
+    candidate_rows: dict[str, dict[str, str]],
+) -> set[str]:
+    baseline_ids = set(baseline_rows)
+    candidate_ids = set(candidate_rows)
+    if baseline_ids == candidate_ids:
+        return baseline_ids
+    raise ComparisonError(
+        "Reports enthalten nicht dieselben Trace-Zustaende: "
+        f"nur baseline={sorted(baseline_ids - candidate_ids)[:5]}, "
+        f"nur candidate={sorted(candidate_ids - baseline_ids)[:5]}"
+    )
+
+
+def compare_trace_rows(
+    domain: str,
+    trace_ids: set[str],
+    baseline_rows: dict[str, dict[str, str]],
+    candidate_rows: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    expected_field, prediction_field, _ = prediction_fields(domain)
+    result: dict[str, Any] = {
+        "baseline_matches": 0,
+        "candidate_matches": 0,
+        "changed": [],
+        "improved": [],
+        "regressed": [],
+        "changed_commands": [],
+        "storage_disagreements": {"baseline": 0, "candidate": 0},
+    }
+    for key in sorted(trace_ids):
+        left = baseline_rows[key]
+        right = candidate_rows[key]
+        require_same_row_metadata(key, left, right, expected_field)
+        update_prediction_counts(result, key, left, right, expected_field, prediction_field)
+        if any(left.get(column, "") != right.get(column, "") for column in COMMAND_COLUMNS):
+            result["changed_commands"].append(key)
+        if domain == "storage":
+            update_storage_disagreements(result["storage_disagreements"], left, right)
+    return result
+
+
+def require_same_row_metadata(
+    key: str,
+    baseline: dict[str, str],
+    candidate: dict[str, str],
+    expected_field: str,
+) -> None:
+    same_source = baseline.get("source_id") == candidate.get("source_id")
+    same_expected = parse_int(baseline.get(expected_field)) == parse_int(candidate.get(expected_field))
+    if not same_source or not same_expected:
+        raise ComparisonError(f"Trace-Metadaten unterscheiden sich fuer {key}")
+
+
+def update_prediction_counts(
+    result: dict[str, Any],
+    key: str,
+    baseline: dict[str, str],
+    candidate: dict[str, str],
+    expected_field: str,
+    prediction_field: str,
+) -> None:
+    expected = parse_int(baseline.get(expected_field))
+    left_prediction = parse_int(baseline.get(prediction_field))
+    right_prediction = parse_int(candidate.get(prediction_field))
+    left_ok = left_prediction == expected
+    right_ok = right_prediction == expected
+    result["baseline_matches"] += int(left_ok)
+    result["candidate_matches"] += int(right_ok)
+    if left_prediction != right_prediction:
+        result["changed"].append(key)
+    if not left_ok and right_ok:
+        result["improved"].append(key)
+    if left_ok and not right_ok:
+        result["regressed"].append(key)
+
+
+def update_storage_disagreements(
+    counts: dict[str, int],
+    baseline: dict[str, str],
+    candidate: dict[str, str],
+) -> None:
+    for name, row in (("baseline", baseline), ("candidate", candidate)):
+        vgr_value = parse_int(row.get("vgr_storage_pred"))
+        hbw_value = parse_int(row.get("hbw_storage_pred"))
+        counts[name] += int(vgr_value != hbw_value)
+
+
+def run_latencies(
+    domain: str,
+    report_dir: Path,
+    rows: list[dict[str, str]],
+    trace_ids: set[str],
+) -> list[float]:
+    if domain == "storage":
+        values = load_storage_latencies(report_dir)
+        return [values[key] for key in trace_ids if key in values]
+    field = f"{domain}_latency_s"
+    return [
+        value
+        for row in rows
+        if (value := parse_float(row.get(field))) is not None
+    ]
+
+
 def compare_runs(*, domain: str, baseline: Path, candidate: Path) -> dict[str, Any]:
     baseline_summary = load_json(baseline / "run_summary.json")
     candidate_summary = load_json(candidate / "run_summary.json")
@@ -142,85 +260,15 @@ def compare_runs(*, domain: str, baseline: Path, candidate: Path) -> dict[str, A
     candidate_rows = load_rows(candidate)
     baseline_by_id = keyed_rows(baseline_rows)
     candidate_by_id = keyed_rows(candidate_rows)
-    baseline_ids = set(baseline_by_id)
-    candidate_ids = set(candidate_by_id)
-    if baseline_ids != candidate_ids:
-        raise ComparisonError(
-            "Reports enthalten nicht dieselben Trace-Zustaende: "
-            f"nur baseline={sorted(baseline_ids - candidate_ids)[:5]}, "
-            f"nur candidate={sorted(candidate_ids - baseline_ids)[:5]}"
-        )
-
-    expected_field, prediction_field, match_field = prediction_fields(domain)
-    changed: list[str] = []
-    improved: list[str] = []
-    regressed: list[str] = []
-    baseline_matches = 0
-    candidate_matches = 0
-    command_columns = (
-        "control_vgr_cmd",
-        "control_hbw_cmd",
-        "control_mpo_cmd",
-        "control_sld_cmd",
-        "control_vgr_topic",
-        "control_hbw_topic",
-        "control_mpo_topic",
-        "control_sld_topic",
-    )
-    changed_commands: list[str] = []
-    storage_disagreements = {"baseline": 0, "candidate": 0}
-
-    for key in sorted(baseline_ids):
-        left = baseline_by_id[key]
-        right = candidate_by_id[key]
-        if left.get("source_id") != right.get("source_id") or parse_int(
-            left.get(expected_field)
-        ) != parse_int(right.get(expected_field)):
-            raise ComparisonError(f"Trace-Metadaten unterscheiden sich fuer {key}")
-        left_prediction = parse_int(left.get(prediction_field))
-        right_prediction = parse_int(right.get(prediction_field))
-        expected = parse_int(left.get(expected_field))
-        left_ok = left_prediction == expected
-        right_ok = right_prediction == expected
-        baseline_matches += int(left_ok)
-        candidate_matches += int(right_ok)
-        if left_prediction != right_prediction:
-            changed.append(key)
-        if not left_ok and right_ok:
-            improved.append(key)
-        if left_ok and not right_ok:
-            regressed.append(key)
-        if any(left.get(column, "") != right.get(column, "") for column in command_columns):
-            changed_commands.append(key)
-        if domain == "storage":
-            storage_disagreements["baseline"] += int(
-                parse_int(left.get("vgr_storage_pred")) != parse_int(left.get("hbw_storage_pred"))
-            )
-            storage_disagreements["candidate"] += int(
-                parse_int(right.get("vgr_storage_pred")) != parse_int(right.get("hbw_storage_pred"))
-            )
-
-    if domain == "storage":
-        baseline_latency_map = load_storage_latencies(baseline)
-        candidate_latency_map = load_storage_latencies(candidate)
-        baseline_latencies = [baseline_latency_map[key] for key in baseline_ids if key in baseline_latency_map]
-        candidate_latencies = [candidate_latency_map[key] for key in baseline_ids if key in candidate_latency_map]
-    else:
-        latency_field = f"{domain}_latency_s"
-        baseline_latencies = [
-            value
-            for row in baseline_rows
-            if (value := parse_float(row.get(latency_field))) is not None
-        ]
-        candidate_latencies = [
-            value
-            for row in candidate_rows
-            if (value := parse_float(row.get(latency_field))) is not None
-        ]
+    trace_ids = require_same_trace(baseline_by_id, candidate_by_id)
+    counts = compare_trace_rows(domain, trace_ids, baseline_by_id, candidate_by_id)
+    baseline_latencies = run_latencies(domain, baseline, baseline_rows, trace_ids)
+    candidate_latencies = run_latencies(domain, candidate, candidate_rows, trace_ids)
+    _, _, match_field = prediction_fields(domain)
 
     return {
         "domain": domain,
-        "trace_rows": len(baseline_ids),
+        "trace_rows": len(trace_ids),
         "same_trace": True,
         "model_ids": {
             "baseline": baseline_summary.get("model_ids", {}).get(domain),
@@ -231,25 +279,27 @@ def compare_runs(*, domain: str, baseline: Path, candidate: Path) -> dict[str, A
             "candidate": technical_stats(candidate_summary, candidate_rows),
         },
         "quality": {
-            "baseline_matches": baseline_matches,
-            "candidate_matches": candidate_matches,
-            "changed_predictions": len(changed),
-            "improvements": len(improved),
-            "regressions": len(regressed),
-            "changed_prediction_ids": changed,
-            "improved_ids": improved,
-            "regressed_ids": regressed,
+            "baseline_matches": counts["baseline_matches"],
+            "candidate_matches": counts["candidate_matches"],
+            "changed_predictions": len(counts["changed"]),
+            "improvements": len(counts["improved"]),
+            "regressions": len(counts["regressed"]),
+            "changed_prediction_ids": counts["changed"],
+            "improved_ids": counts["improved"],
+            "regressed_ids": counts["regressed"],
         },
         "commands": {
-            "identical": not changed_commands,
-            "changed_rows": len(changed_commands),
-            "changed_ids": changed_commands,
+            "identical": not counts["changed_commands"],
+            "changed_rows": len(counts["changed_commands"]),
+            "changed_ids": counts["changed_commands"],
         },
         "latency": {
             "baseline": latency_stats(baseline_latencies),
             "candidate": latency_stats(candidate_latencies),
         },
-        "storage_consumer_disagreements": storage_disagreements if domain == "storage" else None,
+        "storage_consumer_disagreements": (
+            counts["storage_disagreements"] if domain == "storage" else None
+        ),
         "reported_match_field": match_field,
     }
 

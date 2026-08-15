@@ -28,15 +28,14 @@ Fuer einen Betriebsrechner wird wegen der grossen Forschungshistorie ein
 flacher Clone empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.2.0 \
+git clone --depth 1 --branch runtime-v1.3.0-rc.3 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 ```
 
-Fuer Forschungsarbeiten mit Historie normal klonen oder den Archivtag
-Mit Zugriff auf das private Entwicklungsrepository kann fuer historische
-Forschungsartefakte `development-complete-2026-08-10` ausgecheckt werden. Der
-Tag ist nicht Bestandteil des oeffentlichen Runtime-Repositorys.
+Fuer Entwicklungsarbeiten mit Releasehistorie kann das Repository ohne
+`--depth 1` geklont werden. Forschungsnotebooks und Rohdaten gehoeren nicht
+zum oeffentlichen Runtime-Repository.
 
 ## Python-Werkzeuge
 
@@ -45,7 +44,7 @@ Preflight, Modellverwaltung, Beobachtung und Tests benoetigt.
 
 ```bash
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.2.0
+  --mode virtual --release runtime-v1.3.0-rc.3
 ```
 
 TensorFlow ist lokal nicht erforderlich, wenn Training und Modellpruefung in

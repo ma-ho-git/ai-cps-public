@@ -1,6 +1,6 @@
 # UML-Sequenzdiagramme Der MQTT-/Node-RED-Orchestrierung
 
-Stand: 2026-07-27
+Stand: 2026-08-14
 
 ## Zweck
 
@@ -85,7 +85,7 @@ entspricht den
 
 Die Diagramme zeigen:
 
-- sechs logische Rollen im virtuellen und sieben im physischen Betrieb,
+- neun logische Rollen im virtuellen und sieben im physischen Betrieb,
 - hierarchische Systemklammern analog zur Grum-Vorlage,
 - Aktivierungsbalken fuer Orchestrierung, NN-Inferenz und Fabrikausfuehrung,
 - semantische Nachrichten statt konkreter MQTT-Topics,
@@ -99,11 +99,12 @@ Die Diagramme zeigen:
 Im virtuellen Diagramm bezeichnet `:Startskript` die hostseitige Bedienrolle
 von `tools/run_nodered_orchestration.sh`. Sie ist weder ein Container noch
 Bestandteil von Node-RED und veröffentlicht nur die einmalige MQTT-
-Startnachricht. `:Fabrik-Flow` und `:KI-Flow` sind dagegen als getrennte
-Lifelines innerhalb der gemeinsamen Systemgruppe `Node-RED` dargestellt.
-Beide Rollen sind eigenständige Flow-Tabs derselben Node-RED-Instanz. Die
-Trennung der Lifelines macht ihre unterschiedlichen Verantwortungen und den
-MQTT-Austausch sichtbar, ohne einzelne Node-RED-Bausteine abzubilden.
+Startnachricht. `:Initialisierung`, `:Zustands-Flow`, `:Semaphor-Flow`,
+`:KI-Flow` und die zusammengefassten `:Modul-Flows` sind dagegen getrennte
+Lifelines innerhalb der gemeinsamen Systemgruppe `Node-RED`. Sie entsprechen
+den fachlichen Flow-Tabs beziehungsweise Gruppen derselben Instanz. Die
+Trennung macht kontinuierliche Zustandserfassung, Gate-Freigabe und
+unabhaengige Modulbearbeitung sichtbar, ohne einzelne Core-Nodes abzubilden.
 
 Im physischen Diagramm stehen `:Command-Flows`, `:Semaphor-Flow` und
 `:KI-Flow` fuer drei logische Node-RED-Verantwortungen. Die Command-Flows
@@ -184,23 +185,27 @@ ausgeführten Inferenzschritte sichtbar.
 ### Virtuelle Simulation
 
 Das Sequenzdiagramm der virtuellen Simulation zeigt die Kommunikation
-zwischen dem hostseitigen Startskript, zwei logischen Node-RED-Flows und den
+zwischen dem hostseitigen Startskript, fuenf logischen Node-RED-Rollen und den
 drei NN-Anwendungsdiensten. Das Startskript bereitet den Compose-Stack vor,
 wartet auf die Betriebsbereitschaft der KI-Orchestrierung und veröffentlicht
 anschließend genau einmal den Startbefehl über MQTT. Es ist kein eigener
 Container und greift nach dieser Initialzündung nicht mehr steuernd in den
-Regelkreis ein. Der Fabrik-Flow bildet das Verhalten der physischen Anlage
-nach, während der KI-Flow die Aufbereitung der Modelleingaben, die
+Regelkreis ein. Initialisierung, Zustandserfassung, Semaphor und vier
+zusammengefasste Modul-Flows bilden das Verhalten der physischen Anlage nach,
+während der KI-Flow die Aufbereitung der Modelleingaben, die
 Ausgabe der MPO-/SLD-Idle-Commands, die Reportkorrelation und die
 Fehlerverriegelung übernimmt. Storage-NN, VGR-NN und HBW-NN sind als getrennte
 Anwendungsdienste dargestellt. Diese Trennung verdeutlicht, dass die Modelle
 über MQTT lose gekoppelt sind und ausgetauscht werden können, solange sie
 ihren jeweiligen Modell- und Nachrichtenvertrag einhalten.
 
-Auf die einmalige Startnachricht veröffentlicht der Fabrik-Flow zunächst ein
+Auf die einmalige Startnachricht veröffentlicht die Initialisierung zunächst ein
 vollständiges Idle-Command-Set für VGR, HBW, MPO und SLD. Dabei handelt es
-sich um vier reguläre MQTT-Command-Nachrichten. Der Fabrik-Flow simuliert
-deren Modulzeiten und gibt erst nach der Vier-Modul-Semaphorbarriere den
+sich um vier reguläre MQTT-Command-Nachrichten. Die vier Modul-Flows simulieren
+deren Modulzeiten. Parallel veröffentlicht die Zustandserfassung den aktuellen
+Tracezustand alle 50 ms auf einem rein virtuellen Rohzustandstopic. Mehrere
+identische Samples sind möglich; erst der Semaphor-Flow gibt nach der
+Vier-Modul-Barriere genau ein Sample als Anlagenzustand frei. Damit wird der
 ersten Trace-Zustand frei. Damit lautet die Startfolge:
 `Startnachricht -> Idle-Command-Set -> Modulbarriere -> erster
 Idle-Trace-Zustand`. Der erste Idle-Zustand ist folglich keine zusätzliche
@@ -232,7 +237,7 @@ auf den jeweiligen MQTT-Command-Topics veröffentlichen. VGR und HBW warten
 dabei nicht auf das Ergebnis des jeweils anderen Modells. Der KI-Flow
 veröffentlicht bereits nach der Storage-Verarbeitung die Idle-Commands für
 MPO und SLD. Damit treffen alle vier Modulcommands unabhängig beim
-Fabrik-Flow ein.
+jeweiligen Modul-Flows ein.
 
 Zusätzlich publizieren VGR und HBW weiterhin eine JSON-Response mit
 Vorhersage, Modellkennung und Korrelationsfeldern. Der KI-Flow ordnet diese
@@ -241,15 +246,16 @@ und erzeugt daraus den gemeinsamen Reportdatensatz. Diese Zusammenführung
 erfolgt ausschließlich zur Beobachtung und fachlichen Auswertung. Sie ist
 weder eine Command-Barriere noch Bestandteil des Semaphors.
 
-Der Fabrik-Flow ersetzt im virtuellen Betrieb die Ausführung durch SPS und
+Die Modul-Flows ersetzen im virtuellen Betrieb die Ausführung durch SPS und
 Anlagenmodule. Jeder eintreffende Command erhöht den `sent_count` seines
 Moduls und startet eine reproduzierbare, unabhängig bestimmte
 Bearbeitungszeit. Ihre modulbezogene Basiszeit betraegt standardmaessig
 0,1 Sekunden und wird pro Command reproduzierbar um -50 bis +50 Prozent
 variiert. Nach Ablauf erhöht der
-Fabrik-Flow den zugehörigen `accepted_count`. Erst wenn für VGR, HBW, MPO und
-SLD jeweils `sent_count == accepted_count` gilt, ist der Semaphor frei und der
-nächste Anlagenzustand wird veröffentlicht. Dadurch entsteht aus einer
+jeweilige Modul-Flow den zugehörigen `accepted_count`. Erst wenn fuer alle
+vier Module ein neues Command registriert wurde und jeweils
+`sent_count == accepted_count` gilt, gibt der Semaphor-Flow genau einen
+Rohzustand auf `log/logging/state` frei. Dadurch entsteht aus einer
 einzigen Initialnachricht ein selbstständig fortlaufender Regelkreis. Die
 virtuelle Umgebung prüft somit nicht nur einzelne Modellvorhersagen, sondern
 auch unabhängige Command-Pfade und die nachgelagerte Synchronisation der
@@ -314,8 +320,9 @@ diese Barriere.
 Beide Diagramme besitzen bewusst dieselbe KI-seitige Verarbeitungskette:
 Anlagenzustand, Storage-Inferenz, Fensterbildung, parallele VGR-/HBW-Inferenz
 und unabhängige Ausgabe der vier Modulcommands. Der wesentliche Unterschied
-liegt hinter der Fabrikgrenze. Im virtuellen System simuliert der Fabrik-Flow
-Laufzeiten, Jobcounter und Modulabschlüsse, während diese Aufgaben im
+liegt hinter der Fabrikgrenze. Im virtuellen System simulieren Zustands-,
+Modul- und Semaphor-Flow Laufzeiten, Jobcounter und Modulabschlüsse, während
+diese Aufgaben im
 physischen System von der externen Node-RED-/OPC-UA-/SPS-Black-Box ausgeführt
 werden. Die virtuelle Umgebung bildet die physische Zwei-Sekunden-Abfrage
 nicht nach, erhält aber die für den KI-Regelkreis maßgebliche Semantik:
@@ -334,10 +341,10 @@ nachgelagerte Jobcounter-Semaphorbarriere hergestellt.
 ## Abbildungsunterschriften Für Die Thesis
 
 **Virtuelle Simulation:** UML-Sequenzdiagramm des virtuellen
-MQTT-Regelkreises. Ein hostseitiges Startskript löst einmalig den Fabrik-Flow
-aus; VGR und HBW publizieren ihre Commands direkt, während der Fabrik-Flow
-unabhängige Modullaufzeiten und die nachgelagerte Jobcounter-Barriere
-simuliert.
+MQTT-Regelkreises. Ein hostseitiges Startskript loest einmalig die
+Initialisierung aus; VGR und HBW publizieren ihre Commands direkt, waehrend
+die Modul-Flows unabhaengige Modullaufzeiten simulieren und der Semaphor-Flow
+die nachgelagerte Jobcounter-Barriere bildet.
 
 **Physischer Live-Betrieb:** UML-Sequenzdiagramm des physischen
 MQTT-/OPC-UA-Regelkreises. VGR- und HBW-NN senden ihre Commands unabhängig an

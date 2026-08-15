@@ -210,22 +210,26 @@ class RuntimeMigrationTests(unittest.TestCase):
             with self.assertRaisesRegex(migration.MigrationError, "volume list"):
                 migration.validate_compatibility(manifest)
 
-    def test_v12_release_accepts_v110_and_internal_v111_site_bundles(self) -> None:
+    def test_v13_rc_accepts_supported_site_bundles(self) -> None:
         self.config.write_text(
             json.dumps(
                 {
-                    "release": "runtime-v1.2.0",
+                    "release": "runtime-v1.3.0-rc.1",
                     "platform": "linux/amd64",
                     "compatible_site_bundle_releases": [
                         "runtime-v1.1.0",
                         "runtime-v1.1.1",
                         "runtime-v1.2.0",
+                        "runtime-v1.3.0-rc.1",
                     ],
                 }
             ),
             encoding="utf-8",
         )
-        for release in ("runtime-v1.1.0", "runtime-v1.1.1", "runtime-v1.2.0"):
+        for release in (
+            "runtime-v1.1.0", "runtime-v1.1.1", "runtime-v1.2.0",
+            "runtime-v1.3.0-rc.1",
+        ):
             with self.subTest(release=release):
                 manifest = {
                     "release": release,

@@ -18,8 +18,11 @@ Bedienungsanleitung und `docs/PROJECT_KNOWLEDGE.md` die dauerhafte Wissensbasis.
   Klassen und Semaphorverhalten nur nach expliziter Freigabe aendern.
 - Wissenschaftliche Aenderungen an Daten, Splits, Training oder Modellen in
   `docs/PROJECT_KNOWLEDGE.md` begruenden.
-- Python-Code klein, testbar und ohne versteckte Seiteneffekte halten.
-- Node-RED-Function-Nodes bleiben schmale Adapter zu getesteten JS-Kernen.
+- Python-Code klein, testbar und ohne versteckte Seiteneffekte halten:
+  Produktion maximal 60 Zeilen, Callback und `main()` maximal 40 Zeilen.
+- Node-RED-Flow nur ueber `tools/build_modular_nodered_flow.py` erzeugen.
+  Exakt vier dokumentierte Function-Ausnahmen, jeweils maximal 40 Zeilen.
+- JSONata maximal 200 Zeichen; Fachentscheidungen mit sichtbaren Core-Nodes.
 - Keine `.env`, Credentials, Reports, Docker-Volumes oder lokale
   Modellkandidaten versionieren.
 
@@ -38,6 +41,7 @@ Bedienungsanleitung und `docs/PROJECT_KNOWLEDGE.md` die dauerhafte Wissensbasis.
 
 - Markdown: mindestens `git diff --check`.
 - Python: relevante Unit-Tests und `py_compile`.
+- Lesbarkeit: `python tools/check_code_readability.py`.
 - MQTT/Node-RED: Python-Vertragstests, `npm test`, Flowexport und Compose.
 - Training: Config-/Datensatzvertrag, Kandidatenmodus und unveraendertes
   `latest` pruefen.

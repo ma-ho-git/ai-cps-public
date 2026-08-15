@@ -18,15 +18,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-)
 from sklearn.model_selection import GroupKFold, LeaveOneGroupOut, train_test_split
-from sklearn.utils.class_weight import compute_class_weight
+
+from training import lstm_common
 
 try:
     import tensorflow as tf
@@ -65,32 +59,9 @@ def make_windows_label_last(
     time_steps: int,
     class_to_index: dict[int, int],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Baut label-last Fenster aus der vorhandenen Zeilenreihenfolge."""
-    if len(df_split) < time_steps:
-        return (
-            np.empty((0, time_steps, len(feature_cols)), dtype=np.float32),
-            np.array([], dtype=np.int32),
-            np.array([], dtype=np.int32),
-        )
-
-    feature_values = df_split[feature_cols].to_numpy(dtype=np.float32)
-    label_values = df_split[label_col].astype(int).to_numpy()
-
-    X: list[np.ndarray] = []
-    y_idx: list[int] = []
-    y_ids: list[int] = []
-
-    for start in range(0, len(df_split) - time_steps + 1):
-        end = start + time_steps
-        target_id = int(label_values[end - 1])
-        X.append(feature_values[start:end])
-        y_idx.append(class_to_index[target_id])
-        y_ids.append(target_id)
-
-    return (
-        np.stack(X).astype(np.float32),
-        np.array(y_idx, dtype=np.int32),
-        np.array(y_ids, dtype=np.int32),
+    """Kompatibler VGR-Einstieg fuer den gemeinsamen Windowing-Helfer."""
+    return lstm_common.make_windows_label_last(
+        df_split, feature_cols, label_col, time_steps, class_to_index
     )
 
 
@@ -102,43 +73,9 @@ def make_windows_label_last_grouped(
     class_to_index: dict[int, int],
     group_col: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Baut Fenster, ohne `sequence_id`- oder andere Gruppengrenzen zu schneiden."""
-    X_parts: list[np.ndarray] = []
-    y_idx_parts: list[np.ndarray] = []
-    y_id_parts: list[np.ndarray] = []
-    group_parts: list[np.ndarray] = []
-
-    if group_col not in df_split.columns:
-        raise ValueError(f"group_col {group_col!r} is missing from the CSV.")
-
-    for group_value, group_data in df_split.groupby(group_col, sort=False):
-        X_group, y_idx_group, y_ids_group = make_windows_label_last(
-            group_data.reset_index(drop=True),
-            feature_cols,
-            label_col,
-            time_steps,
-            class_to_index,
-        )
-        if len(X_group) == 0:
-            continue
-        X_parts.append(X_group)
-        y_idx_parts.append(y_idx_group)
-        y_id_parts.append(y_ids_group)
-        group_parts.append(np.array([str(group_value)] * len(y_idx_group), dtype=object))
-
-    if not X_parts:
-        return (
-            np.empty((0, time_steps, len(feature_cols)), dtype=np.float32),
-            np.array([], dtype=np.int32),
-            np.array([], dtype=np.int32),
-            np.array([], dtype=object),
-        )
-
-    return (
-        np.concatenate(X_parts).astype(np.float32),
-        np.concatenate(y_idx_parts).astype(np.int32),
-        np.concatenate(y_id_parts).astype(np.int32),
-        np.concatenate(group_parts),
+    """Kompatibler VGR-Einstieg fuer gruppiertes Windowing."""
+    return lstm_common.make_windows_label_last_grouped(
+        df_split, feature_cols, label_col, time_steps, class_to_index, group_col
     )
 
 
@@ -172,45 +109,9 @@ def train_validation_split_by_group(
     validation_fraction: float,
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Trennt Train/Validation so, dass komplette Sequenzen zusammenbleiben."""
-    if validation_fraction <= 0 or len(y) < 2:
-        return (
-            X,
-            np.empty((0,) + X.shape[1:], dtype=X.dtype),
-            y,
-            np.array([], dtype=y.dtype),
-            groups,
-            np.array([], dtype=groups.dtype),
-        )
-
-    unique_groups = np.array(sorted(set(groups.astype(str))), dtype=object)
-    if len(unique_groups) < 2:
-        return (
-            X,
-            np.empty((0,) + X.shape[1:], dtype=X.dtype),
-            y,
-            np.array([], dtype=y.dtype),
-            groups,
-            np.array([], dtype=groups.dtype),
-        )
-
-    rng = np.random.default_rng(seed)
-    shuffled_groups = unique_groups.copy()
-    rng.shuffle(shuffled_groups)
-    n_val_groups = max(1, int(round(len(unique_groups) * validation_fraction)))
-    n_val_groups = min(n_val_groups, len(unique_groups) - 1)
-    val_groups = set(shuffled_groups[:n_val_groups])
-
-    val_mask = np.array([str(group) in val_groups for group in groups], dtype=bool)
-    fit_mask = ~val_mask
-
-    return (
-        X[fit_mask],
-        X[val_mask],
-        y[fit_mask],
-        y[val_mask],
-        groups[fit_mask],
-        groups[val_mask],
+    """Kompatibler VGR-Einstieg fuer den gemeinsamen Gruppen-Split."""
+    return lstm_common.train_validation_split_by_group(
+        X, y, groups, validation_fraction, seed
     )
 
 
@@ -257,14 +158,7 @@ def build_model(
 
 
 def model_param_counts(model: tf.keras.Model) -> dict[str, int]:
-    """Zaehlt Modellparameter fuer Metrikdatei und Thesis-Vergleich."""
-    trainable = int(sum(np.prod(v.shape) for v in model.trainable_weights))
-    non_trainable = int(sum(np.prod(v.shape) for v in model.non_trainable_weights))
-    return {
-        "trainable": trainable,
-        "non_trainable": non_trainable,
-        "total": trainable + non_trainable,
-    }
+    return lstm_common.model_param_counts(model)
 
 
 def unique_path(path: str) -> str:
@@ -336,19 +230,27 @@ def validate_input_data(
     required_cols = ["split", label_col, *feature_cols]
     if group_col:
         required_cols.append(group_col)
+    validate_required_columns(df, required_cols)
+    validate_vgr_feature_names(feature_cols, label_col, group_col)
+    validate_vgr_storage_contract(feature_cols)
+    validate_vgr_values(df, required_cols, feature_cols, group_col)
 
+
+def validate_required_columns(df: pd.DataFrame, required_cols: list[str]) -> None:
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"CSV is missing required columns: {missing}")
 
+
+def validate_vgr_feature_names(
+    feature_cols: list[str], label_col: str, group_col: str | None
+) -> None:
     forbidden_features = {"split", label_col}
     if group_col:
         forbidden_features.add(group_col)
-
     overlap = sorted(forbidden_features.intersection(feature_cols))
     if overlap:
         raise ValueError(f"Feature columns must not include metadata/label columns: {overlap}")
-
     forbidden_prefix_features = [
         col
         for col in feature_cols
@@ -360,8 +262,6 @@ def validate_input_data(
         or col.startswith("IW_SLD_")
     ]
     if forbidden_prefix_features:
-        # Lager- und Kontextzustand sollen nicht doppelt im Modell auftauchen:
-        # `empty_storage_0..9` ist die einzige explizite Lagerinformation.
         raise ValueError(
             "VGR feature columns must not include ctx_*, storage_slot_*, prev_*, "
             "SSC or SLD columns except IX_SSC_LightBarrierStorage_I3 as the "
@@ -369,6 +269,8 @@ def validate_input_data(
             f"storage-state feature: {forbidden_prefix_features}"
         )
 
+
+def validate_vgr_storage_contract(feature_cols: list[str]) -> None:
     storage_cols = [f"empty_storage_{idx}" for idx in range(10)]
     missing_storage_cols = [col for col in storage_cols if col not in feature_cols]
     if missing_storage_cols:
@@ -376,6 +278,13 @@ def validate_input_data(
     if "empty_storage" in feature_cols:
         raise ValueError("VGR feature columns must not contain numeric empty_storage.")
 
+
+def validate_vgr_values(
+    df: pd.DataFrame,
+    required_cols: list[str],
+    feature_cols: list[str],
+    group_col: str | None,
+) -> None:
     na_counts = df[required_cols].isna().sum()
     na_counts = na_counts[na_counts > 0].to_dict()
     if na_counts:
@@ -401,61 +310,11 @@ def evaluate_model(
     y_idx: np.ndarray,
     class_ids: list[int],
 ) -> dict[str, Any]:
-    """Berechnet Standardmetriken auf echten Befehlslabels statt Dense-Indizes."""
-    if len(X) == 0:
-        return {
-            "accuracy": None,
-            "balanced_accuracy": None,
-            "macro_f1": None,
-            "confusion_matrix": [],
-            "classification_report": "",
-            "classification_report_dict": {},
-        }
-
-    proba = model.predict(X, verbose=0)
-    y_pred_idx = proba.argmax(axis=1).astype(np.int32)
-    class_ids_arr = np.array(class_ids, dtype=np.int32)
-    y_true_ids = class_ids_arr[y_idx]
-    y_pred_ids = class_ids_arr[y_pred_idx]
-
-    return {
-        "accuracy": float(accuracy_score(y_true_ids, y_pred_ids)),
-        "balanced_accuracy": float(balanced_accuracy_score(y_true_ids, y_pred_ids)),
-        "macro_f1": float(f1_score(y_true_ids, y_pred_ids, labels=class_ids, average="macro", zero_division=0)),
-        "confusion_matrix": confusion_matrix(y_true_ids, y_pred_ids, labels=class_ids).tolist(),
-        "classification_report": classification_report(
-            y_true_ids,
-            y_pred_ids,
-            labels=class_ids,
-            digits=3,
-            zero_division=0,
-        ),
-        "classification_report_dict": classification_report(
-            y_true_ids,
-            y_pred_ids,
-            labels=class_ids,
-            output_dict=True,
-            zero_division=0,
-        ),
-    }
+    return lstm_common.evaluate_model(model, X, y_idx, class_ids)
 
 
 def compute_balanced_class_weight(y: np.ndarray, n_classes: int) -> dict[int, float]:
-    """Berechnet Class Weights nur fuer im Fit-Split vorhandene Klassen."""
-    if len(y) == 0:
-        return {idx: 1.0 for idx in range(n_classes)}
-
-    present_classes = np.unique(y)
-    present_weights = compute_class_weight(
-        class_weight="balanced",
-        classes=present_classes,
-        y=y,
-    )
-    class_weight = {idx: 1.0 for idx in range(n_classes)}
-    class_weight.update(
-        {int(idx): float(weight) for idx, weight in zip(present_classes, present_weights)}
-    )
-    return class_weight
+    return lstm_common.compute_balanced_class_weight(y, n_classes)
 
 
 def make_window_metadata(groups: np.ndarray, y_ids: np.ndarray) -> dict[str, Any]:
@@ -499,101 +358,50 @@ def iter_group_cv_splits(
     ]
 
 
-def run_group_cross_validation(
-    *,
-    X: np.ndarray,
-    y: np.ndarray,
-    groups: np.ndarray,
-    class_ids: list[int],
-    time_steps: int,
-    n_features: int,
-    lstm_units: int,
-    dense_units: int,
-    dropout: float,
-    learning_rate: float,
-    l2_value: float,
-    batch_size: int,
-    epochs: int,
-    patience: int,
-    use_class_weight: bool,
-    seed: int,
-    strategy: str,
-    n_splits: int,
+def train_cv_fold(
+    X: np.ndarray, y: np.ndarray, groups: np.ndarray, class_ids: list[int],
+    train_idx: np.ndarray, val_idx: np.ndarray, fold_idx: int, fold_name: str,
+    settings: dict[str, Any],
 ) -> dict[str, Any]:
-    """Trainiert Diagnose-Folds, ohne den separaten Test-Holdout anzutasten."""
-    fold_results = []
-    fold_splits = iter_group_cv_splits(groups, strategy, n_splits)
+    """Trainiert und beschreibt genau einen gruppierten CV-Fold."""
+    tf.keras.backend.clear_session()
+    tf.keras.utils.set_random_seed(settings["seed"] + fold_idx)
+    train_x, train_y = X[train_idx], y[train_idx]
+    val_x, val_y = X[val_idx], y[val_idx]
+    normalizer = tf.keras.layers.Normalization(axis=-1, name="feature_normalization")
+    normalizer.adapt(train_x)
+    model = build_model(
+        time_steps=settings["time_steps"], n_features=settings["n_features"],
+        n_classes=len(class_ids), normalizer=normalizer,
+        lstm_units=settings["lstm_units"], dense_units=settings["dense_units"],
+        dropout=settings["dropout"], learning_rate=settings["learning_rate"],
+        l2_value=settings["l2_value"],
+    )
+    callback = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss", patience=settings["patience"], restore_best_weights=True
+    )
+    class_weight = None
+    if settings["use_class_weight"]:
+        class_weight = compute_balanced_class_weight(train_y, len(class_ids))
+    history = model.fit(
+        train_x, train_y, validation_data=(val_x, val_y),
+        epochs=settings["epochs"], batch_size=settings["batch_size"],
+        callbacks=[callback], class_weight=class_weight, verbose=0,
+    )
+    class_array = np.array(class_ids, dtype=np.int32)
+    return {
+        "fold": int(fold_idx), "fold_name": fold_name,
+        "train_groups": sorted(set(groups[train_idx].astype(str))),
+        "validation_groups": sorted(set(groups[val_idx].astype(str))),
+        "train_windows": int(len(train_idx)), "validation_windows": int(len(val_idx)),
+        "train_label_counts": label_counts(class_array[train_y]),
+        "validation_label_counts": label_counts(class_array[val_y]),
+        "epochs_ran": int(len(history.history.get("loss", []))),
+        "metrics": evaluate_model(model, val_x, val_y, class_ids),
+    }
 
-    for fold_idx, (train_idx, val_idx, fold_name) in enumerate(fold_splits, start=1):
-        tf.keras.backend.clear_session()
-        tf.keras.utils.set_random_seed(seed + fold_idx)
 
-        X_fold_train = X[train_idx]
-        y_fold_train = y[train_idx]
-        X_fold_val = X[val_idx]
-        y_fold_val = y[val_idx]
-
-        normalizer = tf.keras.layers.Normalization(axis=-1, name="feature_normalization")
-        normalizer.adapt(X_fold_train)
-        model = build_model(
-            time_steps=time_steps,
-            n_features=n_features,
-            n_classes=len(class_ids),
-            normalizer=normalizer,
-            lstm_units=lstm_units,
-            dense_units=dense_units,
-            dropout=dropout,
-            learning_rate=learning_rate,
-            l2_value=l2_value,
-        )
-
-        callbacks = [
-            tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                patience=patience,
-                restore_best_weights=True,
-            )
-        ]
-        class_weight = (
-            compute_balanced_class_weight(y_fold_train, len(class_ids))
-            if use_class_weight
-            else None
-        )
-        history = model.fit(
-            X_fold_train,
-            y_fold_train,
-            validation_data=(X_fold_val, y_fold_val),
-            epochs=epochs,
-            batch_size=batch_size,
-            callbacks=callbacks,
-            class_weight=class_weight,
-            verbose=0,
-        )
-        metrics = evaluate_model(model, X_fold_val, y_fold_val, class_ids)
-        fold_results.append(
-            {
-                "fold": int(fold_idx),
-                "fold_name": fold_name,
-                "train_groups": sorted(set(groups[train_idx].astype(str))),
-                "validation_groups": sorted(set(groups[val_idx].astype(str))),
-                "train_windows": int(len(train_idx)),
-                "validation_windows": int(len(val_idx)),
-                "train_label_counts": label_counts(np.array(class_ids, dtype=np.int32)[y_fold_train]),
-                "validation_label_counts": label_counts(np.array(class_ids, dtype=np.int32)[y_fold_val]),
-                "epochs_ran": int(len(history.history.get("loss", []))),
-                "metrics": metrics,
-            }
-        )
-
-    if not fold_results:
-        return {
-            "enabled": True,
-            "strategy": strategy,
-            "folds": [],
-            "summary": {},
-            "warning": "Not enough groups for grouped cross-validation.",
-        }
-
+def summarize_cv(fold_results: list[dict[str, Any]]) -> dict[str, Any]:
     summary: dict[str, Any] = {}
     for metric_name in ["accuracy", "balanced_accuracy", "macro_f1"]:
         values = [
@@ -607,13 +415,41 @@ def run_group_cross_validation(
             "min": float(np.min(values)) if values else None,
             "max": float(np.max(values)) if values else None,
         }
+    return summary
+
+
+def run_group_cross_validation(
+    *, X: np.ndarray, y: np.ndarray, groups: np.ndarray, class_ids: list[int],
+    time_steps: int, n_features: int, lstm_units: int, dense_units: int,
+    dropout: float, learning_rate: float, l2_value: float, batch_size: int,
+    epochs: int, patience: int, use_class_weight: bool, seed: int,
+    strategy: str, n_splits: int,
+) -> dict[str, Any]:
+    """Trainiert Diagnose-Folds, ohne den separaten Test-Holdout anzutasten."""
+    settings = {
+        "time_steps": time_steps, "n_features": n_features,
+        "lstm_units": lstm_units, "dense_units": dense_units,
+        "dropout": dropout, "learning_rate": learning_rate,
+        "l2_value": l2_value, "batch_size": batch_size, "epochs": epochs,
+        "patience": patience, "use_class_weight": use_class_weight, "seed": seed,
+    }
+    splits = iter_group_cv_splits(groups, strategy, n_splits)
+    folds = [
+        train_cv_fold(X, y, groups, class_ids, train_idx, val_idx, index, name, settings)
+        for index, (train_idx, val_idx, name) in enumerate(splits, start=1)
+    ]
+    if not folds:
+        return {
+            "enabled": True, "strategy": strategy, "folds": [], "summary": {},
+            "warning": "Not enough groups for grouped cross-validation.",
+        }
 
     return {
         "enabled": True,
         "strategy": strategy,
-        "n_splits": int(len(fold_results)),
-        "folds": fold_results,
-        "summary": summary,
+        "n_splits": int(len(folds)),
+        "folds": folds,
+        "summary": summarize_cv(folds),
         "interpretation_note": (
             "Grouped CV uses only train sequence_id groups and is a diagnostic "
             "robustness check. The configured test split remains the holdout."
@@ -622,327 +458,322 @@ def run_group_cross_validation(
 
 
 def label_counts(labels: np.ndarray) -> dict[str, int]:
-    """Gibt Labelverteilungen JSON-freundlich mit String-Keys zurueck."""
-    values, counts = np.unique(labels, return_counts=True)
-    return {str(int(v)): int(c) for v, c in zip(values, counts)}
+    return lstm_common.label_counts(labels)
 
 
-def main() -> None:
-    """Fuehrt den VGR-Trainingslauf aus und schreibt Modell, Activation und Metriken."""
-    require_tensorflow()
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", required=True)
-    args = ap.parse_args()
+def load_training_config() -> tuple[str, dict[str, Any]]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args()
+    with open(args.config, "r", encoding="utf-8") as handle:
+        return args.config, json.load(handle)
 
-    with open(args.config, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
 
-    seed = int(cfg.get("seed", 42))
+def vgr_settings(cfg: dict[str, Any], frame: pd.DataFrame) -> dict[str, Any]:
+    group_value = cfg.get("group_col")
+    group_col = str(group_value) if group_value else None
+    labels = sorted(frame[cfg["label_col"]].astype(int).unique())
+    classes = [int(value) for value in cfg.get("class_ids", labels)]
+    missing_labels = sorted(set(labels) - set(classes))
+    if missing_labels:
+        raise ValueError(f"class_ids do not cover labels present in CSV: {missing_labels}")
+    return {
+        "seed": int(cfg.get("seed", 42)), "csv_path": cfg["csv_path"],
+        "label_col": cfg["label_col"], "feature_cols": list(cfg["feature_cols"]),
+        "time_steps": int(cfg["time_steps"]), "domain": cfg["domain"],
+        "group_col": group_col, "class_ids": classes,
+        "class_to_index": {value: index for index, value in enumerate(classes)},
+        "lstm_units": int(cfg.get("lstm_units", 16)),
+        "dense_units": int(cfg.get("dense_units", 16)),
+        "dropout": float(cfg.get("dropout", 0.2)), "l2": float(cfg.get("l2", 1e-4)),
+        "learning_rate": float(cfg.get("learning_rate", 1e-3)),
+        "validation_fraction": float(cfg.get("validation_fraction", 0.2)),
+        "validation_mode": str(cfg.get("validation_mode", "group_holdout" if group_col else "random_window")),
+        "epochs": int(cfg.get("epochs", 100)), "batch_size": int(cfg.get("batch_size", 16)),
+        "patience": int(cfg.get("patience", 10)),
+        "use_class_weight": bool(cfg.get("use_class_weight", True)),
+        "publish_latest": bool(cfg.get("publish_latest", True)),
+        "experiment_name": str(cfg.get("experiment_name", "default")),
+    }
+
+
+def set_random_seed(seed: int) -> None:
     np.random.seed(seed)
     tf.random.set_seed(seed)
     tf.keras.utils.set_random_seed(seed)
 
-    csv_path = cfg["csv_path"]
-    label_col = cfg["label_col"]
-    feature_cols = list(cfg["feature_cols"])
-    time_steps = int(cfg["time_steps"])
-    domain = cfg["domain"]
-    group_col = cfg.get("group_col")
-    group_col = str(group_col) if group_col else None
 
-    lstm_units = int(cfg.get("lstm_units", 16))
-    dense_units = int(cfg.get("dense_units", 16))
-    dropout = float(cfg.get("dropout", 0.2))
-    l2_value = float(cfg.get("l2", 1e-4))
-    learning_rate = float(cfg.get("learning_rate", 1e-3))
-    validation_fraction = float(cfg.get("validation_fraction", 0.2))
-    validation_mode = str(
-        cfg.get("validation_mode", "group_holdout" if group_col else "random_window")
+def build_vgr_windows(frame: pd.DataFrame, settings: dict[str, Any]) -> dict[str, Any]:
+    train = frame[frame["split"] == "train"].copy()
+    test = frame[frame["split"] == "test"].copy()
+    common = (
+        settings["feature_cols"], settings["label_col"], settings["time_steps"],
+        settings["class_to_index"],
     )
-    epochs = int(cfg.get("epochs", 100))
-    batch_size = int(cfg.get("batch_size", 16))
-    patience = int(cfg.get("patience", 10))
-    use_class_weight = bool(cfg.get("use_class_weight", True))
-    publish_latest = bool(cfg.get("publish_latest", True))
-    experiment_name = str(cfg.get("experiment_name", "default"))
-
-    df = pd.read_csv(csv_path)
-    validate_input_data(df, feature_cols, label_col, group_col=group_col)
-
-    class_ids = [int(v) for v in cfg.get("class_ids", sorted(df[label_col].astype(int).unique()))]
-    missing_labels = sorted(set(df[label_col].astype(int)) - set(class_ids))
-    if missing_labels:
-        raise ValueError(f"class_ids do not cover labels present in CSV: {missing_labels}")
-    # Das Modell lernt dichte Indizes, aber Activation und MQTT muessen spaeter
-    # wieder die echten Befehlslabels wie 101 oder 105 zurueckgeben.
-    class_to_index = {class_id: idx for idx, class_id in enumerate(class_ids)}
-
-    df_train = df[df["split"] == "train"].copy()
-    df_test = df[df["split"] == "test"].copy()
-
-    if group_col:
-        # `sequence_id` ist kein Feature, sondern eine harte Fenstergrenze. So
-        # entstehen keine LSTM-Fenster ueber kuenstliche Storage-Reset-Grenzen.
-        X_train_all, y_train_all, y_train_ids_all, train_window_groups = make_windows_label_last_grouped(
-            df_train,
-            feature_cols,
-            label_col,
-            time_steps,
-            class_to_index,
-            group_col=group_col,
+    if settings["group_col"]:
+        train_values = make_windows_label_last_grouped(
+            train, *common, group_col=settings["group_col"]
         )
-        X_test, y_test, y_test_ids, test_window_groups = make_windows_label_last_grouped(
-            df_test,
-            feature_cols,
-            label_col,
-            time_steps,
-            class_to_index,
-            group_col=group_col,
+        test_values = make_windows_label_last_grouped(
+            test, *common, group_col=settings["group_col"]
         )
         windowing_mode = "split_group_label_last"
     else:
-        X_train_all, y_train_all, y_train_ids_all = make_windows_label_last(
-            df_train, feature_cols, label_col, time_steps, class_to_index
-        )
-        X_test, y_test, y_test_ids = make_windows_label_last(
-            df_test, feature_cols, label_col, time_steps, class_to_index
-        )
-        train_window_groups = np.array(["train"] * len(y_train_all), dtype=object)
-        test_window_groups = np.array(["test"] * len(y_test), dtype=object)
+        train_basic = make_windows_label_last(train, *common)
+        test_basic = make_windows_label_last(test, *common)
+        train_values = (*train_basic, np.array(["train"] * len(train_basic[1]), dtype=object))
+        test_values = (*test_basic, np.array(["test"] * len(test_basic[1]), dtype=object))
         windowing_mode = "split_stream_label_last"
-
-    if len(X_train_all) == 0:
+    train_x, train_y, train_ids, train_groups = train_values
+    test_x, test_y, test_ids, test_groups = test_values
+    if len(train_x) == 0:
         raise ValueError("No training windows created. Check time_steps and train split length.")
+    return {
+        "train_x": train_x, "train_y": train_y, "train_ids": train_ids,
+        "train_groups": train_groups, "test_x": test_x, "test_y": test_y,
+        "test_ids": test_ids, "test_groups": test_groups, "windowing_mode": windowing_mode,
+    }
 
-    if validation_mode == "group_holdout":
-        if not group_col:
+
+def add_validation_split(data: dict[str, Any], settings: dict[str, Any]) -> None:
+    if settings["validation_mode"] == "group_holdout":
+        if not settings["group_col"]:
             raise ValueError("validation_mode='group_holdout' requires group_col.")
-        # Validation soll ganze Sequenzen zurueckhalten. Ein zufaelliger
-        # Fenstersplit waere bei stark ueberlappenden Fenstern zu optimistisch.
-        X_fit, X_val, y_fit, y_val, fit_groups, val_groups = train_validation_split_by_group(
-            X_train_all,
-            y_train_all,
-            train_window_groups,
-            validation_fraction=validation_fraction,
-            seed=seed,
+        values = train_validation_split_by_group(
+            data["train_x"], data["train_y"], data["train_groups"],
+            validation_fraction=settings["validation_fraction"], seed=settings["seed"],
         )
     else:
-        X_fit, X_val, y_fit, y_val = train_validation_split(
-            X_train_all,
-            y_train_all,
-            validation_fraction=validation_fraction,
-            seed=seed,
+        split = train_validation_split(
+            data["train_x"], data["train_y"],
+            validation_fraction=settings["validation_fraction"], seed=settings["seed"],
         )
-        fit_groups = np.array(["random_window_fit"] * len(y_fit), dtype=object)
-        val_groups = np.array(["random_window_validation"] * len(y_val), dtype=object)
+        fit_x, val_x, fit_y, val_y = split
+        values = (
+            fit_x, val_x, fit_y, val_y,
+            np.array(["random_window_fit"] * len(fit_y), dtype=object),
+            np.array(["random_window_validation"] * len(val_y), dtype=object),
+        )
+    keys = ("fit_x", "val_x", "fit_y", "val_y", "fit_groups", "val_groups")
+    data.update(dict(zip(keys, values)))
 
+
+def train_vgr_model(settings: dict[str, Any], data: dict[str, Any]) -> tuple[Any, Any, Any]:
     normalizer = tf.keras.layers.Normalization(axis=-1, name="feature_normalization")
-    normalizer.adapt(X_fit)
-
+    normalizer.adapt(data["fit_x"])
     model = build_model(
-        time_steps=time_steps,
-        n_features=len(feature_cols),
-        n_classes=len(class_ids),
-        normalizer=normalizer,
-        lstm_units=lstm_units,
-        dense_units=dense_units,
-        dropout=dropout,
-        learning_rate=learning_rate,
-        l2_value=l2_value,
+        time_steps=settings["time_steps"], n_features=len(settings["feature_cols"]),
+        n_classes=len(settings["class_ids"]), normalizer=normalizer,
+        lstm_units=settings["lstm_units"], dense_units=settings["dense_units"],
+        dropout=settings["dropout"], learning_rate=settings["learning_rate"],
+        l2_value=settings["l2"],
+    )
+    callback = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss" if len(data["val_x"]) else "loss",
+        patience=settings["patience"], restore_best_weights=True,
+    )
+    class_weight = None
+    if settings["use_class_weight"]:
+        class_weight = compute_balanced_class_weight(data["fit_y"], len(settings["class_ids"]))
+    fit_kwargs: dict[str, Any] = {
+        "epochs": settings["epochs"], "batch_size": settings["batch_size"],
+        "callbacks": [callback], "verbose": 2, "class_weight": class_weight,
+    }
+    if len(data["val_x"]):
+        fit_kwargs["validation_data"] = (data["val_x"], data["val_y"])
+    return model, model.fit(data["fit_x"], data["fit_y"], **fit_kwargs), class_weight
+
+
+def vgr_architecture(model: Any, settings: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "input_shape": [settings["time_steps"], len(settings["feature_cols"])],
+        "normalization": "keras.layers.Normalization(axis=-1), adapted on train-fit windows",
+        "lstm_units": settings["lstm_units"], "dense_units": settings["dense_units"],
+        "dropout": settings["dropout"], "l2": settings["l2"],
+        "output_units": len(settings["class_ids"]), "optimizer": "Adam",
+        "learning_rate": settings["learning_rate"], "loss": "sparse_categorical_crossentropy",
+        "parameter_counts": model_param_counts(model),
+    }
+
+
+def vgr_activation(
+    cfg: dict[str, Any], settings: dict[str, Any], architecture: dict[str, Any], timestamp: str
+) -> dict[str, Any]:
+    metadata = {
+        "domain": settings["domain"], "time_steps": settings["time_steps"],
+        "feature_cols": settings["feature_cols"], "label_col": settings["label_col"],
+        "group_col": settings["group_col"], "class_ids": settings["class_ids"],
+        "label_encoding": "dense_class_ids", "n_classes": len(settings["class_ids"]),
+        "architecture": architecture, "trained_at": timestamp,
+    }
+    base_path = cfg.get("activation_base_path")
+    if not base_path:
+        return metadata
+    with open(base_path, "r", encoding="utf-8") as handle:
+        activation = json.load(handle)
+    activation["cmd_map"] = {str(key): value for key, value in activation.get("cmd_map", {}).items()}
+    for class_id in settings["class_ids"]:
+        activation["cmd_map"].setdefault(str(class_id), f"cmd_{class_id}")
+    activation.update(metadata)
+    return activation
+
+
+def vgr_cross_validation(
+    cfg: dict[str, Any], settings: dict[str, Any], data: dict[str, Any]
+) -> dict[str, Any]:
+    cv_cfg = cfg.get("cross_validation", {})
+    if isinstance(cv_cfg, bool):
+        cv_cfg = {"enabled": cv_cfg}
+    if not bool(cv_cfg.get("enabled", False)):
+        return {"enabled": False}
+    if not settings["group_col"]:
+        raise ValueError("cross_validation.enabled requires group_col.")
+    return run_group_cross_validation(
+        X=data["train_x"], y=data["train_y"], groups=data["train_groups"],
+        class_ids=settings["class_ids"], time_steps=settings["time_steps"],
+        n_features=len(settings["feature_cols"]), lstm_units=settings["lstm_units"],
+        dense_units=settings["dense_units"], dropout=settings["dropout"],
+        learning_rate=settings["learning_rate"], l2_value=settings["l2"],
+        batch_size=int(cv_cfg.get("batch_size", settings["batch_size"])),
+        epochs=int(cv_cfg.get("epochs", min(settings["epochs"], 50))),
+        patience=int(cv_cfg.get("patience", min(settings["patience"], 5))),
+        use_class_weight=settings["use_class_weight"], seed=settings["seed"],
+        strategy=str(cv_cfg.get("strategy", "leave_one_group_out")),
+        n_splits=int(cv_cfg.get("n_splits", 5)),
     )
 
-    callbacks = [
-        tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss" if len(X_val) else "loss",
-            patience=patience,
-            restore_best_weights=True,
-        )
-    ]
 
-    class_weight = None
-    if use_class_weight:
-        # Die aktiven VGR-Klassen sind ungleich verteilt; Class Weights halten
-        # seltene Start-/Uebergangsklassen im Training sichtbar.
-        class_weight = compute_balanced_class_weight(y_fit, len(class_ids))
-
-    fit_kwargs: dict[str, Any] = {
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "callbacks": callbacks,
-        "verbose": 2,
-        "class_weight": class_weight,
+def vgr_dataset_metadata(frame: pd.DataFrame, settings: dict[str, Any]) -> dict[str, Any]:
+    group_col = settings["group_col"]
+    group_counts = None
+    if group_col:
+        group_counts = {
+            str(split): int(count)
+            for split, count in frame.groupby("split")[group_col].nunique().to_dict().items()
+        }
+    return {
+        "csv_path": settings["csv_path"], "rows": int(len(frame)),
+        "feature_count": len(settings["feature_cols"]), "group_col": group_col,
+        "row_label_counts": label_counts(frame[settings["label_col"]].astype(int).to_numpy()),
+        "split_row_counts": {str(key): int(value) for key, value in frame["split"].value_counts().to_dict().items()},
+        "split_group_counts": group_counts,
     }
-    if len(X_val):
-        fit_kwargs["validation_data"] = (X_val, y_val)
 
-    history = model.fit(X_fit, y_fit, **fit_kwargs)
 
-    train_metrics = evaluate_model(model, X_train_all, y_train_all, class_ids)
-    test_metrics = evaluate_model(model, X_test, y_test, class_ids)
+def vgr_window_metadata(data: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
+    class_array = np.array(settings["class_ids"], dtype=np.int32)
+    return {
+        "mode": data["windowing_mode"], "time_steps": settings["time_steps"],
+        "group_col": settings["group_col"], "train_windows": int(len(data["train_x"])),
+        "train_fit_windows": int(len(data["fit_x"])), "validation_windows": int(len(data["val_x"])),
+        "test_windows": int(len(data["test_x"])),
+        "train_window_label_counts": label_counts(data["train_ids"]),
+        "test_window_label_counts": label_counts(data["test_ids"]),
+        "train_window_groups": make_window_metadata(data["train_groups"], data["train_ids"]),
+        "fit_window_groups": make_window_metadata(data["fit_groups"], class_array[data["fit_y"]]),
+        "validation_window_groups": make_window_metadata(data["val_groups"], class_array[data["val_y"]]),
+        "test_window_groups": make_window_metadata(data["test_groups"], data["test_ids"]),
+    }
 
+
+def vgr_metrics(
+    config_path: str, frame: pd.DataFrame, settings: dict[str, Any], data: dict[str, Any],
+    model: Any, model_path: str, history: Any, class_weight: Any,
+    architecture: dict[str, Any], cross_validation: dict[str, Any]
+) -> dict[str, Any]:
+    classes = settings["class_ids"]
+    return {
+        "provenance": {
+            "experiment_name": settings["experiment_name"], "publish_latest": settings["publish_latest"],
+            "config_path": config_path, "config_sha256": sha256_file(config_path),
+            "dataset_sha256": sha256_file(settings["csv_path"]), "model_sha256": sha256_file(model_path),
+        },
+        "dataset": vgr_dataset_metadata(frame, settings),
+        "windowing": vgr_window_metadata(data, settings),
+        "training": {
+            "seed": settings["seed"], "epochs_configured": settings["epochs"],
+            "epochs_ran": int(len(history.history.get("loss", []))),
+            "batch_size": settings["batch_size"], "validation_fraction": settings["validation_fraction"],
+            "validation_mode": settings["validation_mode"],
+            "class_weight": {str(key): float(value) for key, value in class_weight.items()} if class_weight else None,
+            "history": {key: [float(value) for value in values] for key, values in history.history.items()},
+        },
+        "architecture": architecture,
+        "train_metrics": evaluate_model(model, data["train_x"], data["train_y"], classes),
+        "test_metrics": evaluate_model(model, data["test_x"], data["test_y"], classes),
+        "cross_validation": cross_validation,
+    }
+
+
+def save_vgr_artifacts(
+    config_path: str, cfg: dict[str, Any], frame: pd.DataFrame, settings: dict[str, Any],
+    data: dict[str, Any], model: Any, history: Any, class_weight: Any
+) -> tuple[str, str | None, dict[str, Any]]:
     ts = time.strftime("%Y-%m-%d_%H%M%S")
     registry_root = cfg.get("model_registry_root", "/model_registry")
-    out_base = os.path.join(registry_root, domain)
+    out_base = os.path.join(registry_root, settings["domain"])
     ver_dir = os.path.join(out_base, "versions", ts)
     os.makedirs(ver_dir, exist_ok=True)
 
     model_path = os.path.join(ver_dir, "model.keras")
     model.save(model_path)
+    architecture = vgr_architecture(model, settings)
+    activation = vgr_activation(cfg, settings, architecture, ts)
+    cross_validation = vgr_cross_validation(cfg, settings, data)
+    metrics = vgr_metrics(
+        config_path, frame, settings, data, model, model_path, history,
+        class_weight, architecture, cross_validation,
+    )
+    with open(os.path.join(ver_dir, "activation.json"), "w", encoding="utf-8") as handle:
+        json.dump(activation, handle, indent=2)
+    with open(os.path.join(ver_dir, "metrics.json"), "w", encoding="utf-8") as handle:
+        json.dump(metrics, handle, indent=2)
+    latest_dir = finalize_model_version(ver_dir, out_base, ts, settings["publish_latest"])
+    return ver_dir, latest_dir, metrics
 
-    architecture = {
-        "input_shape": [time_steps, len(feature_cols)],
-        "normalization": "keras.layers.Normalization(axis=-1), adapted on train-fit windows",
-        "lstm_units": lstm_units,
-        "dense_units": dense_units,
-        "dropout": dropout,
-        "l2": l2_value,
-        "output_units": len(class_ids),
-        "optimizer": "Adam",
-        "learning_rate": learning_rate,
-        "loss": "sparse_categorical_crossentropy",
-        "parameter_counts": model_param_counts(model),
-    }
 
-    act_meta = {
-        "domain": domain,
-        "time_steps": time_steps,
-        "feature_cols": feature_cols,
-        "label_col": label_col,
-        "group_col": group_col,
-        "class_ids": class_ids,
-        "label_encoding": "dense_class_ids",
-        "n_classes": len(class_ids),
-        "architecture": architecture,
-        "trained_at": ts,
-    }
-
-    activation = dict(act_meta)
-    base_path = cfg.get("activation_base_path")
-
-    if base_path:
-        with open(base_path, "r", encoding="utf-8") as f:
-            base = json.load(f)
-
-        base["cmd_map"] = {str(k): v for k, v in base.get("cmd_map", {}).items()}
-        for class_id in class_ids:
-            base["cmd_map"].setdefault(str(class_id), f"cmd_{class_id}")
-        # Die Base-Activation liefert stabile Befehlsnamen; der Trainingslauf
-        # schreibt den konkret gelernten Feature- und Klassenvertrag dazu.
-        base.update(act_meta)
-        activation = base
-
-    with open(os.path.join(ver_dir, "activation.json"), "w", encoding="utf-8") as f:
-        json.dump(activation, f, indent=2)
-
-    cv_cfg = cfg.get("cross_validation", {})
-    if isinstance(cv_cfg, bool):
-        cv_cfg = {"enabled": cv_cfg}
-    cv_enabled = bool(cv_cfg.get("enabled", False))
-    if cv_enabled:
-        if not group_col:
-            raise ValueError("cross_validation.enabled requires group_col.")
-        # CV laeuft nur auf Train-Gruppen. Der Testsplit bleibt der Holdout fuer
-        # die abschliessende Bewertung.
-        cross_validation = run_group_cross_validation(
-            X=X_train_all,
-            y=y_train_all,
-            groups=train_window_groups,
-            class_ids=class_ids,
-            time_steps=time_steps,
-            n_features=len(feature_cols),
-            lstm_units=lstm_units,
-            dense_units=dense_units,
-            dropout=dropout,
-            learning_rate=learning_rate,
-            l2_value=l2_value,
-            batch_size=int(cv_cfg.get("batch_size", batch_size)),
-            epochs=int(cv_cfg.get("epochs", min(epochs, 50))),
-            patience=int(cv_cfg.get("patience", min(patience, 5))),
-            use_class_weight=use_class_weight,
-            seed=seed,
-            strategy=str(cv_cfg.get("strategy", "leave_one_group_out")),
-            n_splits=int(cv_cfg.get("n_splits", 5)),
-        )
-    else:
-        cross_validation = {"enabled": False}
-
-    metrics = {
-        "provenance": {
-            "experiment_name": experiment_name,
-            "publish_latest": publish_latest,
-            "config_path": args.config,
-            "config_sha256": sha256_file(args.config),
-            "dataset_sha256": sha256_file(csv_path),
-            "model_sha256": sha256_file(model_path),
-        },
-        "dataset": {
-            "csv_path": csv_path,
-            "rows": int(len(df)),
-            "feature_count": len(feature_cols),
-            "group_col": group_col,
-            "row_label_counts": label_counts(df[label_col].astype(int).to_numpy()),
-            "split_row_counts": {str(k): int(v) for k, v in df["split"].value_counts().to_dict().items()},
-            "split_group_counts": (
-                {
-                    str(split): int(count)
-                    for split, count in df.groupby("split")[group_col].nunique().to_dict().items()
-                }
-                if group_col
-                else None
-            ),
-        },
-        "windowing": {
-            "mode": windowing_mode,
-            "time_steps": time_steps,
-            "group_col": group_col,
-            "train_windows": int(len(X_train_all)),
-            "train_fit_windows": int(len(X_fit)),
-            "validation_windows": int(len(X_val)),
-            "test_windows": int(len(X_test)),
-            "train_window_label_counts": label_counts(y_train_ids_all),
-            "test_window_label_counts": label_counts(y_test_ids),
-            "train_window_groups": make_window_metadata(train_window_groups, y_train_ids_all),
-            "fit_window_groups": make_window_metadata(fit_groups, np.array(class_ids, dtype=np.int32)[y_fit]),
-            "validation_window_groups": make_window_metadata(val_groups, np.array(class_ids, dtype=np.int32)[y_val]),
-            "test_window_groups": make_window_metadata(test_window_groups, y_test_ids),
-        },
-        "training": {
-            "seed": seed,
-            "epochs_configured": epochs,
-            "epochs_ran": int(len(history.history.get("loss", []))),
-            "batch_size": batch_size,
-            "validation_fraction": validation_fraction,
-            "validation_mode": validation_mode,
-            "class_weight": {str(k): float(v) for k, v in class_weight.items()} if class_weight else None,
-            "history": {k: [float(v) for v in values] for k, values in history.history.items()},
-        },
-        "architecture": architecture,
-        "train_metrics": train_metrics,
-        "test_metrics": test_metrics,
-        "cross_validation": cross_validation,
-    }
-
-    with open(os.path.join(ver_dir, "metrics.json"), "w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=2)
-
-    latest_dir = finalize_model_version(ver_dir, out_base, ts, publish_latest)
-
-    print(f"[OK] Saved version: {ver_dir}")
+def print_vgr_result(
+    version_dir: str, latest_dir: str | None, settings: dict[str, Any],
+    data: dict[str, Any], metrics: dict[str, Any]
+) -> None:
+    test_metrics = metrics["test_metrics"]
+    cross_validation = metrics["cross_validation"]
+    print(f"[OK] Saved version: {version_dir}")
     if latest_dir:
         print(f"[OK] Updated latest: {latest_dir}")
     else:
         print("[OK] Candidate mode: latest was not changed")
-    print(f"[OK] Input shape: (None, {time_steps}, {len(feature_cols)})")
-    print(f"[OK] Output units/classes: {len(class_ids)} / {class_ids}")
-    print(f"[OK] Train windows: {len(X_train_all)} | Test windows: {len(X_test)}")
-    if group_col:
-        print(f"[OK] Window groups: {group_col}")
-        print(f"[OK] Validation groups: {sorted(set(val_groups.astype(str))) if len(val_groups) else []}")
+    print(f"[OK] Input shape: (None, {settings['time_steps']}, {len(settings['feature_cols'])})")
+    print(f"[OK] Output units/classes: {len(settings['class_ids'])} / {settings['class_ids']}")
+    print(f"[OK] Train windows: {len(data['train_x'])} | Test windows: {len(data['test_x'])}")
+    if settings["group_col"]:
+        print(f"[OK] Window groups: {settings['group_col']}")
+        groups = sorted(set(data["val_groups"].astype(str))) if len(data["val_groups"]) else []
+        print(f"[OK] Validation groups: {groups}")
     if cross_validation.get("enabled"):
         print(f"[OK] Group CV folds: {cross_validation.get('n_splits', 0)}")
     print(f"[OK] Test accuracy: {test_metrics.get('accuracy')}")
     print(f"[OK] Test balanced accuracy: {test_metrics.get('balanced_accuracy')}")
     print(f"[OK] Test macro F1: {test_metrics.get('macro_f1')}")
+
+
+def main() -> None:
+    """Fuehrt den VGR-Trainingslauf aus und schreibt Modell, Activation und Metriken."""
+    require_tensorflow()
+    config_path, cfg = load_training_config()
+    frame = pd.read_csv(cfg["csv_path"])
+    settings = vgr_settings(cfg, frame)
+    set_random_seed(settings["seed"])
+    validate_input_data(
+        frame, settings["feature_cols"], settings["label_col"], settings["group_col"]
+    )
+    data = build_vgr_windows(frame, settings)
+    add_validation_split(data, settings)
+    model, history, class_weight = train_vgr_model(settings, data)
+    version_dir, latest_dir, metrics = save_vgr_artifacts(
+        config_path, cfg, frame, settings, data, model, history, class_weight
+    )
+    print_vgr_result(version_dir, latest_dir, settings, data, metrics)
 
 
 if __name__ == "__main__":

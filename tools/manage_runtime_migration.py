@@ -484,6 +484,56 @@ def restore_volume(project: str, logical: str, archive_path: Path) -> None:
     )
 
 
+def import_overrides(
+    target_project: str | None,
+    target_report_root: Path | None,
+) -> dict[str, str]:
+    updates: dict[str, str] = {}
+    if target_project is not None:
+        updates["COMPOSE_PROJECT_NAME"] = validate_compose_project(target_project)
+    if target_report_root is not None:
+        updates["REPORT_ROOT_HOST"] = str(target_report_root.expanduser().resolve())
+    return updates
+
+
+def backup_current_site(bundle: Path, env_file: Path) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup = bundle.with_name(f"pre-import-{timestamp}.tar.gz")
+    if env_file.is_file():
+        export_bundle(output=backup, env_file=env_file, allow_missing_volumes=True)
+    return backup
+
+
+def restore_candidates(stage: Path, manifest: dict[str, Any]) -> None:
+    for relative in manifest.get("selected_candidates", []):
+        source = stage / relative
+        target = PROJECT_ROOT / relative
+        if target.exists():
+            shutil.rmtree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, target)
+
+
+def restore_state_files(stage: Path) -> None:
+    for relative in STATE_FILES:
+        source = stage / relative
+        target = PROJECT_ROOT / relative
+        if source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+
+
+def restore_runtime_data(
+    stage: Path,
+    manifest: dict[str, Any],
+    effective_env: dict[str, str],
+) -> None:
+    restore_archive(stage / "reports.tar.gz", report_path(effective_env))
+    project = compose_project(effective_env)
+    for logical in manifest.get("included_volumes", []):
+        restore_volume(project, logical, stage / "volumes" / f"{logical}.tar.gz")
+
+
 def import_bundle(
     *,
     bundle: Path,
@@ -501,50 +551,17 @@ def import_bundle(
         manifest = extract_and_verify(bundle.resolve(), stage)
         validate_compatibility(manifest)
         imported_env = load_env(stage / ".env")
-        overrides: dict[str, str] = {}
-        if target_project is not None:
-            overrides["COMPOSE_PROJECT_NAME"] = validate_compose_project(target_project)
-        if target_report_root is not None:
-            overrides["REPORT_ROOT_HOST"] = str(target_report_root.expanduser().resolve())
+        overrides = import_overrides(target_project, target_report_root)
         effective_env = {**imported_env, **overrides}
         ensure_stack_stopped(stage / ".env", effective_env)
-
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup = bundle.resolve().with_name(f"pre-import-{timestamp}.tar.gz")
-        if env_file.is_file():
-            export_bundle(
-                output=backup,
-                env_file=env_file,
-                allow_missing_volumes=True,
-            )
-
+        backup = backup_current_site(bundle.resolve(), env_file)
         env_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(stage / ".env", env_file)
         update_env(env_file, overrides)
         copy_optional_file(stage / ".runtime/deployment-lock.json", DEPLOYMENT_LOCK)
-
-        for relative in manifest.get("selected_candidates", []):
-            source = stage / relative
-            target = PROJECT_ROOT / relative
-            if target.exists():
-                shutil.rmtree(target)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(source, target)
-        for relative in STATE_FILES:
-            source = stage / relative
-            target = PROJECT_ROOT / relative
-            if source.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
-
-        restore_archive(stage / "reports.tar.gz", report_path(effective_env))
-        project = compose_project(effective_env)
-        for logical in manifest.get("included_volumes", []):
-            restore_volume(
-                project,
-                logical,
-                stage / "volumes" / f"{logical}.tar.gz",
-            )
+        restore_candidates(stage, manifest)
+        restore_state_files(stage)
+        restore_runtime_data(stage, manifest, effective_env)
     return backup
 
 

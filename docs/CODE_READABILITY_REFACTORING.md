@@ -107,12 +107,12 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-019 | `check_model_compatibility.analyze_model()` | 144 Zeilen | Artefakt-, Form-, Feature- und Mappingchecks trennen | Kompatibilitaetstests | completed |
 | AR-020 | `compare_model_runs.compare_runs()` | 117 Zeilen | Reports lesen, vergleichen und Ergebnis bauen trennen | Vergleichstests | completed |
 | AR-021 | `evaluate_full_storage_guard_models.evaluate_domain()` | 113 Zeilen | Modellladen, Fenster, Metriken und Ausgabe trennen | Guard-Evaluationstest | completed |
-| AR-022 | `manage_model_candidates.py` | Promotion 90; Parser 84; Auswahl 57 | Teilpruefungen und Command-Parser trennen | Kandidatenmanager-Suite | pending |
-| AR-023 | `setup_portable_runtime.init_runtime()` | 88 Zeilen | Pfade, Environment, Images und Preflight trennen | Setup-Suite | pending |
-| AR-024 | `manage_runtime_migration.py` | Import 62; Export 52 | Archivpruefung, Backup und Restore trennen | Migration-Suite | pending |
-| AR-025 | `check_deployment_readiness.py` | mehrere Funktionen 42-78 Zeilen | einzelne Checks und Sammler vereinfachen | Preflight-Suite | pending |
+| AR-022 | `manage_model_candidates.py` | Promotion 90; Parser 84; Auswahl 57 | Teilpruefungen und Command-Parser trennen | Kandidatenmanager-Suite | completed |
+| AR-023 | `setup_portable_runtime.init_runtime()` | 88 Zeilen | Pfade, Environment, Images und Preflight trennen | Setup-Suite | completed |
+| AR-024 | `manage_runtime_migration.py` | Import 62; Export 52 | Archivpruefung, Backup und Restore trennen | Migration-Suite | completed |
+| AR-025 | `check_deployment_readiness.py` | mehrere Funktionen 42-78 Zeilen | einzelne Checks und Sammler vereinfachen | Preflight-Suite | completed |
 | AR-026 | Vollspeicher-Analysewerkzeuge | Analysen 72 und 87 Zeilen | Laden, Filtern, Befund und Ausgabe trennen | Analyse-Suiten | completed |
-| AR-027 | `observe_nn_inference.main()` | 44 Zeilen | Parser, Client und Lauf trennen | Beobachtertests | pending |
+| AR-027 | `observe_nn_inference.main()` | 44 Zeilen | Parser, Client und Lauf trennen | Beobachtertests | completed |
 | AR-028 | `run_nodered_orchestration.sh` | grosser Modus-Dispatcher und Optionspfad | Parser-, Check- und Modusfunktionen | Shell- und CLI-Vertragstests | pending |
 | AR-029 | lange Python-Tests | 14 Tests ueber 40 Zeilen | eindeutige Fixture-Helfer; ein Verhalten je Test | vollstaendige Suite | pending |
 | AR-030 | Docker, Compose, CI | korrekt, aber Querverweise auf tote Libs moeglich | Namen/Phasen klaeren; tote Erwartungen entfernen | drei Compose-Ausgaben und CI | pending |

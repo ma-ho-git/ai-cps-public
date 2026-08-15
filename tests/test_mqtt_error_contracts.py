@@ -37,6 +37,21 @@ def calls_named(node: ast.AST, name: str) -> list[ast.Call]:
     ]
 
 
+def uses_correlating_error_response(path: Path) -> bool:
+    on_message = function_node(path, "on_message")
+    candidates = calls_named(on_message, "response_payload")
+    helper_calls = calls_named(on_message, "_publish_error")
+    if helper_calls:
+        candidates.extend(calls_named(function_node(path, "_publish_error"), "response_payload"))
+    return any(
+        call.args
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == "req"
+        and any(keyword.arg == "error" for keyword in call.keywords)
+        for call in candidates
+    )
+
+
 class MqttErrorContractTests(unittest.TestCase):
     def test_all_changed_entry_points_are_valid_python(self):
         for path in INFERENCE_FILES:
@@ -44,16 +59,8 @@ class MqttErrorContractTests(unittest.TestCase):
 
     def test_inference_error_responses_keep_request_id(self):
         for path in INFERENCE_FILES:
-            on_message = function_node(path, "on_message")
-            response_calls = calls_named(on_message, "response_payload")
             self.assertTrue(
-                any(
-                    call.args
-                    and isinstance(call.args[0], ast.Name)
-                    and call.args[0].id == "req"
-                    and any(keyword.arg == "error" for keyword in call.keywords)
-                    for call in response_calls
-                ),
+                uses_correlating_error_response(path),
                 f"{path}: inference errors do not use the correlating response helper",
             )
 

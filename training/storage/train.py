@@ -226,158 +226,222 @@ def finalize_model_version(
     return latest_dir
 
 
-def main() -> None:
-    """Fuehrt den Storage-Trainingslauf aus und schreibt Registry-Artefakte."""
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", required=True)
-    args = ap.parse_args()
+def load_training_config() -> dict[str, Any]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args()
+    with open(args.config, "r", encoding="utf-8") as handle:
+        return json.load(handle)
 
-    with open(args.config, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
 
-    seed = int(cfg.get("seed", 42))
+def storage_settings(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Normalisiert alle Trainingsparameter an einer Stelle."""
+    return {
+        "domain": str(cfg.get("domain", "storage")),
+        "csv_path": str(cfg["csv_path"]),
+        "label_col": str(cfg.get("label_col", "empty_storage")),
+        "feature_cols": list(cfg.get("feature_cols", storage_feature_cols())),
+        "class_ids": [int(value) for value in cfg.get("class_ids", list(range(10)))],
+        "hidden_units": [int(value) for value in cfg.get("hidden_units", [16, 16])],
+        "learning_rate": float(cfg.get("learning_rate", 1e-3)),
+        "epochs": int(cfg.get("epochs", 100)),
+        "batch_size": int(cfg.get("batch_size", 32)),
+        "patience": int(cfg.get("patience", 10)),
+        "min_delta": float(cfg.get("min_delta", 1e-6)),
+        "publish_latest": bool(cfg.get("publish_latest", True)),
+        "experiment_name": str(cfg.get("experiment_name", "default")),
+        "seed": int(cfg.get("seed", 42)),
+    }
+
+
+def set_random_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     tf.keras.utils.set_random_seed(seed)
 
-    domain = str(cfg.get("domain", "storage"))
-    csv_path = str(cfg["csv_path"])
-    label_col = str(cfg.get("label_col", "empty_storage"))
-    feature_cols = list(cfg.get("feature_cols", storage_feature_cols()))
-    class_ids = [int(value) for value in cfg.get("class_ids", list(range(10)))]
-    hidden_units = [int(value) for value in cfg.get("hidden_units", [16, 16])]
-    learning_rate = float(cfg.get("learning_rate", 1e-3))
-    epochs = int(cfg.get("epochs", 100))
-    batch_size = int(cfg.get("batch_size", 32))
-    patience = int(cfg.get("patience", 10))
-    min_delta = float(cfg.get("min_delta", 1e-6))
-    publish_latest = bool(cfg.get("publish_latest", True))
-    experiment_name = str(cfg.get("experiment_name", "default"))
 
-    df = pd.read_csv(csv_path)
-    validate_storage_data(df, feature_cols, label_col, class_ids)
+def prepare_storage_data(settings: dict[str, Any]) -> dict[str, Any]:
+    frame = pd.read_csv(settings["csv_path"])
+    features = settings["feature_cols"]
+    label = settings["label_col"]
+    classes = settings["class_ids"]
+    validate_storage_data(frame, features, label, classes)
+    truth_x = frame[features].to_numpy(dtype=np.float32)
+    truth_y = frame[label].astype(int).to_numpy(dtype=np.int64)
+    train_x, train_y = make_balanced_training_data(
+        truth_x, truth_y, classes, settings["seed"]
+    )
+    return {
+        "frame": frame,
+        "truth_x": truth_x,
+        "truth_y": truth_y,
+        "train_x": train_x,
+        "train_y": train_y,
+    }
 
-    X_truth = df[feature_cols].to_numpy(dtype=np.float32)
-    y_truth = df[label_col].astype(int).to_numpy(dtype=np.int64)
-    # Seltene Klassen wie "nur Slot 9 frei" kommen in der Truth Table kaum vor.
-    # Das Balancing hilft dem Netz beim Lernen, veraendert aber nicht die Evaluation.
-    X_train, y_train = make_balanced_training_data(X_truth, y_truth, class_ids, seed)
 
+def train_storage_model(settings: dict[str, Any], data: dict[str, Any]) -> tuple[Any, Any]:
     model = build_model(
-        n_features=len(feature_cols),
-        n_classes=len(class_ids),
-        hidden_units=hidden_units,
-        learning_rate=learning_rate,
+        n_features=len(settings["feature_cols"]),
+        n_classes=len(settings["class_ids"]),
+        hidden_units=settings["hidden_units"],
+        learning_rate=settings["learning_rate"],
     )
     callbacks = [
         tf.keras.callbacks.EarlyStopping(
             monitor="loss",
-            patience=patience,
-            min_delta=min_delta,
+            patience=settings["patience"],
+            min_delta=settings["min_delta"],
             restore_best_weights=True,
         )
     ]
     history = model.fit(
-        X_train,
-        y_train,
-        epochs=epochs,
-        batch_size=batch_size,
+        data["train_x"],
+        data["train_y"],
+        epochs=settings["epochs"],
+        batch_size=settings["batch_size"],
         callbacks=callbacks,
         verbose=2,
     )
+    return model, history
 
-    metrics = evaluate_truth_table(model, X_truth, y_truth, class_ids)
-    # Fuer diese deterministische Teilaufgabe reicht "gut genug" nicht aus:
-    # Ein falsch erkannter voller Speicher waere fuer die Pipeline fachlich kritisch.
+
+def require_exact_truth_table(metrics: dict[str, Any]) -> None:
     if metrics["truth_table_accuracy"] != 1.0:
         raise RuntimeError("Storage-NN failed to reproduce the complete truth table exactly.")
 
-    ts = time.strftime("%Y-%m-%d_%H%M%S")
+
+def version_directory(cfg: dict[str, Any], settings: dict[str, Any], timestamp: str) -> tuple[str, str]:
     registry_root = cfg.get("model_registry_root", "/model_registry")
-    out_base = os.path.join(registry_root, domain)
-    ver_dir = os.path.join(out_base, "versions", ts)
-    os.makedirs(ver_dir, exist_ok=True)
+    output_base = os.path.join(registry_root, settings["domain"])
+    version = os.path.join(output_base, "versions", timestamp)
+    os.makedirs(version, exist_ok=True)
+    return output_base, version
 
-    model.save(os.path.join(ver_dir, "model.keras"))
 
-    architecture = {
-        "input_shape": [len(feature_cols)],
-        "hidden_units": hidden_units,
-        "output_units": len(class_ids),
+def storage_architecture(model: Any, settings: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "input_shape": [len(settings["feature_cols"])],
+        "hidden_units": settings["hidden_units"],
+        "output_units": len(settings["class_ids"]),
         "optimizer": "Adam",
-        "learning_rate": learning_rate,
+        "learning_rate": settings["learning_rate"],
         "loss": "sparse_categorical_crossentropy",
         "parameter_counts": model_param_counts(model),
     }
 
-    act_meta = {
-        "domain": domain,
+
+def storage_activation(
+    cfg: dict[str, Any], settings: dict[str, Any], architecture: dict[str, Any], timestamp: str
+) -> dict[str, Any]:
+    metadata = {
+        "domain": settings["domain"],
         "model_type": "mlp",
-        "feature_cols": feature_cols,
-        "label_col": label_col,
-        "class_ids": class_ids,
-        "input_shape": [len(feature_cols)],
-        "n_classes": len(class_ids),
+        "feature_cols": settings["feature_cols"],
+        "label_col": settings["label_col"],
+        "class_ids": settings["class_ids"],
+        "input_shape": [len(settings["feature_cols"])],
+        "n_classes": len(settings["class_ids"]),
         "architecture": architecture,
         "rule_baseline": "first slot with occupied == 0, otherwise 0 for full storage",
-        "trained_at": ts,
+        "trained_at": timestamp,
     }
-
-    activation = dict(act_meta)
     base_path = cfg.get("activation_base_path")
-    if base_path:
-        with open(base_path, "r", encoding="utf-8") as f:
-            base = json.load(f)
-        base["cmd_map"] = {str(k): v for k, v in base.get("cmd_map", {}).items()}
-        for class_id in class_ids:
-            base["cmd_map"].setdefault(str(class_id), f"empty_storage_{class_id}")
-        base.update(act_meta)
-        activation = base
+    if not base_path:
+        return metadata
+    with open(base_path, "r", encoding="utf-8") as handle:
+        activation = json.load(handle)
+    activation["cmd_map"] = {str(key): value for key, value in activation.get("cmd_map", {}).items()}
+    for class_id in settings["class_ids"]:
+        activation["cmd_map"].setdefault(str(class_id), f"empty_storage_{class_id}")
+    activation.update(metadata)
+    return activation
 
-    with open(os.path.join(ver_dir, "activation.json"), "w", encoding="utf-8") as f:
-        json.dump(activation, f, indent=2)
 
+def storage_metrics_payload(
+    settings: dict[str, Any], data: dict[str, Any], history: Any,
+    architecture: dict[str, Any], metrics: dict[str, Any]
+) -> dict[str, Any]:
+    frame = data["frame"]
     label_counts = {
-        str(k): int(v)
-        for k, v in df[label_col].value_counts().sort_index().to_dict().items()
+        str(key): int(value)
+        for key, value in frame[settings["label_col"]].value_counts().sort_index().to_dict().items()
     }
-    metrics_payload = {
+    return {
         "dataset": {
-            "csv_path": csv_path,
-            "rows": int(len(df)),
-            "feature_count": len(feature_cols),
+            "csv_path": settings["csv_path"],
+            "rows": int(len(frame)),
+            "feature_count": len(settings["feature_cols"]),
             "label_counts": label_counts,
         },
         "training": {
-            "experiment_name": experiment_name,
-            "publish_latest": publish_latest,
-            "seed": seed,
-            "epochs_configured": epochs,
+            "experiment_name": settings["experiment_name"],
+            "publish_latest": settings["publish_latest"],
+            "seed": settings["seed"],
+            "epochs_configured": settings["epochs"],
             "epochs_ran": int(len(history.history.get("loss", []))),
-            "batch_size": batch_size,
-            "early_stopping_patience": patience,
-            "early_stopping_min_delta": min_delta,
-            "balanced_training_rows": int(len(y_train)),
-            "history": {k: [float(v) for v in values] for k, values in history.history.items()},
+            "batch_size": settings["batch_size"],
+            "early_stopping_patience": settings["patience"],
+            "early_stopping_min_delta": settings["min_delta"],
+            "balanced_training_rows": int(len(data["train_y"])),
+            "history": {key: [float(value) for value in values] for key, values in history.history.items()},
         },
         "architecture": architecture,
         **metrics,
     }
-    with open(os.path.join(ver_dir, "metrics.json"), "w", encoding="utf-8") as f:
-        json.dump(metrics_payload, f, indent=2)
 
-    latest_dir = finalize_model_version(ver_dir, out_base, ts, publish_latest)
 
-    print(f"[OK] Saved version: {ver_dir}")
+def write_json(path: str, value: dict[str, Any]) -> None:
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(value, handle, indent=2)
+
+
+def save_storage_artifacts(
+    cfg: dict[str, Any], settings: dict[str, Any], data: dict[str, Any],
+    model: Any, history: Any, metrics: dict[str, Any]
+) -> tuple[str, str | None]:
+    ts = time.strftime("%Y-%m-%d_%H%M%S")
+    out_base, ver_dir = version_directory(cfg, settings, ts)
+    model.save(os.path.join(ver_dir, "model.keras"))
+    architecture = storage_architecture(model, settings)
+    activation = storage_activation(cfg, settings, architecture, ts)
+    payload = storage_metrics_payload(settings, data, history, architecture, metrics)
+    write_json(os.path.join(ver_dir, "activation.json"), activation)
+    write_json(os.path.join(ver_dir, "metrics.json"), payload)
+    latest_dir = finalize_model_version(ver_dir, out_base, ts, settings["publish_latest"])
+    return ver_dir, latest_dir
+
+
+def print_storage_result(
+    version_dir: str, latest_dir: str | None, settings: dict[str, Any], metrics: dict[str, Any]
+) -> None:
+    print(f"[OK] Saved version: {version_dir}")
     if latest_dir:
         print(f"[OK] Updated latest: {latest_dir}")
     else:
         print("[OK] Candidate mode: latest was not changed")
-    print(f"[OK] Input shape: (None, {len(feature_cols)})")
-    print(f"[OK] Output units/classes: {len(class_ids)} / {class_ids}")
+    print(f"[OK] Input shape: (None, {len(settings['feature_cols'])})")
+    print(f"[OK] Output units/classes: {len(settings['class_ids'])} / {settings['class_ids']}")
     print(f"[OK] Truth-table accuracy: {metrics['truth_table_accuracy']}")
     print(f"[OK] Truth-table balanced accuracy: {metrics['truth_table_balanced_accuracy']}")
     print(f"[OK] Truth-table macro F1: {metrics['truth_table_macro_f1']}")
+
+
+def main() -> None:
+    """Fuehrt den Storage-Trainingslauf aus und schreibt Registry-Artefakte."""
+    cfg = load_training_config()
+    settings = storage_settings(cfg)
+    set_random_seed(settings["seed"])
+    data = prepare_storage_data(settings)
+    model, history = train_storage_model(settings, data)
+    metrics = evaluate_truth_table(
+        model, data["truth_x"], data["truth_y"], settings["class_ids"]
+    )
+    require_exact_truth_table(metrics)
+    version_dir, latest_dir = save_storage_artifacts(
+        cfg, settings, data, model, history, metrics
+    )
+    print_storage_result(version_dir, latest_dir, settings, metrics)
 
 
 if __name__ == "__main__":

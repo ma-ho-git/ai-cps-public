@@ -96,12 +96,12 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-008 | vier Node-RED-Functions | 12-36 Zeilen | beibehalten; eine Aufgabe; Steno-Hilfe | Zeilen-/Hilfetexttest | completed |
 | AR-009 | `node_red/lib/*.js` | fuenf nicht geladene Referenzkerne | Schutztests uebertragen; Dateien entfernen | aktuelle Flow-/Dockerregression | completed |
 | AR-010 | alte Node-RED-Tests | binden nur tote Referenzkerne | aktive Flowvertraege direkt testen | `npm test` | completed |
-| AR-011 | `training/vgr/train.py:main()` | 316 Zeilen | Config, Daten, Training, CV, Evaluation, Artefakte trennen | Trainingsvertrag und Smoke | pending |
-| AR-012 | `training/vgr/run_group_cross_validation()` | 120 Zeilen | Fold-Aufbau, Fit und Ergebnis trennen | CV-Ergebnistest | pending |
-| AR-013 | `training/vgr/validate_input_data()` | 67 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | pending |
-| AR-014 | `training/hbw/train.py:main()` | 189 Zeilen | Ablauf in benannte Schritte zerlegen | Trainingsvertrag und Smoke | pending |
-| AR-015 | `training/hbw/validate_input_data()` | 64 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | pending |
-| AR-016 | `training/storage/train.py:main()` | 152 Zeilen | Daten, Fit, Evaluation und Ablage trennen | Truth-Table-Test | pending |
+| AR-011 | `training/vgr/train.py:main()` | 316 Zeilen | Config, Daten, Training, CV, Evaluation, Artefakte trennen | Trainingsvertrag und Smoke | completed |
+| AR-012 | `training/vgr/run_group_cross_validation()` | 120 Zeilen | Fold-Aufbau, Fit und Ergebnis trennen | CV-Ergebnistest | completed |
+| AR-013 | `training/vgr/validate_input_data()` | 67 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | completed |
+| AR-014 | `training/hbw/train.py:main()` | 189 Zeilen | Ablauf in benannte Schritte zerlegen | Trainingsvertrag und Smoke | completed |
+| AR-015 | `training/hbw/validate_input_data()` | 64 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | completed |
+| AR-016 | `training/storage/train.py:main()` | 152 Zeilen | Daten, Fit, Evaluation und Ablage trennen | Truth-Table-Test | completed |
 | AR-017 | VGR/HBW `mqtt_infer.py:on_message()` | je 73 Zeilen | Lesen, Profil, Inferenz, Command und Response trennen | MQTT- und Direct-Command-Tests | completed |
 | AR-018 | `model_profiles.load_profile_specs()` | 71 Zeilen | Kataloglesen und Profilvalidierung trennen | Profilvertragstest | completed |
 | AR-019 | `check_model_compatibility.analyze_model()` | 144 Zeilen | Artefakt-, Form-, Feature- und Mappingchecks trennen | Kompatibilitaetstests | completed |

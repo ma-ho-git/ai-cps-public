@@ -10,7 +10,9 @@ services:
 
   train_vgr:
     image: ft_train_vgr
-    build: ./training/vgr
+    build:
+      context: .
+      dockerfile: training/vgr/Dockerfile
     volumes:
       - ./data:/data:ro
       - ./configs:/configs:ro
@@ -19,7 +21,9 @@ services:
 
   train_hbw:
     image: ft_train_hbw
-    build: ./training/hbw
+    build:
+      context: .
+      dockerfile: training/hbw/Dockerfile
     volumes:
       - ./data:/data:ro
       - ./configs:/configs:ro

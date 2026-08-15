@@ -9,7 +9,7 @@ from .state_capture import build_state_nodes
 from .subflows import build_subflows
 
 def build_low_code_flow(existing: list[dict]) -> list[dict]:
-    """Return the complete RC.2 flow while retaining Dashboard/config nodes."""
+    """Vollstaendigen Flow mit Dashboard und Konfiguration bauen."""
     config_nodes = [
         dict(node) for node in existing
         if not node.get("z") and node.get("type") not in {"tab", "subflow"}
@@ -25,4 +25,3 @@ def build_low_code_flow(existing: list[dict]) -> list[dict]:
         + update_low_code_hmi(existing)
         + config_nodes
     )
-

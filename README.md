@@ -23,11 +23,11 @@ Docker Engine oder Docker Desktop im Linux-Container-Modus, Compose und
 Python 3.12. Betriebsrechner verwenden den freigegebenen Release:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.3.0-rc.2 \
+git clone --depth 1 --branch runtime-v1.3.0-rc.3 \
   https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.2 \
+  --mode virtual --release runtime-v1.3.0-rc.3 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -39,7 +39,7 @@ Physischer Schnellstart:
 
 ```bash
 python3 tools/setup_portable_runtime.py init --mode physical \
-  --release runtime-v1.3.0-rc.2 --mqtt-host 192.168.0.5
+  --release runtime-v1.3.0-rc.3 --mqtt-host 192.168.0.5
 ./tools/run_nodered_orchestration.sh physical-up --images
 ```
 
@@ -192,7 +192,6 @@ bei spaeteren echten Zugangsdaten muss es vor Weitergabe verschluesselt werden.
 - [Node-RED-/MQTT-Architektur](docs/NODERED_MQTT_ORCHESTRATION.md)
 - [Training und Modellfreigabe](docs/TRAINING_AND_MODEL_RELEASE.md)
 - [Troubleshooting](docs/SIMULATION_TROUBLESHOOTING_RUNBOOK.md)
-- [Archivierter Entwicklungsstand](docs/ARCHIVED_DEVELOPMENT_STATE.md)
 - [Oeffentliche Release-Prozedur](docs/PUBLIC_RELEASE_PROCEDURE.md)
 - [Rechtepruefung](docs/PUBLICATION_RIGHTS_REVIEW.md)
 - [KI-Entwicklungsuebergabe](docs/AI_DEVELOPMENT_HANDOVER.md)

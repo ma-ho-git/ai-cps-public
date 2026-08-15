@@ -108,6 +108,32 @@ class PublicReleaseReadinessTests(unittest.TestCase):
         self.assertTrue(any(error.endswith(".env") for error in errors))
         self.assertFalse(any(error.endswith(".env.example") for error in errors))
 
+    def test_current_release_metadata_is_consistent(self) -> None:
+        config = readiness.load_object(readiness.RELEASE_CONFIG)
+        rights = readiness.load_object(readiness.RIGHTS_FILE)
+        release = str(config["release"])
+        version = release.removeprefix("runtime-v")
+        self.assertEqual(rights["release"], release)
+        self.assertIn(f'version: "{version}"', (readiness.PROJECT_ROOT / "CITATION.cff").read_text())
+        for relative in (
+            "README.md",
+            "docs/ENVIRONMENT_SETUP.md",
+            "docs/OPERATION_AND_MIGRATION_GUIDE.md",
+            "docs/PORTABLE_DEPLOYMENT.md",
+            "docs/SIMULATION_TROUBLESHOOTING_RUNBOOK.md",
+            "docs/PUBLIC_RELEASE_PROCEDURE.md",
+            "tools/run_nodered_orchestration.sh",
+        ):
+            with self.subTest(path=relative):
+                content = (readiness.PROJECT_ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn(release, content)
+
+        runtime_version = str(config["node_red_runtime_version"])
+        entrypoint = readiness.PROJECT_ROOT / (
+            "scenarios/serve_ft_nns_external_broker/x86_64/node_red/entrypoint.sh"
+        )
+        self.assertIn(runtime_version, entrypoint.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,76 +1,61 @@
-# Public Runtime Release Procedure
+# Oeffentliche Release-Prozedur
 
-Diese Prozedur veroeffentlicht Runtime V1.3.0-RC.1 ohne die private
-Entwicklungshistorie. Das Zielrepository ist
-`https://github.com/ma-ho-git/ai-cps-runtime`.
+Diese Prozedur veroeffentlicht einen geprueften Stand im bestehenden
+Repository `ma-ho-git/ai-cps-runtime`. Private Entwicklungshistorie,
+Standortkonfiguration und Laufzeitartefakte gehoeren nicht in den Release.
 
-## 1. Freigabe
+## 1. Release Vorbereiten
 
-1. Alle Nachweise aus `PUBLICATION_RIGHTS_REVIEW.md` einholen.
-2. Die zugehoerigen Eintraege in `configs/publication_rights.json` auf
-   `approved` setzen.
-3. Den harten Release-Check ausfuehren:
+1. Releasekennung in `configs/runtime_release.json`, HMI, Dokumentation und
+   `CITATION.cff` angleichen.
+2. Modell-, Datensatz- und Trace-Hashes vor der Abnahme erfassen.
+3. Vollstaendige Tests und die betroffenen Runtime-Szenarien ausfuehren.
+4. Den oeffentlichen Baum hart pruefen:
 
    ```bash
    python3 tools/check_public_release_readiness.py --require-approved
+   python3 tools/check_code_readability.py
+   git diff --check
    ```
 
-Ohne erfolgreichen Check werden weder das oeffentliche Repository noch ein
-Release-Tag erzeugt.
+5. Sicherstellen, dass `.env`, Reports, Volumes, Kandidaten und temporaere
+   Dateien nicht versioniert sind.
 
-## 2. Privaten Quellstand Einfrieren
+## 2. Pull Request Nach Main
 
-1. Vollstaendige Tests und Runtime-Abnahmen ausfuehren.
-2. Den freigegebenen Stand im privaten Repository als
-   `checkpoint/portable-runtime-v1.3.0-rc.2-ready-2026-08-14` sichern.
-3. Den exakten Commit notieren. Der Worktree muss sauber sein.
+1. Feature-Branch zu `origin` pushen und Pull Request gegen `main` oeffnen.
+2. Runtime-CI, vier Image-Builds und erforderliche Review abwarten.
+3. Nur einen konfliktfreien, vollstaendig geprueften Stand mergen.
+4. Main-CI vollstaendig abwarten. Die vier `latest-validated`-Images werden
+   aus dem neuen Main-Commit erzeugt.
 
-## 3. Bereinigten Quellbaum Exportieren
+Bei fehlgeschlagener CI erfolgt kein Tag. Korrekturen werden als neuer Commit
+ueber einen Pull Request eingespielt; kein Force-Push nach `main`.
 
-```bash
-mkdir -p /tmp/ai-cps-runtime-public
-git archive --format=tar <FREIGEGEBENER_COMMIT> | \
-  tar -xf - -C /tmp/ai-cps-runtime-public
-python3 /tmp/ai-cps-runtime-public/tools/check_public_release_readiness.py \
-  --require-approved
-```
+## 3. Unveraenderlichen Tag Veroeffentlichen
 
-Der Export darf keine `.git`-Historie, `.env`, Reports, Volumes,
-Modellkandidaten, Notebooks oder vollstaendige fremde Publikationen enthalten.
-
-## 4. Oeffentliches Repository Erzeugen
-
-Im Export wird eine neue Historie mit einer datenschutzfreundlichen
-GitHub-Noreply-Adresse begonnen:
+Erst nach erfolgreicher Main-CI:
 
 ```bash
-cd /tmp/ai-cps-runtime-public
-git init -b main
-git config user.name "ma-ho-git"
-git config user.email "118806301+ma-ho-git@users.noreply.github.com"
-git add .
-git commit -m "Initial public runtime release"
+git switch main
+git pull --ff-only origin main
+git tag -a runtime-v1.3.0-rc.3 -m "AI-CPS Runtime V1.3.0-RC.3"
+git push origin runtime-v1.3.0-rc.3
 ```
 
-Vor dem Push ist zu pruefen, dass genau ein Commit vorhanden ist. Danach wird
-das neue **oeffentliche** GitHub-Repository angelegt, als `origin` eingetragen
-und `main` gepusht. Branchschutz verlangt die Runtime-CI fuer weitere
-Aenderungen.
+Der Tag wird niemals verschoben oder ueberschrieben. Der Tag-Workflow erzeugt:
 
-## 5. Images Und Release
+- vier `linux/amd64`-Images mit Release- und SHA-Tag;
+- `runtime-manifest.json` mit Image-, Modell-, Trace- und Flowhashes;
+- Source-SBOM und `SHA256SUMS`;
+- Lizenzhinweise und `CITATION.cff`.
 
-1. Branch-CI fuer `feature/nodered-physical-flow-parity` vollstaendig abwarten.
-2. Alle vier GHCR-Packages auf `public` stellen und anonymen Pull pruefen.
-3. Den zur Releasekonfiguration passenden unveraenderlichen Runtime-Tag
-   erzeugen und pushen, fuer diesen Release `runtime-v1.3.0-rc.2`.
-4. Release-Manifest, `SHA256SUMS`, Source-SBOM, Notices, Citation und
-   Image-Digests pruefen.
-5. Clean-Install und Standort-Restore mit getrennten Compose-Projekten und
-   Reportpfaden abnehmen.
+## 4. Release Abnehmen
 
-Der RC wird nicht nach `main` gemergt. Die vier RC-Images erhalten den
-Release-Tag; `latest-validated` bleibt bis zur finalen V1.3.0-Freigabe auf
-Runtime V1.2.0.
+1. Release-Artefakte und Images ohne GitHub-Anmeldung abrufen.
+2. Tag mit `--depth 1` in ein leeres Verzeichnis klonen.
+3. Setup, Preflight, Dashboard und einen vollstaendigen Standardlauf pruefen.
+4. Modell-IDs, Commands, Reportabschluss und Modulcounter kontrollieren.
+5. Stack ohne `down -v` stoppen und Testergebnis dokumentieren.
 
-Das private Entwicklungsrepository bleibt erhalten, ist aber nicht die
-oeffentliche Runtime-Quelle.
+Fruehere Release-Tags bleiben als unveraenderliche Rueckfallstaende erhalten.

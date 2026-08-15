@@ -79,6 +79,19 @@ class AiDevelopmentDocsTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertTrue(resolved.is_file())
 
+    def test_all_local_markdown_links_exist(self) -> None:
+        markdown_files = [PROJECT_ROOT / "README.md"]
+        markdown_files.extend(sorted((PROJECT_ROOT / "docs").glob("*.md")))
+        for document in markdown_files:
+            content = document.read_text(encoding="utf-8")
+            for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", content):
+                path_text = target.split("#", 1)[0]
+                if not path_text or "://" in path_text:
+                    continue
+                resolved = (document.parent / path_text).resolve()
+                with self.subTest(document=document.name, target=target):
+                    self.assertTrue(resolved.is_file())
+
     def test_pull_request_template_covers_handover_and_artifact_safety(self) -> None:
         template = self.read(".github/pull_request_template.md")
         for text in (

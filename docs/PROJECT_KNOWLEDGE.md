@@ -1,44 +1,21 @@
 # Project Knowledge
 
-## Runtime V1.3.0-RC.2: Low-Code-Flowstruktur
+## Aktueller Releasekandidat
 
-- RC.2 behaelt Ablauf und MQTT-Vertraege von RC.1 bei, ersetzt aber 39 der 43
-  Function-Nodes durch Node-RED-Core-Nodes.
-- Exakt vier Functions bleiben fuer deterministische Modullaufzeit, atomaren
-  Semaphor, dynamischen Modellvertrag und keyed LSTM-Fenster.
-- `Virtuelles Modul`, `LSTM-Fenster W=10` und `NN-Response pruefen` sind
-  dokumentierte Subflows. Ein Doppelklick zeigt die einzelnen Entscheidungen,
-  Counter, Delays und Zuweisungen.
-- Initialisierung, One-hot, Responses, Timeout, Reporting und HMI sind
-  Function-frei. JSONata dient nur Feldabbildungen, Context-Zuweisungen und
-  begrenzten Anzeigelisten; Fachentscheidungen bleiben als Switches sichtbar.
-- `runtime-v1.2.0` bleibt die stabile Rueckfallversion. RC-Images erhalten
-  `runtime-v1.3.0-rc.2`; `latest-validated` bleibt bis V1.3.0 auf V1.2.0.
-- Der Lesbarkeitsvertrag wird durch `tools/check_code_readability.py` und CI
-  erzwungen: Produktion maximal 60 Zeilen; Callback/`main()`/Test maximal 40;
-  Function-Node maximal 40; JSONata maximal 200 Zeichen.
-- Die frueheren Referenzkerne unter `node_red/lib/` werden nicht mehr geladen
-  und wurden nach Uebertragung ihrer Schutztests entfernt.
-
-## Runtime V1.3.0-RC.1: Physiknahe virtuelle Flowstruktur
-
-- Die virtuelle Node-RED-Laufzeit ist in `00 Initialisierung`,
+- `runtime-v1.3.0-rc.3` ist der anfaengerfreundliche Referenzstand.
+- Die virtuelle Laufzeit besteht aus den Tabs `00 Initialisierung`,
   `10 Zustandserfassung`, `20 Virtuelle Module`, `30 Semaphor` und
-  `40 NN-Pipeline` gegliedert.
-- `ft/sim/factory/raw_state` ist ein rein virtuelles internes Topic. Es traegt
-  alle 50 ms den aktuellen Tracezustand; der eingefrorene Live-Vertrag
-  `log/logging/state` bleibt unveraendert.
-- VGR, HBW, MPO und SLD besitzen getrennte Command-/Delay-/Abschlusszweige.
-  Der Semaphor vergleicht die vier `sent_count`-/`accepted_count`-Paare und
-  verlangt pro Freigabe ein vollstaendiges neues Command-Set.
-- Externe Fachmodule in `functionGlobalContext` entfallen. Function-Nodes
-  bilden nur atomare Schritte ab; Topics, Idle-Seed und kleine Kataloge sind
-  direkt im Flow enthalten. Nur die drei versionierten Traces werden gelesen.
-- Der virtuelle Contract-Gate liegt unmittelbar vor Storage. Die physische
-  Black Box und alle physischen MQTT-Vertraege bleiben unveraendert.
-- Catch-/MQTT-Statuspfade laufen in einen gemeinsamen Fault-Latch. Das HMI
-  zeigt zusaetzlich Semaphorstatus, Rohsample- und Freigabezaehler.
-- RC.1 bleibt der vorherige physiknahe Ruecksprungpunkt.
+  `40 NN-Pipeline`.
+- Core-Nodes bilden Routing, Validierung, Reporting, HMI und Delays sichtbar
+  ab. Exakt vier kleine Function-Nodes bleiben fuer Modullaufzeit, atomaren
+  Semaphor, dynamischen Modellvertrag und LSTM-Fenster.
+- `Virtuelles Modul`, `LSTM-Fenster W=10` und `NN-Response pruefen` sind
+  dokumentierte Subflows.
+- Der Lesbarkeitsvertrag wird durch `tools/check_code_readability.py` und CI
+  erzwungen: Produktion maximal 60 Zeilen; Callback, `main()` und Test maximal
+  40 Zeilen; Function-Node maximal 40 Zeilen; JSONata maximal 200 Zeichen.
+- Durch die Veroeffentlichung ueber `main` zeigen die vier
+  `latest-validated`-Images auf den geprueften RC.3-Commit.
 
 ## Aktueller Zweck
 
@@ -132,28 +109,16 @@ Abnahme der promovierten Modelle am 2026-08-10:
   Klartextartefakt der isolierten Testumgebung und enthaelt keine Git-/SSH-/
   GitHub-/Docker-Anmeldedaten.
 - Rolling Windows, offene Zyklen und Docker-Images werden nicht migriert.
-- Ab Runtime V1.2.0 sind Standort- und Pre-Import-Bundles immer `0600`;
-  Restore-Volumes tragen Compose-Projekt- und Volume-Labels. V1.1.0- und
-  interne V1.1.1-Bundles bleiben fuer den V1.2.0-Importer kompatibel.
+- Standort- und Pre-Import-Bundles sind immer `0600`; Restore-Volumes tragen
+  Compose-Projekt- und Volume-Labels. RC.3 akzeptiert Bundles ab V1.1.0 sowie
+  den internen V1.1.1-Stand.
 - `run_summary.json.completed` beschreibt den gesamten virtuellen Lauf. Die
   Markierung erfolgt erst durch den korrelierten finalen Fabrikstatus, nicht
   durch den Abschluss eines einzelnen KI-Zyklus.
 
-## Archiv
-
-Der ungekuerzte Forschungsstand ist ausschliesslich im privaten
-Entwicklungsrepository unter Branch
-`archive/full-development-state-2026-08-10` und Tag
-`development-complete-2026-08-10` eingefroren. Dort liegen Notebooks,
-Roh-/Zwischendaten, Lernkurs, Builder, alte Orchestratoren und Forschungsplots.
-
 ## Oeffentliche Runtime
 
-- Massgebliche oeffentliche Quelle ab V1.1 ist
-  `ma-ho-git/ai-cps-runtime` unter `AGPL-3.0-only`.
-- Die oeffentliche Historie beginnt mit einem bereinigten Initial-Commit;
-  private Entwicklungsbranches und persoenliche Commit-Adressen werden nicht
-  uebertragen.
+- Massgebliche Quelle ist `ma-ho-git/ai-cps-runtime` unter `AGPL-3.0-only`.
 - Herkunft aus Marcus Grums AGPL-lizenziertem AI-CPS wird in
   `THIRD_PARTY_NOTICES.md` dokumentiert.
 - Ein Release-Tag ist nur zulaessig, wenn

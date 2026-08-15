@@ -55,7 +55,6 @@ jobs:
             tools/analyze_full_storage_attempt_run.py \
             tools/analyze_full_storage_process_guard_run.py \
             tools/evaluate_full_storage_guard_models.py \
-            tools/nodered_low_code_flow.py \
             tools/build_modular_nodered_flow.py \
             tools/export_nodered_ai_flow.py \
             tools/monitor_physical_mqtt_contract.py \

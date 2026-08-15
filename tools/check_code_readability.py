@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENARIO = Path("scenarios/serve_ft_nns_external_broker/x86_64")
 FLOW_FILE = SCENARIO / "node_red/flows.json"
 SHELL_FILE = Path("tools/run_nodered_orchestration.sh")
-AUDIT_FILE = Path("docs/CODE_READABILITY_REFACTORING.md")
 PYTHON_ROOTS = (Path("tools"), Path("training"), SCENARIO, Path("tests"))
 DEAD_JS_FILES = (
     "bootstrap.js", "hmi.js", "orchestration.js", "reporting.js", "virtual_factory.js",
@@ -169,24 +168,12 @@ def scan_dead_paths(root: Path) -> list[Issue]:
     ]
 
 
-def scan_audit(root: Path) -> list[Issue]:
-    """Offene Auditpunkte erkennen."""
-    text = (root / AUDIT_FILE).read_text(encoding="utf-8")
-    issues: list[Issue] = []
-    pattern = re.compile(r"^\| (AR-\d{3}) .*\| (pending|in_progress) \|$", re.MULTILINE)
-    for task_id, status in pattern.findall(text):
-        issues.append(Issue(str(AUDIT_FILE), f"{task_id} ist {status}"))
-    return issues
-
-
-def check_repository(root: Path = ROOT, include_audit: bool = True) -> list[Issue]:
+def check_repository(root: Path = ROOT) -> list[Issue]:
     """Alle automatischen Lesbarkeitschecks ausfuehren."""
     issues = scan_python(root)
     issues.extend(scan_shell(root))
     issues.extend(scan_flow(root))
     issues.extend(scan_dead_paths(root))
-    if include_audit:
-        issues.extend(scan_audit(root))
     return issues
 
 

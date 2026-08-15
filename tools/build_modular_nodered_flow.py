@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nodered_low_code_flow import build_low_code_flow
+from nodered_flow import build_low_code_flow
 
 
 ROOT = Path(__file__).resolve().parents[1]

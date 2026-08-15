@@ -19,6 +19,14 @@ HMI_NODE_IDS = {
     "out-hmi-control",
 }
 
+SOURCE_FOOTER_HTML = (
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
+    'justify-content:center;font-size:12px;min-height:100%">'
+    '<a href="https://github.com/ma-ho-git/ai-cps-runtime" target="_blank" '
+    'rel="noopener noreferrer">Quellcode und Lizenz</a>'
+    '<span>runtime-v1.3.0-rc.3 | AGPL-3.0</span></div>'
+)
+
 INPUT_WIRES = {
     "in-hmi-model-status": [["json-hmi-model-status"]],
     "in-hmi-ai-status": [["json-hmi-ai-status"]],
@@ -164,9 +172,8 @@ def _configure_existing(hmi: list[dict]) -> list[dict]:
         by_id[node_id]["wires"] = wires
     footer = by_id.get("ui-hmi-source-meta")
     if footer:
-        footer["format"] = str(footer.get("format", "")).replace(
-            "runtime-v1.3.0-rc.1", "runtime-v1.3.0-rc.2"
-        )
+        footer["format"] = SOURCE_FOOTER_HTML
+        footer["className"] = "hmi-source-meta"
     if by_id.get("ui-hmi-trace"):
         by_id["ui-hmi-trace"]["className"] = "hmi-run-summary"
     if by_id.get("group-hmi-widgets"):

@@ -11,7 +11,7 @@ from tools import check_code_readability as readability
 
 class CodeReadabilityTests(unittest.TestCase):
     def test_current_repository_meets_structural_limits(self) -> None:
-        self.assertEqual(readability.check_repository(include_audit=False), [])
+        self.assertEqual(readability.check_repository(), [])
 
     def test_long_main_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

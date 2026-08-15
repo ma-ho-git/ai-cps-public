@@ -207,7 +207,11 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(nodes["csv-report-first"]["type"], "csv")
         self.assertEqual(nodes["csv-report-next"]["type"], "csv")
         self.assertIn("factory_run_id", str(nodes["change-report-state-update"]["rules"]))
-        self.assertIn("factory_status", str(nodes["change-report-summary"]["rules"]))
+        self.assertIn("factory_status", str(nodes["change-report-factory-summary"]["rules"]))
+        self.assertEqual(
+            nodes["switch-report-factory-summary"]["wires"],
+            [["change-report-factory-summary"], ["json-report-summary"]],
+        )
         self.assertFalse(any(node["type"] == "function" and node.get("g") == "group-responses" for node in flows))
         for flow_group in (node for node in flows if node["type"] == "group"):
             for member_id in flow_group["nodes"]:

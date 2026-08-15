@@ -156,8 +156,57 @@
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "{'cycle_id':_pending.cycle_id,'request_id':_request_id,'parent_request_id':_pending.parent_request_id,'source_id':_pending.source_id,'model_id':$lookup(_pending.contracts,_domain).model_id,'model_profile':_pending.model_profile,'sequence':_window}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "payload.cycle_id",
+        "pt": "msg",
+        "to": "_pending.cycle_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.request_id",
+        "pt": "msg",
+        "to": "_request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.parent_request_id",
+        "pt": "msg",
+        "to": "_pending.parent_request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.source_id",
+        "pt": "msg",
+        "to": "_pending.source_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_id",
+        "pt": "msg",
+        "to": "$lookup(_pending.contracts,_domain).model_id",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_profile",
+        "pt": "msg",
+        "to": "_pending.model_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.sequence",
+        "pt": "msg",
+        "to": "_window",
+        "tot": "msg"
       },
       {
         "t": "set",
@@ -260,6 +309,55 @@
         "pt": "msg",
         "to": "$globalContext('ai.seen_responses') ? $globalContext('ai.seen_responses') : []",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_expected_request",
+        "pt": "msg",
+        "to": "$lookup(_pending,_domain & '_request_id')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_expected_contract",
+        "pt": "msg",
+        "to": "$lookup(_pending.contracts,_domain)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_correlation_ok",
+        "pt": "msg",
+        "to": "$exists(_pending) and _response.request_id=_expected_request and _response.cycle_id=_pending.cycle_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_model_ok",
+        "pt": "msg",
+        "to": "$not($exists(_response.error)) and _response.model_profile=_pending.model_profile and _response.model_id=_expected_contract.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_class_ok",
+        "pt": "msg",
+        "to": "$number(_response.cmd) in _expected_contract.class_ids",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_command_ok",
+        "pt": "msg",
+        "to": "$lowercase($env('COMMAND_OUTPUT_ENABLED'))!='true' or _response.command_output.published=true",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_response_valid",
+        "pt": "msg",
+        "to": "_correlation_ok and _model_ok and _class_ok and _command_ok",
+        "tot": "jsonata"
       }
     ],
     "action": "",
@@ -307,7 +405,7 @@
     "z": "subflow-model-response",
     "g": "",
     "name": "Response gueltig?",
-    "property": "$exists(_pending) and _response.request_id=$lookup(_pending,_domain & '_request_id') and _response.cycle_id=_pending.cycle_id and $not($exists(_response.error)) and _response.model_profile=_pending.model_profile and _response.model_id=$lookup(_pending.contracts,_domain).model_id and $number(_response.cmd) in $lookup(_pending.contracts,_domain).class_ids and ($lowercase($env('COMMAND_OUTPUT_ENABLED'))!='true' or _response.command_output.published=true)",
+    "property": "_response_valid",
     "propertyType": "jsonata",
     "rules": [
       {
@@ -581,6 +679,8 @@
       "switch-report-run-id",
       "change-report-summary-final",
       "change-report-summary",
+      "switch-report-factory-summary",
+      "change-report-factory-summary",
       "json-report-summary",
       "file-report-append-inline",
       "file-report-replace-inline"
@@ -1185,16 +1285,184 @@
     "rules": [
       {
         "t": "set",
+        "p": "_storage_contract",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').storage",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_storage_status",
+        "pt": "msg",
+        "to": "$globalContext('ai.statuses').storage",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_storage_online",
+        "pt": "msg",
+        "to": "_storage_status.state='online'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_storage_model_match",
+        "pt": "msg",
+        "to": "_storage_status.model_id=_storage_contract.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_storage_ready",
+        "pt": "msg",
+        "to": "$exists(_storage_contract) and _storage_online and _storage_model_match",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr_contract",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').vgr",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr_status",
+        "pt": "msg",
+        "to": "$globalContext('ai.statuses').vgr",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr_online",
+        "pt": "msg",
+        "to": "_vgr_status.state='online'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr_model_match",
+        "pt": "msg",
+        "to": "_vgr_status.model_id=_vgr_contract.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_vgr_ready",
+        "pt": "msg",
+        "to": "$exists(_vgr_contract) and _vgr_online and _vgr_model_match",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_hbw_contract",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').hbw",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_hbw_status",
+        "pt": "msg",
+        "to": "$globalContext('ai.statuses').hbw",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_hbw_online",
+        "pt": "msg",
+        "to": "_hbw_status.state='online'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_hbw_model_match",
+        "pt": "msg",
+        "to": "_hbw_status.model_id=_hbw_contract.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_hbw_ready",
+        "pt": "msg",
+        "to": "$exists(_hbw_contract) and _hbw_online and _hbw_model_match",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
         "p": "_ready",
         "pt": "msg",
-        "to": "$exists($globalContext('ai.contracts').storage) and $exists($globalContext('ai.contracts').vgr) and $exists($globalContext('ai.contracts').hbw) and $globalContext('ai.statuses').storage.state='online' and $globalContext('ai.statuses').vgr.state='online' and $globalContext('ai.statuses').hbw.state='online' and $globalContext('ai.statuses').storage.model_id=$globalContext('ai.contracts').storage.model_id and $globalContext('ai.statuses').vgr.model_id=$globalContext('ai.contracts').vgr.model_id and $globalContext('ai.statuses').hbw.model_id=$globalContext('ai.contracts').hbw.model_id",
+        "to": "_storage_ready and _vgr_ready and _hbw_ready",
         "tot": "jsonata"
       },
       {
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "{'schema_version':'1.0','state':_ready?'ready':'waiting_for_models','detail':_ready?'contracts_and_status_ready':'contracts_or_status_missing','command_output_enabled':$lowercase($env('COMMAND_OUTPUT_ENABLED'))='true','fault_latched':$type($globalContext('sim.run').fault)='object','model_ids':{'storage':$globalContext('ai.contracts').storage.model_id,'vgr':$globalContext('ai.contracts').vgr.model_id,'hbw':$globalContext('ai.contracts').hbw.model_id},'ts_ms':$millis()}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "payload.schema_version",
+        "pt": "msg",
+        "to": "1.0",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.state",
+        "pt": "msg",
+        "to": "_ready?'ready':'waiting_for_models'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.detail",
+        "pt": "msg",
+        "to": "_ready?'contracts_and_status_ready':'contracts_or_status_missing'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.command_output_enabled",
+        "pt": "msg",
+        "to": "$lowercase($env('COMMAND_OUTPUT_ENABLED'))='true'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.fault_latched",
+        "pt": "msg",
+        "to": "$type($globalContext('sim.run').fault)='object'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.storage",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').storage.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.vgr",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').vgr.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.hbw",
+        "pt": "msg",
+        "to": "$globalContext('ai.contracts').hbw.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.ts_ms",
+        "pt": "msg",
+        "to": "$millis()",
         "tot": "jsonata"
       }
     ],
@@ -1546,8 +1814,99 @@
         "t": "set",
         "p": "ai.pending",
         "pt": "global",
-        "to": "{'cycle_id':_cycle_id,'parent_request_id':_parent_id,'source_id':_source_id,'raw_state':_raw,'model_profile':_profile,'model_profile_name':_raw.model_profile_name ? _raw.model_profile_name : _profile,'contracts':_contracts,'storage_request_id':_cycle_id & ':storage','storage_started_ms':_started,'deadline_ms':_started+10000,'responses':{},'bootstrap':{},'issued_commands':{}}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.cycle_id",
+        "pt": "global",
+        "to": "_cycle_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.parent_request_id",
+        "pt": "global",
+        "to": "_parent_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.source_id",
+        "pt": "global",
+        "to": "_source_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.raw_state",
+        "pt": "global",
+        "to": "_raw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.model_profile",
+        "pt": "global",
+        "to": "_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.model_profile_name",
+        "pt": "global",
+        "to": "_raw.model_profile_name ? _raw.model_profile_name : _profile",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.contracts",
+        "pt": "global",
+        "to": "_contracts",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_request_id",
+        "pt": "global",
+        "to": "_cycle_id & ':storage'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.storage_started_ms",
+        "pt": "global",
+        "to": "_started",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.deadline_ms",
+        "pt": "global",
+        "to": "_started+10000",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.responses",
+        "pt": "global",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.bootstrap",
+        "pt": "global",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "ai.pending.issued_commands",
+        "pt": "global",
+        "to": "{}",
+        "tot": "json"
       }
     ],
     "action": "",
@@ -1603,7 +1962,49 @@
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "{'cycle_id':_pending.cycle_id,'request_id':_pending.storage_request_id,'parent_request_id':_pending.parent_request_id,'source_id':_pending.source_id,'model_id':_pending.contracts.storage.model_id,'features':$merge($map(_pending.contracts.storage.feature_cols,function($feature){{($feature):$number($lookup(_pending.raw_state,$feature))}}))}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "payload.cycle_id",
+        "pt": "msg",
+        "to": "_pending.cycle_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.request_id",
+        "pt": "msg",
+        "to": "_pending.storage_request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.parent_request_id",
+        "pt": "msg",
+        "to": "_pending.parent_request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.source_id",
+        "pt": "msg",
+        "to": "_pending.source_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_id",
+        "pt": "msg",
+        "to": "_pending.contracts.storage.model_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.features",
+        "pt": "msg",
+        "to": "$merge($map(_pending.contracts.storage.feature_cols,function($feature){{($feature):$number($lookup(_pending.raw_state,$feature))}}))",
         "tot": "jsonata"
       }
     ],
@@ -3234,8 +3635,365 @@
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "{'schema_version':'1.0','cycle_id':_pending.cycle_id,'request_id':_pending.parent_request_id,'source_id':_pending.source_id,'status':'completed','model_profile':_pending.model_profile,'model_profile_name':_pending.model_profile_name,'model_ids':{'storage':_storage.model_id,'vgr':_vgr.model_id,'hbw':_hbw.model_id},'model_contracts':_pending.contracts,'empty_storage':_pending.empty_storage,'vgr_cmd':$number(_vgr.cmd),'hbw_cmd':$number(_hbw.cmd),'model_predictions':{'storage':{'empty_storage':_storage.empty_storage,'top3':_storage.top3 ? _storage.top3 : []},'vgr':{'cmd':$number(_vgr.cmd),'name':_vgr.name,'top3':_vgr.top3 ? _vgr.top3 : []},'hbw':{'cmd':$number(_hbw.cmd),'name':_hbw.name,'top3':_hbw.top3 ? _hbw.top3 : []}},'commands':{'vgr':{'cmd':$number(_vgr.cmd),'topic':_vgr.command_output.topic,'publisher':'model_service','published':_vgr.command_output.published=true,'mid':_vgr.command_output.mid},'hbw':{'cmd':$number(_hbw.cmd),'topic':_hbw.command_output.topic,'publisher':'model_service','published':_hbw.command_output.published=true,'mid':_hbw.command_output.mid},'mpo':{'cmd':0,'topic':'ai/mpo/cmd0','publisher':'ai_flow','published':_enabled},'sld':{'cmd':0,'topic':'ai/sld/cmd0','publisher':'ai_flow','published':_enabled}},'command_output_enabled':_enabled,'command_set_complete':((_vgr.command_output.published=true)=_enabled and (_hbw.command_output.published=true)=_enabled),'bootstrap':_pending.bootstrap,'storage_latency_ms':_pending.storage_latency_ms,'vgr_latency_ms':_vgr._diagnostic_latency_ms,'hbw_latency_ms':_hbw._diagnostic_latency_ms,'duration_ms':_finished-_pending.storage_started_ms,'input_metadata':_pending.raw_state,'qos':2,'retain':false,'ts_ms':_finished}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "payload.schema_version",
+        "pt": "msg",
+        "to": "1.0",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.cycle_id",
+        "pt": "msg",
+        "to": "_pending.cycle_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.request_id",
+        "pt": "msg",
+        "to": "_pending.parent_request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.source_id",
+        "pt": "msg",
+        "to": "_pending.source_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.status",
+        "pt": "msg",
+        "to": "completed",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_profile",
+        "pt": "msg",
+        "to": "_pending.model_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_profile_name",
+        "pt": "msg",
+        "to": "_pending.model_profile_name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.storage",
+        "pt": "msg",
+        "to": "_storage.model_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.vgr",
+        "pt": "msg",
+        "to": "_vgr.model_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids.hbw",
+        "pt": "msg",
+        "to": "_hbw.model_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_contracts",
+        "pt": "msg",
+        "to": "_pending.contracts",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.empty_storage",
+        "pt": "msg",
+        "to": "_pending.empty_storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.vgr_cmd",
+        "pt": "msg",
+        "to": "$number(_vgr.cmd)",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.hbw_cmd",
+        "pt": "msg",
+        "to": "$number(_hbw.cmd)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.storage.empty_storage",
+        "pt": "msg",
+        "to": "_storage.empty_storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.storage.top3",
+        "pt": "msg",
+        "to": "_storage.top3 ? _storage.top3 : []",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.vgr.cmd",
+        "pt": "msg",
+        "to": "$number(_vgr.cmd)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.vgr.name",
+        "pt": "msg",
+        "to": "_vgr.name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.vgr.top3",
+        "pt": "msg",
+        "to": "_vgr.top3 ? _vgr.top3 : []",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.hbw.cmd",
+        "pt": "msg",
+        "to": "$number(_hbw.cmd)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.hbw.name",
+        "pt": "msg",
+        "to": "_hbw.name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_predictions.hbw.top3",
+        "pt": "msg",
+        "to": "_hbw.top3 ? _hbw.top3 : []",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.vgr.cmd",
+        "pt": "msg",
+        "to": "$number(_vgr.cmd)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.vgr.topic",
+        "pt": "msg",
+        "to": "_vgr.command_output.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.vgr.publisher",
+        "pt": "msg",
+        "to": "model_service",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.vgr.published",
+        "pt": "msg",
+        "to": "_vgr.command_output.published=true",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.vgr.mid",
+        "pt": "msg",
+        "to": "_vgr.command_output.mid",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.hbw.cmd",
+        "pt": "msg",
+        "to": "$number(_hbw.cmd)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.hbw.topic",
+        "pt": "msg",
+        "to": "_hbw.command_output.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.hbw.publisher",
+        "pt": "msg",
+        "to": "model_service",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.hbw.published",
+        "pt": "msg",
+        "to": "_hbw.command_output.published=true",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.hbw.mid",
+        "pt": "msg",
+        "to": "_hbw.command_output.mid",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.mpo.cmd",
+        "pt": "msg",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.mpo.topic",
+        "pt": "msg",
+        "to": "ai/mpo/cmd0",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.mpo.publisher",
+        "pt": "msg",
+        "to": "ai_flow",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.mpo.published",
+        "pt": "msg",
+        "to": "_enabled",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.sld.cmd",
+        "pt": "msg",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.sld.topic",
+        "pt": "msg",
+        "to": "ai/sld/cmd0",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.sld.publisher",
+        "pt": "msg",
+        "to": "ai_flow",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.commands.sld.published",
+        "pt": "msg",
+        "to": "_enabled",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.command_output_enabled",
+        "pt": "msg",
+        "to": "_enabled",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.command_set_complete",
+        "pt": "msg",
+        "to": "((_vgr.command_output.published=true)=_enabled and (_hbw.command_output.published=true)=_enabled)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.bootstrap",
+        "pt": "msg",
+        "to": "_pending.bootstrap",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.storage_latency_ms",
+        "pt": "msg",
+        "to": "_pending.storage_latency_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.vgr_latency_ms",
+        "pt": "msg",
+        "to": "_vgr._diagnostic_latency_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.hbw_latency_ms",
+        "pt": "msg",
+        "to": "_hbw._diagnostic_latency_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.duration_ms",
+        "pt": "msg",
+        "to": "_finished-_pending.storage_started_ms",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.input_metadata",
+        "pt": "msg",
+        "to": "_pending.raw_state",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.qos",
+        "pt": "msg",
+        "to": "2",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "payload.retain",
+        "pt": "msg",
+        "to": "false",
+        "tot": "bool"
+      },
+      {
+        "t": "set",
+        "p": "payload.ts_ms",
+        "pt": "msg",
+        "to": "_finished",
+        "tot": "msg"
       },
       {
         "t": "set",
@@ -3523,8 +4281,92 @@
         "t": "set",
         "p": "report.state",
         "pt": "flow",
-        "to": "{'run_id':_report_id,'run_dir':$replace($env('REPORT_ROOT'),/\\/$/,'') & '/' & _report_id,'started_at':$fromMillis($millis()),'rows':0,'matches':{'storage':0,'vgr':0,'hbw':0},'faults':0,'command_rows':0,'idle_fallback_rows':0,'factory_run_id':null,'last_cycle_status':null,'model_ids':{},'run_config':{}}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "report.state.run_id",
+        "pt": "flow",
+        "to": "_report_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "report.state.run_dir",
+        "pt": "flow",
+        "to": "$replace($env('REPORT_ROOT'),/\\/$/,'') & '/' & _report_id",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "report.state.started_at",
+        "pt": "flow",
+        "to": "$fromMillis($millis())",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "report.state.rows",
+        "pt": "flow",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "report.state.matches",
+        "pt": "flow",
+        "to": "{\"storage\":0,\"vgr\":0,\"hbw\":0}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "report.state.faults",
+        "pt": "flow",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "report.state.command_rows",
+        "pt": "flow",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "report.state.idle_fallback_rows",
+        "pt": "flow",
+        "to": "0",
+        "tot": "num"
+      },
+      {
+        "t": "set",
+        "p": "report.state.factory_run_id",
+        "pt": "flow",
+        "to": "null",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "report.state.last_cycle_status",
+        "pt": "flow",
+        "to": "null",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "report.state.model_ids",
+        "pt": "flow",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "report.state.run_config",
+        "pt": "flow",
+        "to": "{}",
+        "tot": "json"
       }
     ],
     "action": "",
@@ -3588,8 +4430,533 @@
         "t": "set",
         "p": "_row",
         "pt": "msg",
-        "to": "{'row_index':_row_index,'request_id_base':_result.request_id,'cycle_id':_result.cycle_id,'phase':_meta.phase ? _meta.phase : 'live_state','trace_phase':_meta.trace_phase,'attempt_repeat_idx':_meta.attempt_repeat_idx,'guard_episode_idx':_meta.guard_episode_idx,'guard_prefix_idx':_meta.guard_prefix_idx,'guard_process_step_idx':_meta.guard_process_step_idx,'guard_source_episode_id':_meta.guard_source_episode_id,'source_id':_result.source_id,'trace_profile':_meta.trace_profile,'trace_profile_name':_meta.trace_profile_name,'model_profile':_result.model_profile,'model_profile_name':_result.model_profile_name,'factory_seed':_meta.factory_seed,'factory_base_runtime_vgr_ms':_meta.factory_base_runtime_ms.vgr,'factory_base_runtime_hbw_ms':_meta.factory_base_runtime_ms.hbw,'factory_base_runtime_mpo_ms':_meta.factory_base_runtime_ms.mpo,'factory_base_runtime_sld_ms':_meta.factory_base_runtime_ms.sld,'storage_model_id':_result.model_ids.storage,'vgr_model_id':_result.model_ids.vgr,'hbw_model_id':_result.model_ids.hbw,'expected_empty_storage':_meta.expected_empty_storage,'vgr_storage_pred':_result.empty_storage,'hbw_storage_pred':_result.empty_storage,'storage_match_vgr':$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):'','storage_match_hbw':$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):'','storage_confidence':_result.model_predictions.storage.top3[0].p,'expected_label_VGR':_meta.expected_label_VGR,'predicted_label_VGR':_result.vgr_cmd,'vgr_match':$exists(_meta.expected_label_VGR)?$number(_result.vgr_cmd)=$number(_meta.expected_label_VGR):'','vgr_ready':_result.status='completed','vgr_confidence':_result.model_predictions.vgr.top3[0].p,'vgr_latency_s':$number(_result.vgr_latency_ms)/1000,'expected_label_HBW':_meta.expected_label_HBW,'predicted_label_HBW':_result.hbw_cmd,'hbw_match':$exists(_meta.expected_label_HBW)?$number(_result.hbw_cmd)=$number(_meta.expected_label_HBW):'','hbw_ready':_result.status='completed','hbw_confidence':_result.model_predictions.hbw.top3[0].p,'hbw_latency_s':$number(_result.hbw_latency_ms)/1000,'timeout':$contains($string(_result.error),'timeout'),'error':_result.error,'control_enabled':_result.command_output_enabled,'control_published':_result.command_output_enabled and _result.status='completed' and _result.command_set_complete,'control_reason':_result.status='completed'?(_result.command_output_enabled?'published_independently':'disabled'):_result.status,'control_command_set_complete':_result.command_set_complete,'control_vgr_cmd':_result.commands.vgr.cmd,'control_hbw_cmd':_result.commands.hbw.cmd,'control_mpo_cmd':_result.commands.mpo.cmd,'control_sld_cmd':_result.commands.sld.cmd,'control_vgr_topic':_result.commands.vgr.topic,'control_hbw_topic':_result.commands.hbw.topic,'control_mpo_topic':_result.commands.mpo.topic,'control_sld_topic':_result.commands.sld.topic,'control_vgr_publisher':_result.commands.vgr.publisher,'control_hbw_publisher':_result.commands.hbw.publisher,'control_mpo_publisher':_result.commands.mpo.publisher,'control_sld_publisher':_result.commands.sld.publisher,'control_qos':_result.qos,'control_retain':_result.retain,'bootstrap_vgr_rows':_result.bootstrap.vgr.seeded_rows,'bootstrap_hbw_rows':_result.bootstrap.hbw.seeded_rows,'module_runtime_vgr_ms':_meta.module_runtime_ms.vgr,'module_runtime_hbw_ms':_meta.module_runtime_ms.hbw,'module_runtime_mpo_ms':_meta.module_runtime_ms.mpo,'module_runtime_sld_ms':_meta.module_runtime_ms.sld,'job_sent_vgr':_meta.module_job_counts.sent.vgr,'job_sent_hbw':_meta.module_job_counts.sent.hbw,'job_sent_mpo':_meta.module_job_counts.sent.mpo,'job_sent_sld':_meta.module_job_counts.sent.sld,'job_accepted_vgr':_meta.module_job_counts.accepted.vgr,'job_accepted_hbw':_meta.module_job_counts.accepted.hbw,'job_accepted_mpo':_meta.module_job_counts.accepted.mpo,'job_accepted_sld':_meta.module_job_counts.accepted.sld}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "_row.row_index",
+        "pt": "msg",
+        "to": "_row_index",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.request_id_base",
+        "pt": "msg",
+        "to": "_result.request_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.cycle_id",
+        "pt": "msg",
+        "to": "_result.cycle_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.phase",
+        "pt": "msg",
+        "to": "_meta.phase ? _meta.phase : 'live_state'",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.trace_phase",
+        "pt": "msg",
+        "to": "_meta.trace_phase",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.attempt_repeat_idx",
+        "pt": "msg",
+        "to": "_meta.attempt_repeat_idx",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.guard_episode_idx",
+        "pt": "msg",
+        "to": "_meta.guard_episode_idx",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.guard_prefix_idx",
+        "pt": "msg",
+        "to": "_meta.guard_prefix_idx",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.guard_process_step_idx",
+        "pt": "msg",
+        "to": "_meta.guard_process_step_idx",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.guard_source_episode_id",
+        "pt": "msg",
+        "to": "_meta.guard_source_episode_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.source_id",
+        "pt": "msg",
+        "to": "_result.source_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.trace_profile",
+        "pt": "msg",
+        "to": "_meta.trace_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.trace_profile_name",
+        "pt": "msg",
+        "to": "_meta.trace_profile_name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.model_profile",
+        "pt": "msg",
+        "to": "_result.model_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.model_profile_name",
+        "pt": "msg",
+        "to": "_result.model_profile_name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.factory_seed",
+        "pt": "msg",
+        "to": "_meta.factory_seed",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.factory_base_runtime_vgr_ms",
+        "pt": "msg",
+        "to": "_meta.factory_base_runtime_ms.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.factory_base_runtime_hbw_ms",
+        "pt": "msg",
+        "to": "_meta.factory_base_runtime_ms.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.factory_base_runtime_mpo_ms",
+        "pt": "msg",
+        "to": "_meta.factory_base_runtime_ms.mpo",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.factory_base_runtime_sld_ms",
+        "pt": "msg",
+        "to": "_meta.factory_base_runtime_ms.sld",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.storage_model_id",
+        "pt": "msg",
+        "to": "_result.model_ids.storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_model_id",
+        "pt": "msg",
+        "to": "_result.model_ids.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_model_id",
+        "pt": "msg",
+        "to": "_result.model_ids.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.expected_empty_storage",
+        "pt": "msg",
+        "to": "_meta.expected_empty_storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_storage_pred",
+        "pt": "msg",
+        "to": "_result.empty_storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_storage_pred",
+        "pt": "msg",
+        "to": "_result.empty_storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.storage_match_vgr",
+        "pt": "msg",
+        "to": "$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):''",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.storage_match_hbw",
+        "pt": "msg",
+        "to": "$exists(_meta.expected_empty_storage)?$number(_result.empty_storage)=$number(_meta.expected_empty_storage):''",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.storage_confidence",
+        "pt": "msg",
+        "to": "_result.model_predictions.storage.top3[0].p",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.expected_label_VGR",
+        "pt": "msg",
+        "to": "_meta.expected_label_VGR",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.predicted_label_VGR",
+        "pt": "msg",
+        "to": "_result.vgr_cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_match",
+        "pt": "msg",
+        "to": "$exists(_meta.expected_label_VGR)?$number(_result.vgr_cmd)=$number(_meta.expected_label_VGR):''",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_ready",
+        "pt": "msg",
+        "to": "_result.status='completed'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_confidence",
+        "pt": "msg",
+        "to": "_result.model_predictions.vgr.top3[0].p",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.vgr_latency_s",
+        "pt": "msg",
+        "to": "$number(_result.vgr_latency_ms)/1000",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.expected_label_HBW",
+        "pt": "msg",
+        "to": "_meta.expected_label_HBW",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.predicted_label_HBW",
+        "pt": "msg",
+        "to": "_result.hbw_cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_match",
+        "pt": "msg",
+        "to": "$exists(_meta.expected_label_HBW)?$number(_result.hbw_cmd)=$number(_meta.expected_label_HBW):''",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_ready",
+        "pt": "msg",
+        "to": "_result.status='completed'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_confidence",
+        "pt": "msg",
+        "to": "_result.model_predictions.hbw.top3[0].p",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.hbw_latency_s",
+        "pt": "msg",
+        "to": "$number(_result.hbw_latency_ms)/1000",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.timeout",
+        "pt": "msg",
+        "to": "$contains($string(_result.error),'timeout')",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.error",
+        "pt": "msg",
+        "to": "_result.error",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_enabled",
+        "pt": "msg",
+        "to": "_result.command_output_enabled",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_published",
+        "pt": "msg",
+        "to": "_result.command_output_enabled and _result.status='completed' and _result.command_set_complete",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_reason",
+        "pt": "msg",
+        "to": "_result.status='completed'?(_result.command_output_enabled?'published_independently':'disabled'):_result.status",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_command_set_complete",
+        "pt": "msg",
+        "to": "_result.command_set_complete",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_vgr_cmd",
+        "pt": "msg",
+        "to": "_result.commands.vgr.cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_hbw_cmd",
+        "pt": "msg",
+        "to": "_result.commands.hbw.cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_mpo_cmd",
+        "pt": "msg",
+        "to": "_result.commands.mpo.cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_sld_cmd",
+        "pt": "msg",
+        "to": "_result.commands.sld.cmd",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_vgr_topic",
+        "pt": "msg",
+        "to": "_result.commands.vgr.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_hbw_topic",
+        "pt": "msg",
+        "to": "_result.commands.hbw.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_mpo_topic",
+        "pt": "msg",
+        "to": "_result.commands.mpo.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_sld_topic",
+        "pt": "msg",
+        "to": "_result.commands.sld.topic",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_vgr_publisher",
+        "pt": "msg",
+        "to": "_result.commands.vgr.publisher",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_hbw_publisher",
+        "pt": "msg",
+        "to": "_result.commands.hbw.publisher",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_mpo_publisher",
+        "pt": "msg",
+        "to": "_result.commands.mpo.publisher",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_sld_publisher",
+        "pt": "msg",
+        "to": "_result.commands.sld.publisher",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_qos",
+        "pt": "msg",
+        "to": "_result.qos",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.control_retain",
+        "pt": "msg",
+        "to": "_result.retain",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.bootstrap_vgr_rows",
+        "pt": "msg",
+        "to": "_result.bootstrap.vgr.seeded_rows",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.bootstrap_hbw_rows",
+        "pt": "msg",
+        "to": "_result.bootstrap.hbw.seeded_rows",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.module_runtime_vgr_ms",
+        "pt": "msg",
+        "to": "_meta.module_runtime_ms.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.module_runtime_hbw_ms",
+        "pt": "msg",
+        "to": "_meta.module_runtime_ms.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.module_runtime_mpo_ms",
+        "pt": "msg",
+        "to": "_meta.module_runtime_ms.mpo",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.module_runtime_sld_ms",
+        "pt": "msg",
+        "to": "_meta.module_runtime_ms.sld",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_sent_vgr",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.sent.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_sent_hbw",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.sent.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_sent_mpo",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.sent.mpo",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_sent_sld",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.sent.sld",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_accepted_vgr",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.accepted.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_accepted_hbw",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.accepted.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_accepted_mpo",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.accepted.mpo",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_row.job_accepted_sld",
+        "pt": "msg",
+        "to": "_meta.module_job_counts.accepted.sld",
+        "tot": "msg"
       }
     ],
     "action": "",
@@ -3617,8 +4984,134 @@
         "t": "set",
         "p": "_report_state",
         "pt": "msg",
-        "to": "$merge([_state,{'rows':_state.rows+1,'matches':{'storage':_state.matches.storage+(_row.storage_match_vgr=true?1:0),'vgr':_state.matches.vgr+(_row.vgr_match=true?1:0),'hbw':_state.matches.hbw+(_row.hbw_match=true?1:0)},'faults':_state.faults+(_result.status='fault_latched'?1:0),'command_rows':_state.command_rows+(_row.control_published=true?1:0),'factory_run_id':_state.factory_run_id?_state.factory_run_id:(_meta.simulation_run_id?_meta.simulation_run_id:_meta.correlation_id),'last_cycle_status':_result.status,'model_ids':_result.model_ids,'run_config':{'trace_profile':_row.trace_profile,'trace_profile_name':_row.trace_profile_name,'model_profile':_row.model_profile,'model_profile_name':_row.model_profile_name,'seed':_row.factory_seed,'base_runtime_ms':{'vgr':_row.factory_base_runtime_vgr_ms,'hbw':_row.factory_base_runtime_hbw_ms,'mpo':_row.factory_base_runtime_mpo_ms,'sld':_row.factory_base_runtime_sld_ms}}}])",
+        "to": "_state",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.rows",
+        "pt": "msg",
+        "to": "_state.rows+1",
         "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.matches.storage",
+        "pt": "msg",
+        "to": "_state.matches.storage+(_row.storage_match_vgr=true?1:0)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.matches.vgr",
+        "pt": "msg",
+        "to": "_state.matches.vgr+(_row.vgr_match=true?1:0)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.matches.hbw",
+        "pt": "msg",
+        "to": "_state.matches.hbw+(_row.hbw_match=true?1:0)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.faults",
+        "pt": "msg",
+        "to": "_state.faults+(_result.status='fault_latched'?1:0)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.command_rows",
+        "pt": "msg",
+        "to": "_state.command_rows+(_row.control_published=true?1:0)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.factory_run_id",
+        "pt": "msg",
+        "to": "_state.factory_run_id?_state.factory_run_id:(_meta.simulation_run_id?_meta.simulation_run_id:_meta.correlation_id)",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.last_cycle_status",
+        "pt": "msg",
+        "to": "_result.status",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.model_ids",
+        "pt": "msg",
+        "to": "_result.model_ids",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.trace_profile",
+        "pt": "msg",
+        "to": "_row.trace_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.trace_profile_name",
+        "pt": "msg",
+        "to": "_row.trace_profile_name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.model_profile",
+        "pt": "msg",
+        "to": "_row.model_profile",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.model_profile_name",
+        "pt": "msg",
+        "to": "_row.model_profile_name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.seed",
+        "pt": "msg",
+        "to": "_row.factory_seed",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.base_runtime_ms.vgr",
+        "pt": "msg",
+        "to": "_row.factory_base_runtime_vgr_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.base_runtime_ms.hbw",
+        "pt": "msg",
+        "to": "_row.factory_base_runtime_hbw_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.base_runtime_ms.mpo",
+        "pt": "msg",
+        "to": "_row.factory_base_runtime_mpo_ms",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "_report_state.run_config.base_runtime_ms.sld",
+        "pt": "msg",
+        "to": "_row.factory_base_runtime_sld_ms",
+        "tot": "msg"
       },
       {
         "t": "set",
@@ -4108,7 +5601,147 @@
         "t": "set",
         "p": "payload",
         "pt": "msg",
-        "to": "{'mode':'live_mqtt_nodered','completed':_completed,'stopped':_stopped,'stop_reason':_stop_reason,'last_cycle_status':_report_state.last_cycle_status,'rows_completed':_report_state.rows,'control_published_rows':_report_state.command_rows,'control_published_commands':_report_state.command_rows*4,'control_idle_fallback_rows':_report_state.idle_fallback_rows,'faults':_report_state.faults,'storage_matches_vgr':_report_state.matches.storage,'storage_matches_hbw':_report_state.matches.storage,'vgr_matches':_report_state.matches.vgr,'hbw_matches':_report_state.matches.hbw,'model_ids':_report_state.model_ids,'run_config':_report_state.run_config,'started_at':_report_state.started_at,'updated_at':$fromMillis($millis()),'events_path':_report_state.run_dir & '/events.jsonl','summary_path':_report_state.run_dir & '/summary.csv','factory_status':_factory_status?{'run_id':_factory_status.run_id,'trace_total':_factory_status.trace_total,'payloads_sent':_factory_status.payloads_sent,'progress_percent':_factory_status.progress_percent,'sent_counts':_factory_status.sent_counts,'accepted_counts':_factory_status.accepted_counts}:undefined}",
+        "to": "{}",
+        "tot": "json"
+      },
+      {
+        "t": "set",
+        "p": "payload.mode",
+        "pt": "msg",
+        "to": "live_mqtt_nodered",
+        "tot": "str"
+      },
+      {
+        "t": "set",
+        "p": "payload.completed",
+        "pt": "msg",
+        "to": "_completed",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.stopped",
+        "pt": "msg",
+        "to": "_stopped",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.stop_reason",
+        "pt": "msg",
+        "to": "_stop_reason",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.last_cycle_status",
+        "pt": "msg",
+        "to": "_report_state.last_cycle_status",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.rows_completed",
+        "pt": "msg",
+        "to": "_report_state.rows",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.control_published_rows",
+        "pt": "msg",
+        "to": "_report_state.command_rows",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.control_published_commands",
+        "pt": "msg",
+        "to": "_report_state.command_rows*4",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.control_idle_fallback_rows",
+        "pt": "msg",
+        "to": "_report_state.idle_fallback_rows",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.faults",
+        "pt": "msg",
+        "to": "_report_state.faults",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.storage_matches_vgr",
+        "pt": "msg",
+        "to": "_report_state.matches.storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.storage_matches_hbw",
+        "pt": "msg",
+        "to": "_report_state.matches.storage",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.vgr_matches",
+        "pt": "msg",
+        "to": "_report_state.matches.vgr",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.hbw_matches",
+        "pt": "msg",
+        "to": "_report_state.matches.hbw",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.model_ids",
+        "pt": "msg",
+        "to": "_report_state.model_ids",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.run_config",
+        "pt": "msg",
+        "to": "_report_state.run_config",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.started_at",
+        "pt": "msg",
+        "to": "_report_state.started_at",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.updated_at",
+        "pt": "msg",
+        "to": "$fromMillis($millis())",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.events_path",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/events.jsonl'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "payload.summary_path",
+        "pt": "msg",
+        "to": "_report_state.run_dir & '/summary.csv'",
         "tot": "jsonata"
       }
     ],
@@ -4121,10 +5754,105 @@
     "y": 1220,
     "wires": [
       [
-        "json-report-summary"
+        "switch-report-factory-summary"
       ]
     ],
     "info": "Running | Completed | Reset"
+  },
+  {
+    "id": "switch-report-factory-summary",
+    "type": "switch",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Finaler Fabrikstatus?",
+    "property": "$type(_factory_status)='object'",
+    "propertyType": "jsonata",
+    "rules": [
+      {
+        "t": "true"
+      },
+      {
+        "t": "false"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 2,
+    "x": 1790,
+    "y": 1270,
+    "wires": [
+      [
+        "change-report-factory-summary"
+      ],
+      [
+        "json-report-summary"
+      ]
+    ],
+    "info": ""
+  },
+  {
+    "id": "change-report-factory-summary",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-responses",
+    "name": "Fabrikstatus ergaenzen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.factory_status.run_id",
+        "pt": "msg",
+        "to": "_factory_status.run_id",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.factory_status.trace_total",
+        "pt": "msg",
+        "to": "_factory_status.trace_total",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.factory_status.payloads_sent",
+        "pt": "msg",
+        "to": "_factory_status.payloads_sent",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.factory_status.progress_percent",
+        "pt": "msg",
+        "to": "_factory_status.progress_percent",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.factory_status.sent_counts",
+        "pt": "msg",
+        "to": "_factory_status.sent_counts",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.factory_status.accepted_counts",
+        "pt": "msg",
+        "to": "_factory_status.accepted_counts",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1790,
+    "y": 1310,
+    "wires": [
+      [
+        "json-report-summary"
+      ]
+    ],
+    "info": ""
   },
   {
     "id": "json-report-summary",

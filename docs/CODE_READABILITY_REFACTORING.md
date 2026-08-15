@@ -86,14 +86,14 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 
 | ID | Bereich und Fundstelle | Problem / Messwert | Zielmassnahme | Absicherung | Status |
 |---|---|---|---|---|---|
-| AR-001 | `tools/nodered_low_code_flow.py` | 1.958 Zeilen; vier Builder ueber 170 Zeilen | Module je Flowtab; kleine Node-Fabriken | Flowexport und Strukturtests | pending |
-| AR-002 | `build_pipeline_nodes()` | 332 Zeilen | Storage, Windowing, Requests und Responses trennen | MQTT-/Flowvertragstests | pending |
-| AR-003 | `update_low_code_hmi()` | 260 Zeilen | HMI-Bereiche und Widgets trennen | HMI-Struktur- und Browsertest | pending |
-| AR-004 | `build_subflows()` | 240 Zeilen | Modul- und Window-Subflow separat bauen | vier Function-Ausnahmen pruefen | pending |
-| AR-005 | `build_init_nodes()` | 221 Zeilen | Start, Reset, Trace und Idle-Zweige trennen | Start-/Resettests | pending |
-| AR-006 | `build_reporting_nodes()` | 171 Zeilen | Zyklus, Summary und Dateien trennen | Reportvertragstests | pending |
-| AR-007 | Generator-JSONata | 27 Ausdruecke ueber 200 Zeichen; max. 3.963 | Standard-Nodes und kurze Feldabbildungen | neuer JSONata-Grenztest | pending |
-| AR-008 | vier Node-RED-Functions | 12-36 Zeilen | beibehalten; eine Aufgabe; Steno-Hilfe | Zeilen-/Hilfetexttest | pending |
+| AR-001 | `tools/nodered_low_code_flow.py` | 1.958 Zeilen; vier Builder ueber 170 Zeilen | Module je Flowtab; kleine Node-Fabriken | Flowexport und Strukturtests | completed |
+| AR-002 | `build_pipeline_nodes()` | 332 Zeilen | Storage, Windowing, Requests und Responses trennen | MQTT-/Flowvertragstests | completed |
+| AR-003 | `update_low_code_hmi()` | 260 Zeilen | HMI-Bereiche und Widgets trennen | HMI-Struktur- und Browsertest | completed |
+| AR-004 | `build_subflows()` | 240 Zeilen | Modul- und Window-Subflow separat bauen | vier Function-Ausnahmen pruefen | completed |
+| AR-005 | `build_init_nodes()` | 221 Zeilen | Start, Reset, Trace und Idle-Zweige trennen | Start-/Resettests | completed |
+| AR-006 | `build_reporting_nodes()` | 171 Zeilen | Zyklus, Summary und Dateien trennen | Reportvertragstests | completed |
+| AR-007 | Generator-JSONata | 27 Ausdruecke ueber 200 Zeichen; max. 3.963 | Standard-Nodes und kurze Feldabbildungen | neuer JSONata-Grenztest | completed |
+| AR-008 | vier Node-RED-Functions | 12-36 Zeilen | beibehalten; eine Aufgabe; Steno-Hilfe | Zeilen-/Hilfetexttest | completed |
 | AR-009 | `node_red/lib/*.js` | fuenf nicht geladene Referenzkerne | Schutztests uebertragen; Dateien entfernen | aktuelle Flow-/Dockerregression | completed |
 | AR-010 | alte Node-RED-Tests | binden nur tote Referenzkerne | aktive Flowvertraege direkt testen | `npm test` | completed |
 | AR-011 | `training/vgr/train.py:main()` | 316 Zeilen | Config, Daten, Training, CV, Evaluation, Artefakte trennen | Trainingsvertrag und Smoke | pending |
@@ -137,9 +137,9 @@ Dieser Abschnitt wird nach Phase 2 ausgefuellt.
 |---|---:|---:|
 | Produktionsfunktionen ueber 60 Zeilen | 28 | pending |
 | Callbacks / `main()` ueber 40 Zeilen | 4 | pending |
-| Node-RED-Function-Nodes | 4 | pending |
-| Function-Codezeilen, Maximum | 36 | pending |
-| JSONata ueber 200 Zeichen | 27 | pending |
-| Nicht geladene JavaScript-Kerne | 5 | pending |
+| Node-RED-Function-Nodes | 4 | 4 |
+| Function-Codezeilen, Maximum | 36 | 36 |
+| JSONata ueber 200 Zeichen | 27 | 0 |
+| Nicht geladene JavaScript-Kerne | 5 | 0 |
 | Python-Tests | 167 erfolgreich | pending |
-| Node-RED-Testdateien | 5 erfolgreich | pending |
+| Node-RED-Testdateien | 5 erfolgreich | 2 erfolgreich; aktive Pfade |

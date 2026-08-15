@@ -22,13 +22,6 @@ from .common import (
 )
 from .reporting import build_reporting_nodes
 
-expected_request = "'ft/nn/' & _domain & '/request'"
-expected_response = "'ft/nn/response/' & _domain"
-valid_contract = (
-    "payload.schema_version='1.0' and payload.domain=_domain and $type(payload.feature_cols)='array' and "
-    "$type(payload.class_ids)='array' and payload.request_topic=" + expected_request + " and "
-    "payload.response_topic=" + expected_response
-)
 def _readiness_rules() -> list[dict]:
     """Drei Dienstvertraege getrennt pruefen und melden."""
     rules: list[dict] = []
@@ -143,35 +136,85 @@ def _contract_domain_nodes() -> list[dict]:
         nodes.append(_change(
             f"change-contract-{domain}", tab, "group-contracts", f"{domain.upper()} markieren",
             [_set("_domain", "msg", domain, "str")], 690, 60 + index * 40,
-            [["switch-contract-shape"]], info="Domain explizit setzen",
+            [["change-contract-check"]], info="Domain explizit setzen",
         ))
     return nodes
+
+
+def _contract_check_rules() -> list[dict]:
+    """Grundvertrag in kurze, sichtbare Teilchecks zerlegen."""
+    return [
+        _set("_schema_valid", "msg", "payload.schema_version='1.0'", "jsonata"),
+        _set("_domain_valid", "msg", "payload.domain=_domain", "jsonata"),
+        _set("_features_valid", "msg", "$type(payload.feature_cols)='array'", "jsonata"),
+        _set("_classes_valid", "msg", "$type(payload.class_ids)='array'", "jsonata"),
+        _set("_request_topic", "msg", "'ft/nn/' & _domain & '/request'", "jsonata"),
+        _set("_response_topic", "msg", "'ft/nn/response/' & _domain", "jsonata"),
+        _set("_request_valid", "msg", "payload.request_topic=_request_topic", "jsonata"),
+        _set("_response_valid", "msg", "payload.response_topic=_response_topic", "jsonata"),
+        _set(
+            "_contract_valid", "msg",
+            "_schema_valid and _domain_valid and _features_valid and _classes_valid and "
+            "_request_valid and _response_valid",
+            "jsonata",
+        ),
+    ]
+
+
+def _model_change_rules() -> list[dict]:
+    """Modellwechsel und offenen Zyklus getrennt bestimmen."""
+    return [
+        _set(
+            "_known_model_id", "msg",
+            "$lookup($globalContext('ai.contracts'),_domain).model_id", "jsonata",
+        ),
+        _set(
+            "_model_changed", "msg",
+            "$exists(_known_model_id) and _known_model_id!=payload.model_id", "jsonata",
+        ),
+        _set("_run_active", "msg", "$globalContext('sim.run').running=true", "jsonata"),
+        _set(
+            "_request_active", "msg",
+            "$type($globalContext('ai.pending'))='object'", "jsonata",
+        ),
+        _set(
+            "_model_change_blocked", "msg",
+            "_model_changed and (_run_active or _request_active)", "jsonata",
+        ),
+    ]
 
 
 def _contract_nodes() -> list[dict]:
     """Contracts pruefen, speichern und Status empfangen."""
     tab = "tab-pipeline"
     return [
+            _change(
+                "change-contract-check", tab, "group-contracts", "Grundvertrag pruefen",
+                _contract_check_rules(), 870, 95, [["switch-contract-shape"]],
+                info="Schema | Domain | Listen | Request-/Response-Topic",
+            ),
             _switch("switch-contract-shape", tab, "group-contracts", "Grundvertrag gueltig?",
-                    valid_contract, [{"t": "true"}, {"t": "false"}], 900, 95,
-                    [["switch-contract-change"], ["change-contract-error"]], prop_type="jsonata",
-                    info="Schema | Domain | Featureliste | Klassen | Request/Response-Topic"),
+                    "_contract_valid", [{"t": "true"}, {"t": "false"}], 1080, 95,
+                    [["change-contract-change-check"], ["change-contract-error"]],
+                    info="Alle Teilchecks muessen wahr sein"),
+            _change(
+                "change-contract-change-check", tab, "group-contracts", "Modellwechsel pruefen",
+                _model_change_rules(), 1280, 95, [["switch-contract-change"]],
+                info="Bekannte Modell-ID | Lauf offen | Request offen",
+            ),
             _switch("switch-contract-change", tab, "group-contracts", "Modellwechsel im Lauf?",
-                    "$exists($lookup($globalContext('ai.contracts'),_domain).model_id) and "
-                    "$lookup($globalContext('ai.contracts'),_domain).model_id != payload.model_id and "
-                    "($globalContext('sim.run').running or $type($globalContext('ai.pending'))='object')",
-                    [{"t": "false"}, {"t": "true"}], 1120, 95,
-                    [["change-contract-store"], ["change-contract-change-error"]], prop_type="jsonata",
+                    "_model_change_blocked", [{"t": "false"}, {"t": "true"}], 1490, 95,
+                    [["change-contract-store"], ["change-contract-change-error"]],
                     info="Profilwechsel nur zwischen Laeufen"),
             _change("change-contract-store", tab, "group-contracts", "Contract speichern", [
                 _set("ai.contracts", "global", "$merge([$globalContext('ai.contracts') ? $globalContext('ai.contracts') : {},{(_domain):payload}])", "jsonata"),
-            ], 1340, 75, [["change-readiness-context"]], info="Retained Contract domainbezogen ersetzen"),
+            ], 1700, 75, [["change-readiness-context"]], info="Retained Contract domainbezogen ersetzen"),
             _change("change-contract-error", tab, "group-contracts", "Contractfehler", [
                 _set("payload", "msg", "{'code':'contract_invalid','detail':_domain,'ts_ms':$millis()}", "jsonata")
-            ], 1340, 115, [["link-fault-pipeline"]]),
+            ], 1700, 115, [["link-fault-pipeline"]]),
             _change("change-contract-change-error", tab, "group-contracts", "Modellwechsel blockieren", [
                 _set("payload", "msg", "{'code':'model_changed_during_cycle','detail':_domain,'ts_ms':$millis()}", "jsonata")
-            ], 1340, 150, [["link-fault-pipeline"]]),
+            ], 1700, 150, [["link-fault-pipeline"]]),
             _mqtt_in("in-model-statuses", tab, "group-contracts", "Modellstatus",
                      "ft/nn/+/status", "1", 120, 190, [["json-model-status"]]),
             _json("json-model-status", tab, "group-contracts", "Status JSON", 300, 190,

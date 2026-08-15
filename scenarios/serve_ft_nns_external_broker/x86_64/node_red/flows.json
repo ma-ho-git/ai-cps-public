@@ -5993,7 +5993,9 @@
       "change-contract-storage",
       "change-contract-vgr",
       "change-contract-hbw",
+      "change-contract-check",
       "switch-contract-shape",
+      "change-contract-change-check",
       "switch-contract-change",
       "change-contract-store",
       "change-contract-error",
@@ -6274,7 +6276,7 @@
     "y": 60,
     "wires": [
       [
-        "switch-contract-shape"
+        "change-contract-check"
       ]
     ],
     "info": "Domain explizit setzen"
@@ -6303,7 +6305,7 @@
     "y": 100,
     "wires": [
       [
-        "switch-contract-shape"
+        "change-contract-check"
       ]
     ],
     "info": "Domain explizit setzen"
@@ -6332,10 +6334,95 @@
     "y": 140,
     "wires": [
       [
-        "switch-contract-shape"
+        "change-contract-check"
       ]
     ],
     "info": "Domain explizit setzen"
+  },
+  {
+    "id": "change-contract-check",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Grundvertrag pruefen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_schema_valid",
+        "pt": "msg",
+        "to": "payload.schema_version='1.0'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_domain_valid",
+        "pt": "msg",
+        "to": "payload.domain=_domain",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_features_valid",
+        "pt": "msg",
+        "to": "$type(payload.feature_cols)='array'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_classes_valid",
+        "pt": "msg",
+        "to": "$type(payload.class_ids)='array'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_request_topic",
+        "pt": "msg",
+        "to": "'ft/nn/' & _domain & '/request'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_response_topic",
+        "pt": "msg",
+        "to": "'ft/nn/response/' & _domain",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_request_valid",
+        "pt": "msg",
+        "to": "payload.request_topic=_request_topic",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_response_valid",
+        "pt": "msg",
+        "to": "payload.response_topic=_response_topic",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_contract_valid",
+        "pt": "msg",
+        "to": "_schema_valid and _domain_valid and _features_valid and _classes_valid and _request_valid and _response_valid",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 870,
+    "y": 95,
+    "wires": [
+      [
+        "switch-contract-shape"
+      ]
+    ],
+    "info": "Schema | Domain | Listen | Request-/Response-Topic"
   },
   {
     "id": "switch-contract-shape",
@@ -6343,8 +6430,8 @@
     "z": "tab-pipeline",
     "g": "group-contracts",
     "name": "Grundvertrag gueltig?",
-    "property": "payload.schema_version='1.0' and payload.domain=_domain and $type(payload.feature_cols)='array' and $type(payload.class_ids)='array' and payload.request_topic='ft/nn/' & _domain & '/request' and payload.response_topic='ft/nn/response/' & _domain",
-    "propertyType": "jsonata",
+    "property": "_contract_valid",
+    "propertyType": "msg",
     "rules": [
       {
         "t": "true"
@@ -6356,17 +6443,74 @@
     "checkall": "true",
     "repair": false,
     "outputs": 2,
-    "x": 900,
+    "x": 1080,
     "y": 95,
     "wires": [
       [
-        "switch-contract-change"
+        "change-contract-change-check"
       ],
       [
         "change-contract-error"
       ]
     ],
-    "info": "Schema | Domain | Featureliste | Klassen | Request/Response-Topic"
+    "info": "Alle Teilchecks muessen wahr sein"
+  },
+  {
+    "id": "change-contract-change-check",
+    "type": "change",
+    "z": "tab-pipeline",
+    "g": "group-contracts",
+    "name": "Modellwechsel pruefen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "_known_model_id",
+        "pt": "msg",
+        "to": "$lookup($globalContext('ai.contracts'),_domain).model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_model_changed",
+        "pt": "msg",
+        "to": "$exists(_known_model_id) and _known_model_id!=payload.model_id",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_run_active",
+        "pt": "msg",
+        "to": "$globalContext('sim.run').running=true",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_request_active",
+        "pt": "msg",
+        "to": "$type($globalContext('ai.pending'))='object'",
+        "tot": "jsonata"
+      },
+      {
+        "t": "set",
+        "p": "_model_change_blocked",
+        "pt": "msg",
+        "to": "_model_changed and (_run_active or _request_active)",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1280,
+    "y": 95,
+    "wires": [
+      [
+        "switch-contract-change"
+      ]
+    ],
+    "info": "Bekannte Modell-ID | Lauf offen | Request offen"
   },
   {
     "id": "switch-contract-change",
@@ -6374,8 +6518,8 @@
     "z": "tab-pipeline",
     "g": "group-contracts",
     "name": "Modellwechsel im Lauf?",
-    "property": "$exists($lookup($globalContext('ai.contracts'),_domain).model_id) and $lookup($globalContext('ai.contracts'),_domain).model_id != payload.model_id and ($globalContext('sim.run').running or $type($globalContext('ai.pending'))='object')",
-    "propertyType": "jsonata",
+    "property": "_model_change_blocked",
+    "propertyType": "msg",
     "rules": [
       {
         "t": "false"
@@ -6387,7 +6531,7 @@
     "checkall": "true",
     "repair": false,
     "outputs": 2,
-    "x": 1120,
+    "x": 1490,
     "y": 95,
     "wires": [
       [
@@ -6419,7 +6563,7 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1340,
+    "x": 1700,
     "y": 75,
     "wires": [
       [
@@ -6448,7 +6592,7 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1340,
+    "x": 1700,
     "y": 115,
     "wires": [
       [
@@ -6477,7 +6621,7 @@
     "from": "",
     "to": "",
     "reg": false,
-    "x": 1340,
+    "x": 1700,
     "y": 150,
     "wires": [
       [

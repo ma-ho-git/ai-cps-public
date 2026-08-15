@@ -94,8 +94,8 @@ Statuswerte: `pending`, `in_progress`, `completed`, `kept`.
 | AR-006 | `build_reporting_nodes()` | 171 Zeilen | Zyklus, Summary und Dateien trennen | Reportvertragstests | pending |
 | AR-007 | Generator-JSONata | 27 Ausdruecke ueber 200 Zeichen; max. 3.963 | Standard-Nodes und kurze Feldabbildungen | neuer JSONata-Grenztest | pending |
 | AR-008 | vier Node-RED-Functions | 12-36 Zeilen | beibehalten; eine Aufgabe; Steno-Hilfe | Zeilen-/Hilfetexttest | pending |
-| AR-009 | `node_red/lib/*.js` | fuenf nicht geladene Referenzkerne | Schutztests uebertragen; Dateien entfernen | aktuelle Flow-/Dockerregression | pending |
-| AR-010 | alte Node-RED-Tests | binden nur tote Referenzkerne | aktive Flowvertraege direkt testen | `npm test` | pending |
+| AR-009 | `node_red/lib/*.js` | fuenf nicht geladene Referenzkerne | Schutztests uebertragen; Dateien entfernen | aktuelle Flow-/Dockerregression | completed |
+| AR-010 | alte Node-RED-Tests | binden nur tote Referenzkerne | aktive Flowvertraege direkt testen | `npm test` | completed |
 | AR-011 | `training/vgr/train.py:main()` | 316 Zeilen | Config, Daten, Training, CV, Evaluation, Artefakte trennen | Trainingsvertrag und Smoke | pending |
 | AR-012 | `training/vgr/run_group_cross_validation()` | 120 Zeilen | Fold-Aufbau, Fit und Ergebnis trennen | CV-Ergebnistest | pending |
 | AR-013 | `training/vgr/validate_input_data()` | 67 Zeilen | Schema- und Inhaltspruefung trennen | Datensatzvertrag | pending |

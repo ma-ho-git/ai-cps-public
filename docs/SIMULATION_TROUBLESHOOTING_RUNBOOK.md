@@ -1,4 +1,4 @@
-# Troubleshooting Runbook
+# Troubleshooting Der Virtuellen Simulation
 
 ## Erste Diagnose
 
@@ -22,33 +22,32 @@ docker compose \
 
 Symptom: `failed to connect to the docker API`.
 
-- Docker Desktop oder den nativen Docker-Daemon starten.
+- Docker Engine oder Docker Desktop starten.
 - `docker context ls` und `docker info` pruefen.
-- Unter WSL nicht versehentlich Windows- und Linux-Daemon mischen.
+- Unter WSL nicht Windows- und Linux-Daemon mischen.
 
-## Preflight Meldet Fehlendes Secret
+## Fehlendes Node-RED-Secret
 
-In `.env` setzen:
+Das Setup erzeugt das Secret automatisch. Bei manueller Konfiguration in
+`.env` setzen:
 
 ```env
 NODE_RED_CREDENTIAL_SECRET=<langes-zufaelliges-secret>
 ```
 
-Die Datei muss nicht mit `source .env` aktiviert werden; das Startskript liest
-sie selbst. Bereits gesetzte Shellvariablen haben Vorrang.
+Die `.env` muss nicht mit `source` aktiviert werden.
 
 ## Dashboard Liefert 404
 
-Ein bestehendes `nodered_data`-Volume kann einen alten Flow enthalten:
+Ein persistentes `nodered_data`-Volume kann einen aelteren Flow enthalten:
 
 ```bash
 ./tools/manage_nodered_runtime_backup.sh backup ./backup
 ./tools/run_nodered_orchestration.sh flow-update
-./tools/run_nodered_orchestration.sh virtual-hmi
+./tools/run_nodered_orchestration.sh virtual-hmi --images
 ```
 
-`virtual-hmi` gilt erst als erfolgreich, wenn
-`/dashboard/betrieb` HTTP 200 liefert.
+`virtual-hmi` gilt erst als bereit, wenn `/dashboard/betrieb` HTTP 200 liefert.
 
 ## Reportpfad Nicht Schreibbar
 
@@ -57,14 +56,15 @@ mkdir -p reports
 sudo chown -R "$USER:$USER" reports
 ```
 
-Danach Preflight wiederholen. Reports nicht mit Root-Eigentum erzeugen.
+Danach `virtual-preflight` erneut ausfuehren.
 
-## Broker Nicht Erreichbar
+## Interner Broker Nicht Erreichbar
 
-- Virtuell: `virtual-status` und Mosquitto-Logs pruefen.
-- Physisch: `MQTT_HOST`, Port, Route, Firewall und Credentials pruefen.
-- Der physische Preflight erwartet einen erfolgreichen MQTT-CONNACK, sendet
-  dabei aber keine fachliche Nachricht.
+- `virtual-status` pruefen.
+- Mosquitto- und Node-RED-Logs lesen.
+- Belegung von `MQTT_PORT` pruefen.
+- Sicherstellen, dass keine zweite Installation denselben Compose-Projektnamen
+  oder Hostport verwendet.
 
 ## Release Oder Image Passt Nicht
 
@@ -73,22 +73,8 @@ python3 tools/setup_portable_runtime.py init \
   --mode virtual --release runtime-v1.3.0
 ```
 
-Der Preflight vergleicht digest-genaue Image-Referenzen und geschuetzte
-Dateihashes mit `.runtime/deployment-lock.json`. Keine einzelnen Dateien aus
-verschiedenen Release-Tags mischen.
-
-## Standortbundle Pruefen
-
-```bash
-python3 tools/manage_runtime_migration.py inspect ai-cps-site-backup.tar.gz
-```
-
-Bei einem Pruefsummen- oder Releasefehler nicht mit `--force` umgehen. Das beim
-Import erzeugte `pre-import-*.tar.gz` ist der Ruecksprungpunkt.
-
-```bash
-mosquitto_sub -h <host> -p 1883 -t 'ft/nn/+/status' -v
-```
+Der Preflight vergleicht Image-Digests und geschuetzte Dateihashes mit dem
+Deployment-Lock. Keine Bestandteile verschiedener Release-Tags mischen.
 
 ## NN Offline Oder Contract Fehlt
 
@@ -98,46 +84,53 @@ mosquitto_sub -h <host> -p 1883 -t 'ft/nn/+/status' -v
 
 Pruefen:
 
-- `model_registry/<domain>/latest` enthaelt drei Artefakte;
-- Modellpfad in `.env` liegt unter `/model_registry`;
-- keine zweite Runtime konsumiert dieselben Request-Topics;
-- Containerlog zeigt geladenes Modell und retained Online-Status.
+- alle drei Inferenzcontainer laufen;
+- retained Status und Contract erscheinen fuer Storage, VGR und HBW;
+- das im HMI gewaehlte Modellprofil ist laut Contract verfuegbar;
+- keine zweite Runtime konsumiert dieselben Request-Topics.
 
 ## `fault_latched`
 
-1. Fehlercode, `cycle_id` und betroffenen Dienst aus Status/Report sichern.
+1. Fehlercode, `cycle_id` und betroffenen Dienst im Dashboard oder Report
+   sichern.
 2. Ursache beheben; keine fehlenden Commands manuell ergaenzen.
-3. Danach:
+3. Reset ausfuehren:
 
    ```bash
    ./tools/run_nodered_orchestration.sh reset
    ```
 
-Reset verwirft Fenster, offene Zyklen und Timer. Der naechste Zustand startet
-mit einem neuen Idle-Bootstrap.
+Reset verwirft Fenster, offene Zyklen und Timer. Der folgende Lauf beginnt mit
+einem neuen Idle-Bootstrap.
 
-## Semaphor Bleibt Offen
+## Semaphor Bleibt Blockiert
 
-Im Fabrikstatus je Modul `sent_count` und `accepted_count` vergleichen.
-Ursachen sind typischerweise fehlender Command, doppelter Command,
-Containerabbruch oder Publish-Fehler. Der naechste Zustand darf erst bei vier
-ausgeglichenen Modulen erscheinen.
+Im Dashboard oder Fabrikstatus `sent_count` und `accepted_count` je Modul
+vergleichen. Typische Ursachen:
 
-## Modellkandidat Funktioniert Nicht
+- fehlender oder doppelter Command
+- Inferenzcontainer beendet
+- Publish-Fehler
+- Modul-Delay nicht abgeschlossen
+
+Der naechste Tracezustand darf erst nach vier ausgeglichenen Modulen
+freigegeben werden.
+
+## Standortbundle Pruefen
 
 ```bash
-python3 tools/manage_model_candidates.py status
-python3 tools/manage_model_candidates.py rollback --domain <domain>
+python3 tools/manage_runtime_migration.py inspect \
+  ai-cps-site-backup.tar.gz
 ```
 
-Danach Stack neu starten. Kein Hot-Swap waehrend eines Zyklus.
+Pruefsummen- oder Releasefehler nicht mit `--force` umgehen. Das beim Import
+erzeugte `pre-import-*.tar.gz` ist der Ruecksprungpunkt.
 
 ## Sauber Stoppen
 
 ```bash
 ./tools/run_nodered_orchestration.sh virtual-down
-./tools/run_nodered_orchestration.sh physical-down
 ```
 
-Kein `down -v` im Normalbetrieb. Persistente Volumes oder lokale Modellversionen
-nur nach eigenem Backup entfernen.
+Kein `down -v` im Normalbetrieb. Persistente Volumes nur nach eigenem Backup
+entfernen.

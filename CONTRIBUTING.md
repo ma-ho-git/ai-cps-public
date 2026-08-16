@@ -1,46 +1,43 @@
 # Contributing
 
-Contributions are welcome through issues and pull requests in
-`ma-ho-git/ai-cps-public`.
+Beitraege sind ueber Issues und Pull Requests in `ma-ho-git/ai-cps-public`
+willkommen.
 
-## Before Changing Code
+## Vor Einer Aenderung
 
-1. Read `AGENTS.md` and `docs/AI_DEVELOPMENT_HANDOVER.md`.
-2. Keep MQTT topics, payloads, QoS, feature order, model classes and semaphore
-   behavior unchanged unless the change explicitly migrates that contract.
-3. Do not commit `.env`, credentials, reports, Docker volumes, local model
-   candidates or raw research artifacts.
-4. Add tests and update the relevant source-of-truth documentation.
+1. `AGENTS.md` und `docs/AI_DEVELOPMENT_HANDOVER.md` lesen.
+2. MQTT-Topics, Payloads, QoS, Feature-Reihenfolge, Modellklassen,
+   Modellprofile und Semaphorverhalten nur mit ausdruecklicher
+   Vertragsmigration aendern.
+3. Keine `.env`, Credentials, Reports, Docker-Volumes oder lokalen
+   Modellkandidaten committen.
+4. Passende Tests und die massgebliche Dokumentation aktualisieren.
 
-## Licensing And Provenance
+## Lizenz Und Fremdmaterial
 
-By contributing, you confirm that you have the right to submit the work under
-`AGPL-3.0-only`. Preserve existing copyright, license and attribution notices.
-Identify copied or adapted third-party material in the pull request and add the
-required notice before it is merged.
+Mit einem Beitrag wird bestaetigt, dass er unter `AGPL-3.0-only` verteilt
+werden darf. Bestehende Copyright-, Lizenz- und Attributionshinweise bleiben
+erhalten. Kopiertes oder angepasstes Fremdmaterial muss im Pull Request
+benannt und vor dem Merge korrekt gekennzeichnet werden.
 
-Commits should include a Developer Certificate of Origin sign-off:
+Commits sollen einen Developer-Certificate-of-Origin-Sign-off enthalten:
 
 ```bash
 git commit --signoff
 ```
 
-The sign-off certifies the Developer Certificate of Origin 1.1:
+Der Sign-off bestaetigt den Developer Certificate of Origin 1.1:
 <https://developercertificate.org/>.
 
-## Minimum Validation
+## Mindestpruefung
 
-- Python: relevant unit tests and `py_compile`
-- Node-RED/MQTT: JavaScript tests, Flow export and Compose validation
-- Readability: `python tools/check_code_readability.py`
-- Runtime behavior: standard trace and affected guard profiles
-- Documentation: links, paths and `git diff --check`
+- Python: relevante Unit-Tests und `py_compile`
+- Node-RED/MQTT: JavaScript-Tests, Flowexport und Compose-Validierung
+- Lesbarkeit: `python tools/check_code_readability.py`
+- Runtime: Standardtrace und betroffene Vollspeicherszenarien
+- Dokumentation: lokale Links und `git diff --check`
 
-Pull requests must describe the behavioral effect, validation evidence,
-scientific implications and any remaining risk.
-
-Code should remain approachable for contributors with basic programming
-experience. Production functions are limited to 60 lines; callbacks, `main()`
-and test methods to 40 lines. Node-RED process decisions should use visible
-Core nodes. The four documented Function-node exceptions and JSONata
-expressions up to 200 characters are enforced automatically.
+Produktionsfunktionen bleiben auf 60 Zeilen begrenzt; Callbacks, `main()` und
+Tests auf 40 Zeilen. Node-RED-Prozessentscheidungen sollen mit sichtbaren
+Core-Nodes umgesetzt werden. Die vier dokumentierten Function-Ausnahmen und
+JSONata-Ausdruecke bis 200 Zeichen werden automatisch geprueft.

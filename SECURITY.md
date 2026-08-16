@@ -1,23 +1,23 @@
 # Security Policy
 
-## Supported Version
+## Unterstuetzte Version
 
-Only the latest tagged `runtime-v1.*` release is supported.
+Unterstuetzt wird der neueste Tag der Reihe `runtime-v1.*`.
 
-## Reporting A Vulnerability
+## Schwachstelle Melden
 
-Use GitHub's private vulnerability reporting or open a private Security
-Advisory in `ma-ho-git/ai-cps-public`. Do not publish credentials, broker
-addresses or exploitable details in a public issue.
+GitHubs private Vulnerability-Reporting-Funktion oder ein privates Security
+Advisory in `ma-ho-git/ai-cps-public` verwenden. Zugangsdaten, interne
+Adressen oder ausnutzbare Details nicht in einem oeffentlichen Issue nennen.
 
-## Safety Boundary
+## Einsatzgrenze
 
-This repository is a research and test environment. It is not a certified
-industrial safety controller. The physical PLC, OPC UA integration and
-Node-RED safety behavior remain an external black box. Physical command output
-must only be enabled in a controlled laboratory environment with independent
-PLC/Node-RED safety interlocks.
+Die Software ist eine virtuelle Testumgebung und keine zertifizierte
+Sicherheitssteuerung. Node-RED und Mosquitto nur in einem lokalen oder
+vertrauenswuerdigen Netz bereitstellen. Eine oeffentliche Freigabe des
+Dashboards oder MQTT-Ports benoetigt Authentifizierung, Transportverschluesselung
+und eine eigene Sicherheitspruefung.
 
-The default physical setup is diagnostic. Changing MQTT credentials, exposing
-Node-RED or Mosquitto to an untrusted network, or enabling command output
-requires a separate site security assessment.
+Standortbundles enthalten `.env` und das lokale Node-RED-Secret im Klartext.
+Sie besitzen Dateimodus `0600`, muessen aber vor einer Weitergabe ausserhalb
+der abgeschotteten Testumgebung zusaetzlich verschluesselt werden.

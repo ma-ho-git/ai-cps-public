@@ -1,65 +1,51 @@
 # AI Development Handover
 
 Diese Datei ist der anbieterneutrale Einstieg fuer Codex, Claude und andere
-KI-Entwicklungswerkzeuge. Sie ergaenzt die Fach- und Betriebsdokumentation,
-dupliziert sie aber nicht.
+KI-Entwicklungswerkzeuge. Sie verweist auf die verbindlichen Fachquellen und
+dupliziert deren Details nicht.
 
 ## System Scope
 
-- Virtuell: Mosquitto, Node-RED/FlowFuse Dashboard, Storage-, VGR- und
-  HBW-Inferenzcontainer, drei versionierte Testszenarien sowie zwei feste
-  virtuelle Modellprofile. Das historische Profil dient nur der reproduzierbaren
-  Demonstration des bekannten Vollspeicherfehlers.
-- Virtueller Ablauf: fuenf Node-RED-Funktionstabs fuer Initialisierung,
-  kontinuierliche Zustandserfassung, vier Modulzweige, Jobcounter-Semaphor und
-  NN-Pipeline. `ft/sim/factory/raw_state` bleibt rein intern; die physische
-  MQTT-Grenze aendert sich dadurch nicht.
-- Physisch: nur die drei NN-Container; Node-RED, OPC UA und SPS sind eine
-  externe Black Box mit eingefrorenem MQTT-Grenzvertrag.
-- Training: drei reproduzierbare Trainingscontainer, die lokale Kandidaten
-  erzeugen und `latest` nicht automatisch ersetzen.
-- Privates Entwicklungsarchiv: Notebooks, Rohdaten, Builder und historische
-  Systeme unter `development-complete-2026-08-10`; diese Referenz existiert
-  nicht im oeffentlichen Runtime-Repository.
+- Virtueller Docker-Stack: Mosquitto, Node-RED, FlowFuse Dashboard sowie
+  Storage-, VGR- und HBW-Inferenzdienst.
+- Drei versionierte Testszenarien und zwei virtuelle Modellprofile.
+- Fuenf Node-RED-Funktionstabs fuer Initialisierung, Zustandserfassung,
+  virtuelle Module, Jobcounter-Semaphor und NN-Pipeline.
+- Reports fuer Ereignisse, korrelierte Zyklen und Gesamtlaufstatus.
+- Standortbundle fuer `.env`, persistente Volumes und Reports.
 
 ## Sources Of Truth
 
 1. [AGENTS.md](../AGENTS.md): operative Regeln fuer Code-Agenten.
 2. [README.md](../README.md): kurzer menschlicher Einstieg.
-3. [OPERATION_AND_MIGRATION_GUIDE.md](OPERATION_AND_MIGRATION_GUIDE.md):
+3. [VIRTUAL_SCENARIOS.md](VIRTUAL_SCENARIOS.md): Szenarien und Erwartungen.
+4. [OPERATION_AND_MIGRATION_GUIDE.md](OPERATION_AND_MIGRATION_GUIDE.md):
    verbindliche Bedienungsfolgen.
-4. [NODERED_MQTT_ORCHESTRATION.md](NODERED_MQTT_ORCHESTRATION.md):
-   Architektur und MQTT-Vertraege.
-5. [TRAINING_AND_MODEL_RELEASE.md](TRAINING_AND_MODEL_RELEASE.md): Training,
-   Kandidaten und Promotion.
+5. [NODERED_MQTT_ORCHESTRATION.md](NODERED_MQTT_ORCHESTRATION.md):
+   Architektur und MQTT-Datenfluss.
 6. [PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md): dauerhafte Entscheidungen.
-7. Code, Configs und Tests entscheiden bei Widerspruechen ueber den aktuell
-   implementierten Stand; Dokumentation danach korrigieren.
-
-Das oeffentliche Runtime-Repository ist
-`https://github.com/ma-ho-git/ai-cps-public`. Die private Git-Historie bleibt
-eine getrennte Forschungsquelle und darf nicht in oeffentliche Branches
-uebernommen werden.
+7. Code, Konfigurationen und Tests entscheiden bei Widerspruechen ueber den
+   implementierten Stand; die Dokumentation wird danach korrigiert.
 
 ## Protected Contracts
 
-- Live-Eingang: `log/logging/state`.
+- Anlagenzustand: `log/logging/state`.
 - NN-Requests/-Responses: `ft/nn/<domain>/request` und
   `ft/nn/response/<domain>`.
-- Commands: vorhandene `ai/vgr/cmd*`, `ai/hbw/cmd*`, `ai/mpo/cmd0` und
-  `ai/sld/cmd0`; leere Payload, QoS 2, `retain=false`.
-- VGR/HBW: Fenster `(10,29)`, darunter `empty_storage_0..9`.
-- Storage: neun Belegungsfeatures, Klassen `0..9`.
-- `model_registry/<domain>/latest` ist versioniert; lokale `candidates/` und
-  `versions/` sind keine Git-Artefakte.
-- Node-RED synchronisiert nach den vier Modulabschluessen. Die Korrelation der
-  NN-Responses dient der Beobachtung und ist keine Command-Barriere.
+- Commands: `ai/vgr/cmd*`, `ai/hbw/cmd*`, `ai/mpo/cmd0` und `ai/sld/cmd0`;
+  leere Payload, QoS 2, `retain=false`.
+- VGR/HBW: Fenster `(10,29)` mit `empty_storage_0..9`.
+- Storage: neun Belegungsfeatures und Klassen `0..9`.
+- Modellprofile: `deployment-current` und
+  `historical-full-storage-error`.
+- Jobcounter-Semaphor: Freigabe erst nach Abschluss aller vier Module.
+- NN-Responsekorrelation: nur Beobachtung, keine Command-Barriere.
 
 ## Readability Contract
 
 - Eine Funktion: eine benannte Aufgabe.
 - Produktion: maximal 60 Zeilen; Callback, `main()` und Test: maximal 40.
-- Kommentare/Docstrings: deutsch, kurz, Zweck oder Sicherheitsgrund.
+- Kommentare und Docstrings: deutsch, kurz, Zweck oder Sicherheitsgrund.
 - Node-RED: Core-Nodes vor Function-Nodes; Flow nur aus Generator erzeugen.
 - Exakt vier Function-Ausnahmen; Hilfe mit Aufgabe, Ein-/Ausgang und Zustand.
 - JSONata: maximal 200 Zeichen; keine versteckte Prozesslogik.
@@ -73,21 +59,20 @@ uebernommen werden.
 3. Aufgabe, bestaetigte Repo-Fakten und Annahmen kurz festhalten.
 4. Nur die passenden Fachquellen und Tests lesen.
 5. Bei einem schmutzigen Worktree fremde Aenderungen erhalten und integrieren.
-6. Vor Laufzeittests pruefen, ob Docker und der beabsichtigte Broker aktiv sind.
+6. Vor Laufzeittests Docker, Ports und beabsichtigten MQTT-Broker pruefen.
 
 ## Validation Matrix
 
 | Aenderung | Mindestpruefung |
 |---|---|
-| Dokumentation | Links/Pfade, `git diff --check` |
+| Dokumentation | Links/Pfade, Dokumentationstests, `git diff --check` |
 | Python | `py_compile`, relevante Unit-Tests |
 | Lesbarkeit | `python tools/check_code_readability.py` |
-| Compose/Umgebung | physische und virtuelle `docker compose config`, Preflight |
-| Release/Migration | Manifest-/Setup-/Bundle-Tests, Hashpruefung, Clean-Clone |
+| Compose/Umgebung | virtuelle Compose-Konfiguration und Preflight |
+| Release/Migration | Manifest-, Setup- und Bundle-Tests |
 | Node-RED/HMI | `npm test`, Flowexport, HTTP-Smoke; visuell bei UI-Aenderung |
 | MQTT/Commands | Vertrags-, QoS-, Retain- und Fehlerkorrelationstests |
-| Training/Daten | Trainingsvertraege, Kandidatenmodus, unveraendertes `latest` |
-| Modelle | Kompatibilitaetscheck, Standardtrace und beide Full-Storage-Profile |
+| Modelle/Szenarien | Standardtrace und betroffene Vollspeicherprofile |
 | Runtime | Clean-Start oder begruendeter Wiederverwendungstest, Reports pruefen |
 
 ## Session Completion And Handover
@@ -108,22 +93,21 @@ Mit Repositoryzugriff:
 ```text
 Lies AGENTS.md und docs/AI_DEVELOPMENT_HANDOVER.md. Fuehre das
 Session-Startprotokoll aus. Bearbeite danach folgende Aufgabe minimal-invasiv,
-ohne bestehende Aenderungen oder geschuetzte MQTT-/Modellvertraege zu
+ohne bestehende Aenderungen oder geschuetzte Runtimevertraege zu
 ueberschreiben: <AUFGABE>.
 ```
 
 Ohne Repositoryzugriff muessen mindestens `AGENTS.md`, diese Datei, die zur
-Aufgabe passende Fachquelle und die betroffenen Code-/Configdateien gemeinsam
-bereitgestellt werden. Ein Browserchat kennt lokale Dateien nicht automatisch.
+Aufgabe passende Fachquelle und die betroffenen Code-/Konfigurationsdateien
+gemeinsam bereitgestellt werden. Ein Browserchat kennt lokale Dateien nicht
+automatisch.
 
 ## Maintenance Rules
 
-- Fachwissen wird in der jeweiligen Fachquelle gepflegt, nicht in Bot-Adaptern
-  dupliziert.
+- Fachwissen in der passenden Fachquelle pflegen, nicht in Bot-Adaptern
+  duplizieren.
 - `CLAUDE.md` bleibt ein duennes Include auf `AGENTS.md` und diese Datei.
-- Keine fluechtigen Branch- oder Commitwerte als dauerhaften Systemstand hier
+- Keine fluechtigen Branch- oder Commitwerte als dauerhaften Systemstand
   festschreiben.
-- Entfernte Forschungsartefakte werden im Archiv gepflegt, nicht wieder in den
-  portablen Runtime-Branch kopiert.
-- Neue Pfade oder Vertragsanpassungen muessen Tests und Dokumentation im selben
-  Commit aktualisieren.
+- Neue Pfade oder Vertragsanpassungen aktualisieren Tests und Dokumentation im
+  selben Commit.

@@ -1,129 +1,92 @@
 # Project Knowledge
 
-## Aktueller Release
+## Systemzweck
 
-- `runtime-v1.3.0` ist der stabile anfaengerfreundliche Referenzstand.
-- Die virtuelle Laufzeit besteht aus den Tabs `00 Initialisierung`,
-  `10 Zustandserfassung`, `20 Virtuelle Module`, `30 Semaphor` und
-  `40 NN-Pipeline`.
-- Core-Nodes bilden Routing, Validierung, Reporting, HMI und Delays sichtbar
-  ab. Exakt vier kleine Function-Nodes bleiben fuer Modullaufzeit, atomaren
-  Semaphor, dynamischen Modellvertrag und LSTM-Fenster.
-- `Virtuelles Modul`, `LSTM-Fenster W=10` und `NN-Response pruefen` sind
-  dokumentierte Subflows.
-- Der Lesbarkeitsvertrag wird durch `tools/check_code_readability.py` und CI
-  erzwungen: Produktion maximal 60 Zeilen; Callback, `main()` und Test maximal
-  40 Zeilen; Function-Node maximal 40 Zeilen; JSONata maximal 200 Zeichen.
-- Durch die Veroeffentlichung ueber `main` zeigen die vier
-  `latest-validated`-Images auf den geprueften V1.3.0-Commit.
+AI-CPS Public ist eine portable virtuelle MQTT-/Node-RED-Testumgebung. Drei
+Inferenzdienste fuer Storage, VGR und HBW werden in einem simulierten
+Fabrikablauf mit vier Modulen ausgefuehrt und beobachtet.
 
-## Aktueller Zweck
+## Laufzeitstruktur
 
-Das Repository stellt eine portable hybride Testumgebung bereit. Storage-,
-VGR- und HBW-Netze sind austauschbare MQTT-Dienste. Virtuell ersetzen
-Mosquitto und Node-RED die Fabrik; physisch wird derselbe MQTT-Grenzvertrag
-gegen eine externe Node-RED-/OPC-UA-/SPS-Black-Box verwendet.
+- `runtime-v1.3.0` ist der stabile Referenzstand.
+- Mosquitto vermittelt alle virtuellen MQTT-Nachrichten.
+- Node-RED bildet Initialisierung, 50-ms-Zustandserfassung, vier Module,
+  Jobcounter-Semaphor, NN-Pipeline, Reporting und HMI ab.
+- Storage, VGR und HBW laufen als getrennte Inferenzcontainer.
+- VGR/HBW-Responses werden fuer Reports korreliert, aber nicht als
+  Command-Barriere verwendet.
+- Der Semaphor gibt den naechsten Zustand erst frei, wenn fuer VGR, HBW, MPO
+  und SLD `sent_count == accepted_count` gilt.
 
-## Dauerhafte Architekturentscheidungen
+## Node-RED-Lesbarkeit
 
-- Keine Python-Orchestratorcontainer im aktiven System.
-- Node-RED bildet One-hot-Encoding, LSTM-Fenster und Semaphorlogik.
-- VGR und HBW publizieren Commands nach erfolgreicher Inferenz direkt und
-  unabhaengig; Responsekorrelation dient nur der Beobachtung.
-- Der Semaphor synchronisiert Modulabschluesse ueber `sent_count` und
-  `accepted_count` fuer VGR, HBW, MPO und SLD.
-- Physische Topics, leere Command-Payloads, QoS 2 und `retain=false` bleiben
-  eingefroren.
-- Der physische Flow und die SPS sind in diesem Softwareprojekt Black Boxes.
+- Core-Nodes bilden Routing, Validierung, Reporting, Dashboard und Delays ab.
+- Die wiederholten Modul-, Windowing- und Responseablaeufe sind Subflows.
+- Exakt vier Function-Nodes bleiben fuer Modullaufzeit, atomaren Semaphor,
+  dynamischen Modellvertrag und LSTM-Fenster.
+- `tools/check_code_readability.py` begrenzt Function-Laenge und JSONata.
+- Der Flow wird nur mit `tools/build_modular_nodered_flow.py` erzeugt.
 
 ## Modellvertraege
 
-- Storage: neun binaere Lagerbelegungen, Klassen `0..9`, statisches MLP.
-- VGR/HBW: Sequenz `(10,29)` mit 19 Prozessfeatures und
-  `empty_storage_0..9`.
-- Vollspeicher ist Modellinput, kein Orchestrator-Kurzschluss.
-- LSTM-Bootstrap: neun interne Idle-Zeilen plus erster realer Zustand;
-  Seed-Zeilen erzeugen keine Commands.
+- Storage: neun binaere Lagerbelegungen, Klassen `0..9`.
+- VGR/HBW: Fenster `(10,29)` mit `empty_storage_0..9`.
+- Bei neuer Quelle: neun interne Idle-Eintraege plus erster realer Zustand.
+- Seed-Eintraege erzeugen keine Commands.
 - Contracts und Online-Status werden retained publiziert.
 
-Deployment-Defaults:
+Versionierte Standardmodelle:
 
 - Storage: `storage:2026-07-08_085429:6ef3fdb63813`
-- VGR Guard: `vgr:2026-08-05_080003:654a7c781949`
-- HBW Guard: `hbw:2026-08-05_071254:d8559bef03fc`
+- VGR: `vgr:2026-08-05_080003:654a7c781949`
+- HBW: `hbw:2026-08-05_071254:d8559bef03fc`
 
-## Vollspeicherbefund
+## Szenarien Und Profile
 
-Die frueheren VGR-/HBW-Daten deckten „Lager voll und Lichtschranke
-unterbrochen“ nicht ausreichend ab. Das VGR-Modell konnte nach wiederholtem
-Zustand aktiv werden, obwohl Storage korrekt `0` meldete. Guard-Datensaetze
-ergaenzten stationaere und prozessartige Gegenbeispiele mit Label `cmd=0`.
+- `standard`: 320 Zustaende mit Einlagerungen und Idle-Phasen.
+- `full-storage-attempt`: 157 Zustaende, darunter 20 wiederholte kritische
+  Einlagerungsversuche.
+- `full-storage-process-guard`: 308 Zustaende, darunter 171 kritische
+  Zustaende in neun Prozesssequenzen.
+- `deployment-current`: aktueller Modellstand mit Vollspeicherschutz.
+- `historical-full-storage-error`: festes historisches VGR-/HBW-Paar zur
+  Fehlerreproduktion.
 
-Abnahme der promovierten Modelle am 2026-08-10:
+Aktuelle Modelle liefern in den Vollspeicherszenarien 20/20 beziehungsweise
+171/171 Idle-Ergebnisse fuer VGR und HBW. Das historische Profil reproduziert
+den dokumentierten aktiven Command bei vollem Lager.
 
-- Standard: 320 Zustaende, unveraenderte Vorhersagen und Commands;
-- stationaer: 20/20 VGR/HBW Idle;
-- prozessartig: 171/171 VGR/HBW Idle;
-- keine Faults, Timeouts oder unausgeglichenen Modulcounter.
+## Betriebsparameter
 
-## Training
+- Modulbasiszeit: standardmaessig 100 ms.
+- Variation: reproduzierbar minus 50 bis plus 50 Prozent.
+- Seed, vier Basiszeiten, Testszenario und Modellprofil sind im HMI waehlbar.
+- Ein Profil gilt unveraenderlich fuer den gesamten Lauf.
+- Dashboard: `/dashboard/betrieb`.
 
-- `configs/train_*.json` sind die aktiven, sicheren Kandidatenconfigs.
-- VGR nutzt den balancierten Guard-Datensatz, HBW den Guard-Datensatz.
-- `publish_latest=false` ist fuer alle drei Domains Standard.
-- Originale VGR-/HBW-Datensaetze und `regression_*_original.json` bleiben fuer
-  die Rueckwaertskompatibilitaetspruefung erhalten.
-- Training schreibt lokale Zeitstempelversionen. Promotion nach `latest`
-  erfolgt nur mit Modellmanager und erfolgreichen virtuellen Regressionen.
+## Reports
 
-## Virtuelle Betriebsparameter
-
-- Testszenarien: `standard` fuer Normalbetrieb (320 Zustaende),
-  `full-storage-attempt` fuer 20 wiederholte Vollspeicherversuche (157
-  Zustaende) und `full-storage-process-guard` fuer 9 vollstaendige
-  Vollspeicher-Prozesssequenzen (308 Zustaende).
-- Modellprofile: `deployment-current` verwendet die aktuelle `.env`-Auswahl;
-  `historical-full-storage-error` laedt das feste VGR-/HBW-Modellpaar vom
-  10.06.2026 und reproduziert den bekannten Vollspeicherfehler.
-- Das Modellprofil gilt unveraenderlich fuer einen Lauf. Requests ohne Profil
-  bleiben rueckwaertskompatibel und verwenden `deployment-current`.
-- Historische Profile sind ausschliesslich virtuell. Physisch bleiben die
-  ausgewaehlten Deploymentmodelle und Schnittstellen unveraendert.
-- Basiszeit je Modul: Standard 100 ms, Variation fest -50 bis +50 Prozent.
-- FlowFuse Dashboard ist lokal unter `/dashboard/betrieb` erreichbar.
-- Versionierte Flows werden nicht still in persistente Volumes kopiert;
-  Updates erfolgen explizit mit Backup und `flow-update`.
+- `events.jsonl`: Ereignisse und Modellinformationen.
+- `summary.csv`: vollstaendig korrelierte Zyklen.
+- `run_summary.json`: Gesamtlaufstatus, Konfiguration und Modulzaehler.
+- Nur der korrelierte finale Fabrikstatus setzt `completed=true`.
+- Reset beendet einen offenen Report und erzeugt fuer den naechsten Lauf einen
+  neuen Reportordner.
 
 ## Portabilitaet
 
-- Freigegeben: WSL2/Ubuntu oder natives Linux auf `x86_64`; native Docker
-  Engine und Docker Desktop im Linux-Container-Modus sind zulaessig.
-- Betriebsstandard ab V1.1: flacher Clone des festen Release-Tags,
-  `setup_portable_runtime.py` und digest-genaue GHCR-Images.
-- GHCR publiziert drei NN-Images und das Node-RED-Runtimeimage mit SHA-Tags;
-  auf `main` zusaetzlich `latest-validated`.
-- Das Release-Manifest bindet Source-Commit, Images, Modelle, Traces und Flows.
-- `COMPOSE_PROJECT_NAME` trennt Standortinstallationen auf demselben Host.
-- Ein geprueftes Standortbundle uebertraegt die vollstaendige `.env`,
-  persistente Volumes, Reports und ausgewaehlte Kandidaten. Es ist ein
-  Klartextartefakt der isolierten Testumgebung und enthaelt keine Git-/SSH-/
-  GitHub-/Docker-Anmeldedaten.
+- Freigegeben: WSL2/Ubuntu oder natives Linux auf `x86_64`.
+- Releasebetrieb: flacher Tag-Clone, Setup-Assistent und digest-genaue Images.
+- `COMPOSE_PROJECT_NAME` trennt Installationen auf demselben Host.
+- Standortbundles uebertragen `.env`, persistente Volumes und Reports.
+- Bundles sind `0600`, enthalten aber das lokale Secret im Klartext.
 - Rolling Windows, offene Zyklen und Docker-Images werden nicht migriert.
-- Standort- und Pre-Import-Bundles sind immer `0600`; Restore-Volumes tragen
-  Compose-Projekt- und Volume-Labels. V1.3.0 akzeptiert Bundles ab V1.1.0
-  sowie den internen V1.1.1-Stand.
-- `run_summary.json.completed` beschreibt den gesamten virtuellen Lauf. Die
-  Markierung erfolgt erst durch den korrelierten finalen Fabrikstatus, nicht
-  durch den Abschluss eines einzelnen KI-Zyklus.
+- `virtual-down` behaelt persistente Volumes bei.
 
-## Oeffentliche Runtime
+## Geschuetzte Vertraege
 
-- Massgebliche Quelle ist `ma-ho-git/ai-cps-public` unter `AGPL-3.0-only`.
-- Die GHCR-Paketnamen `ai-cps-runtime-*` bleiben fuer bestehende Installationen
-  erhalten; neue OCI-Quelllinks verweisen auf `ai-cps-public`.
-- Herkunft aus Marcus Grums AGPL-lizenziertem AI-CPS wird in
-  `THIRD_PARTY_NOTICES.md` dokumentiert.
-- Ein Release-Tag ist nur zulaessig, wenn
-  `check_public_release_readiness.py --require-approved` erfolgreich ist.
-- Runtime, Training, Modelle, Daten und Traces duerfen nur nach dokumentierter
-  Rechtefreigabe oeffentlich publiziert werden.
+- MQTT-Topics, Payloadformen, QoS und Retain-Flags.
+- Feature-Reihenfolgen, Fensterform und Modellklassen.
+- Direkte VGR-/HBW-Commands und MPO-/SLD-Idle-Commands.
+- Vier-Modul-Semaphor und Reportformate.
+- Interne Szenario- und Modellprofil-IDs.

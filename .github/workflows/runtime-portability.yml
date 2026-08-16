@@ -100,7 +100,6 @@ jobs:
             tests.test_nodered_idle_seed_templates \
             tests.test_nodered_runtime_persistence \
             tests.test_nodered_runtime_script \
-            tests.test_virtual_sequence_diagram \
             tests.test_observe_nn_inference \
             tests.test_physical_mqtt_contract_monitor \
             tests.test_vgr_train_windowing

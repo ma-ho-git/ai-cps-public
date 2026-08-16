@@ -22,9 +22,9 @@ HMI_NODE_IDS = {
 SOURCE_FOOTER_HTML = (
     '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;'
     'justify-content:center;font-size:12px;min-height:100%">'
-    '<a href="https://github.com/ma-ho-git/ai-cps-runtime" target="_blank" '
+    '<a href="https://github.com/ma-ho-git/ai-cps-public" target="_blank" '
     'rel="noopener noreferrer">Quellcode und Lizenz</a>'
-    '<span>runtime-v1.3.0-rc.3 | AGPL-3.0</span></div>'
+    '<span>runtime-v1.3.0 | AGPL-3.0</span></div>'
 )
 
 INPUT_WIRES = {

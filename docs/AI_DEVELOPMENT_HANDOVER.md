@@ -37,7 +37,7 @@ dupliziert sie aber nicht.
    implementierten Stand; Dokumentation danach korrigieren.
 
 Das oeffentliche Runtime-Repository ist
-`https://github.com/ma-ho-git/ai-cps-runtime`. Die private Git-Historie bleibt
+`https://github.com/ma-ho-git/ai-cps-public`. Die private Git-Historie bleibt
 eine getrennte Forschungsquelle und darf nicht in oeffentliche Branches
 uebernommen werden.
 

@@ -1,8 +1,8 @@
 # Project Knowledge
 
-## Aktueller Releasekandidat
+## Aktueller Release
 
-- `runtime-v1.3.0-rc.3` ist der anfaengerfreundliche Referenzstand.
+- `runtime-v1.3.0` ist der stabile anfaengerfreundliche Referenzstand.
 - Die virtuelle Laufzeit besteht aus den Tabs `00 Initialisierung`,
   `10 Zustandserfassung`, `20 Virtuelle Module`, `30 Semaphor` und
   `40 NN-Pipeline`.
@@ -15,7 +15,7 @@
   erzwungen: Produktion maximal 60 Zeilen; Callback, `main()` und Test maximal
   40 Zeilen; Function-Node maximal 40 Zeilen; JSONata maximal 200 Zeichen.
 - Durch die Veroeffentlichung ueber `main` zeigen die vier
-  `latest-validated`-Images auf den geprueften RC.3-Commit.
+  `latest-validated`-Images auf den geprueften V1.3.0-Commit.
 
 ## Aktueller Zweck
 
@@ -110,15 +110,17 @@ Abnahme der promovierten Modelle am 2026-08-10:
   GitHub-/Docker-Anmeldedaten.
 - Rolling Windows, offene Zyklen und Docker-Images werden nicht migriert.
 - Standort- und Pre-Import-Bundles sind immer `0600`; Restore-Volumes tragen
-  Compose-Projekt- und Volume-Labels. RC.3 akzeptiert Bundles ab V1.1.0 sowie
-  den internen V1.1.1-Stand.
+  Compose-Projekt- und Volume-Labels. V1.3.0 akzeptiert Bundles ab V1.1.0
+  sowie den internen V1.1.1-Stand.
 - `run_summary.json.completed` beschreibt den gesamten virtuellen Lauf. Die
   Markierung erfolgt erst durch den korrelierten finalen Fabrikstatus, nicht
   durch den Abschluss eines einzelnen KI-Zyklus.
 
 ## Oeffentliche Runtime
 
-- Massgebliche Quelle ist `ma-ho-git/ai-cps-runtime` unter `AGPL-3.0-only`.
+- Massgebliche Quelle ist `ma-ho-git/ai-cps-public` unter `AGPL-3.0-only`.
+- Die GHCR-Paketnamen `ai-cps-runtime-*` bleiben fuer bestehende Installationen
+  erhalten; neue OCI-Quelllinks verweisen auf `ai-cps-public`.
 - Herkunft aus Marcus Grums AGPL-lizenziertem AI-CPS wird in
   `THIRD_PARTY_NOTICES.md` dokumentiert.
 - Ein Release-Tag ist nur zulaessig, wenn

@@ -16,7 +16,7 @@ def write_sbom_fixture(root: Path) -> None:
     (root / "configs/runtime_release.json").write_text(
         json.dumps({
             "release": "runtime-v1.1.0",
-            "repository": "ma-ho-git/ai-cps-runtime",
+            "repository": "ma-ho-git/ai-cps-public",
         }),
         encoding="utf-8",
     )
@@ -45,7 +45,12 @@ class SourceSbomTests(unittest.TestCase):
             document = sbom.build_sbom(root)
 
         self.assertEqual(document["bomFormat"], "CycloneDX")
+        self.assertEqual(document["metadata"]["component"]["name"], "ai-cps-public")
         self.assertEqual(document["metadata"]["component"]["version"], "1.1.0")
+        self.assertEqual(
+            document["metadata"]["component"]["externalReferences"][0]["url"],
+            "https://github.com/ma-ho-git/ai-cps-public",
+        )
         components = {item["purl"]: item for item in document["components"]}
         self.assertIn("pkg:pypi/example-pkg@1.2.3", components)
         self.assertEqual(

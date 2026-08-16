@@ -1,7 +1,7 @@
 # Contributing
 
 Contributions are welcome through issues and pull requests in
-`ma-ho-git/ai-cps-runtime`.
+`ma-ho-git/ai-cps-public`.
 
 ## Before Changing Code
 

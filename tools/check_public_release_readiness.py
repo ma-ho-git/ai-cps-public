@@ -15,7 +15,7 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RIGHTS_FILE = PROJECT_ROOT / "configs/publication_rights.json"
 RELEASE_CONFIG = PROJECT_ROOT / "configs/runtime_release.json"
-EXPECTED_REPOSITORY = "ma-ho-git/ai-cps-runtime"
+EXPECTED_REPOSITORY = "ma-ho-git/ai-cps-public"
 REQUIRED_FILES = (
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",

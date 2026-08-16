@@ -1,7 +1,7 @@
 FROM python:3.12.3-slim-bookworm@sha256:afc139a0a640942491ec481ad8dda10f2c5b753f5c969393b12480155fe15a63
 ARG SOURCE_REVISION=unknown
 ARG RELEASE_VERSION=development
-LABEL org.opencontainers.image.source="https://github.com/ma-ho-git/ai-cps-runtime" \
+LABEL org.opencontainers.image.source="https://github.com/ma-ho-git/ai-cps-public" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       org.opencontainers.image.version="${RELEASE_VERSION}" \
       org.opencontainers.image.licenses="AGPL-3.0-only"

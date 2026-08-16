@@ -1,7 +1,7 @@
 # Oeffentliche Release-Prozedur
 
 Diese Prozedur veroeffentlicht einen geprueften Stand im bestehenden
-Repository `ma-ho-git/ai-cps-runtime`. Private Entwicklungshistorie,
+Repository `ma-ho-git/ai-cps-public`. Private Entwicklungshistorie,
 Standortkonfiguration und Laufzeitartefakte gehoeren nicht in den Release.
 
 ## 1. Release Vorbereiten
@@ -39,8 +39,8 @@ Erst nach erfolgreicher Main-CI:
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag -a runtime-v1.3.0-rc.3 -m "AI-CPS Runtime V1.3.0-RC.3"
-git push origin runtime-v1.3.0-rc.3
+git tag -a runtime-v1.3.0 -m "AI-CPS Public V1.3.0"
+git push origin runtime-v1.3.0
 ```
 
 Der Tag wird niemals verschoben oder ueberschrieben. Der Tag-Workflow erzeugt:

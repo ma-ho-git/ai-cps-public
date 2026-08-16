@@ -1,7 +1,7 @@
 FROM nodered/node-red:4.1.11-22@sha256:c8657806d6099d09896aabe5bb2ab8439534caccf52179ac9166060e229c9cf7
 ARG SOURCE_REVISION=unknown
 ARG RELEASE_VERSION=development
-LABEL org.opencontainers.image.source="https://github.com/ma-ho-git/ai-cps-runtime" \
+LABEL org.opencontainers.image.source="https://github.com/ma-ho-git/ai-cps-public" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       org.opencontainers.image.version="${RELEASE_VERSION}" \
       org.opencontainers.image.licenses="AGPL-3.0-only"

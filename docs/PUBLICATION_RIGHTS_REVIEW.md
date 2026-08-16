@@ -1,6 +1,6 @@
 # Publication Rights Review
 
-This document is the release gate for publishing `ma-ho-git/ai-cps-runtime`.
+This document is the release gate for publishing `ma-ho-git/ai-cps-public`.
 The machine-readable state is stored in `configs/publication_rights.json`.
 
 ## Required Confirmations

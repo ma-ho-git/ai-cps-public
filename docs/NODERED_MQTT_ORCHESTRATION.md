@@ -1,151 +1,143 @@
-# Node-RED-/MQTT-Orchestrierung
+# Node-RED-/MQTT-Ablauf
 
-## Zielarchitektur
+## Container
 
-Die drei NN-Container sind zustandslose MQTT-Inferenzdienste. Node-RED
-uebernimmt im virtuellen System Featureaufbereitung, Storage-One-hot-Encoding,
-LSTM-Windowing, Reporting und Semaphorlogik. Im physischen System bleibt die
-Node-RED-/OPC-UA-/SPS-Implementierung eine externe Black Box.
+Der virtuelle Stack besteht aus:
 
-Aktive Container virtuell:
+- `mosquitto`: interner MQTT-Broker
+- `node_red`: Fabrikablauf, Semaphor, NN-Pipeline, Reporting und Dashboard
+- `storage_infer`: Vorhersage des freien Lagerfachs
+- `vgr_infer`: VGR-Command aus LSTM-Fenster
+- `hbw_infer`: HBW-Command aus LSTM-Fenster
 
-- `mosquitto`
-- `node_red`
-- `storage_infer`
-- `vgr_infer`
-- `hbw_infer`
+Die Inferenzdienste bleiben zustandslos. Node-RED verwaltet den Zustand eines
+Simulationslaufs.
 
-Physisch laufen aus diesem Repository nur die drei NN-Dienste.
-
-## MQTT-Vertraege
+## MQTT-Topics
 
 | Zweck | Topic |
 |---|---|
-| Anlagenzustand | `log/logging/state` |
+| Virtueller Rohzustand | `ft/sim/factory/raw_state` |
+| Freigegebener Anlagenzustand | `log/logging/state` |
 | Storage Request/Response | `ft/nn/storage/request`, `ft/nn/response/storage` |
 | VGR Request/Response | `ft/nn/vgr/request`, `ft/nn/response/vgr` |
 | HBW Request/Response | `ft/nn/hbw/request`, `ft/nn/response/hbw` |
-| Contracts | `ft/nn/<domain>/contract` |
-| Status | `ft/nn/<domain>/status` |
+| Modellvertraege | `ft/nn/<domain>/contract` |
+| Dienststatus | `ft/nn/<domain>/status` |
 | Orchestrierungsstatus | `ft/ai/orchestration/status` |
 | Zyklusergebnis | `ft/ai/orchestration/cycle_result` |
 | Fabriksteuerung | `ft/sim/factory/control` |
 | Fabrikstatus | `ft/sim/factory/status` |
-| Virtueller Rohzustand | `ft/sim/factory/raw_state` |
 
-VGR und HBW publizieren bei freigegebenem Command-Output ihre leeren
-Maschinencommands direkt auf den bestehenden `ai/<domain>/cmd<code>`-Topics.
-MPO und SLD erhalten Idle-Commands vom KI-Flow. Commands verwenden QoS 2 und
-`retain=false`.
+VGR und HBW publizieren ihre leeren Commands direkt auf
+`ai/<domain>/cmd<code>`. Der KI-Flow publiziert die MPO-/SLD-Idle-Commands.
+Commands verwenden QoS 2 und `retain=false`.
 
-## Zyklus
+## Flow-Tabs
 
-1. Vier getrennte Initialisierungszweige publizieren je einen Idle-Command.
-2. Die Zustandserfassung publiziert den aktuellen Tracezustand alle 50 ms auf
-   `ft/sim/factory/raw_state`; der Traceindex bleibt dabei unveraendert.
-3. Der Semaphor gibt genau einen Zustand auf `log/logging/state` frei, sobald
-   alle vier neuen Commands vorliegen und je Modul `sent_count == accepted_count`
-   gilt.
-4. Der virtuelle Contract-Gate prueft Contracts, Modellprofil, Features,
-   Klassen und Command-Mappings unmittelbar vor Storage.
-5. Storage wird einmal abgefragt und liefert `empty_storage=0..9`.
-6. Node-RED erzeugt `empty_storage_0..9`, aktualisiert zwei getrennte Rolling
-   Windows und ergaenzt bei neuer Quelle neun interne Idle-Zeilen.
-7. VGR- und HBW-Requests werden parallel gesendet. VGR/HBW publizieren ihre
-   Commands unabhaengig; der KI-Flow publiziert MPO/SLD.
-8. Vier unabhaengige Modulzweige simulieren die Teilprozesse mit Core-Delay-
-   Nodes und registrieren danach ihren `accepted_count`.
-9. Der Semaphor gibt erst danach die naechste Tracezeile frei. VGR-/HBW-
-   Responses werden nur fuer Reports korreliert und bilden keine Command-Barriere.
+### `00 Initialisierung`
 
-Bei vollem Lager bleibt `empty_storage_0=1` ein normaler LSTM-Eingang. Die
-aktuellen Guard-Modelle liefern in den beiden versionierten Vollspeicherprofilen
-durchgehend `cmd=0`.
+- Startkonfiguration validieren
+- gewaehlten Trace laden
+- Run-ID, Traceposition, Fault-Latch und Jobcounter initialisieren
+- je ein Idle-Command fuer VGR, HBW, MPO und SLD publizieren
+- Reset an alle zustandsbehafteten Pfade verteilen
 
-## Virtuelle Fabrik
+### `10 Zustandserfassung`
 
-Die Initialisierung laedt eines von drei Testszenarien:
+- aktuellen Tracezustand alle 50 ms publizieren
+- internes Topic `ft/sim/factory/raw_state`
+- Traceindex nicht durch den Tick veraendern
 
-- `standard`: Normalbetrieb mit Einlagerungen und Idle-Phasen (320 Zustaende);
-- `full-storage-attempt`: Vollspeicher mit 20 wiederholten
-  Einlagerungsversuchen (157 Zustaende);
-- `full-storage-process-guard`: Vollspeicher mit 9 vollstaendigen
-  Prozesssequenzen (308 Zustaende).
+Dadurch kann derselbe Rohzustand mehrfach erscheinen, waehrend Module noch
+arbeiten.
 
-Im virtuellen Betrieb stehen zwei feste Modellprofile zur Verfuegung:
+### `20 Virtuelle Module`
 
-- `deployment-current`: der ueber `.env` ausgewaehlte Deploymentstand;
-- `historical-full-storage-error`: das historische VGR-/HBW-Modellpaar vor
-  der Vollspeicherkorrektur.
+Vier getrennte Gruppen verarbeiten VGR-, HBW-, MPO- und SLD-Commands:
 
-Das Profil wird atomar mit dem Startbefehl festgelegt und an jeden VGR-/HBW-
-Request weitergegeben. Ohne Feld gilt `deployment-current`. Requests und
-Responses nennen additiv Profil und tatsaechliche Modell-ID. Ein Profilwechsel
-beginnt nach Reset mit neuen Rolling Windows. Der physische Stack erhaelt den
-historischen Katalog nicht und behaelt seinen bisherigen Modellvertrag.
+1. Command pruefen und `sent_count` erhoehen.
+2. Reproduzierbare Laufzeit aus Seed, Modul, Jobnummer und Basiszeit bilden.
+3. Teilprozess mit Core-`delay` simulieren.
+4. `accepted_count` erhoehen und Modul freigeben.
 
-Jedes Modul besitzt eine Basiszeit. Pro Command wird daraus mit dem durch
-`FACTORY_SEED` reproduzierbaren Faktor `0,5..1,5` eine Laufzeit erzeugt.
-Standard sind 100 ms pro Modul.
+Standardbasiszeit sind 100 ms. Je Command gilt ein reproduzierbarer Faktor von
+0,5 bis 1,5.
 
-## FlowFuse Dashboard
+### `30 Semaphor`
 
-Das Dashboard liegt unter `/dashboard/betrieb` und steuert ausschliesslich den
-virtuellen Fabrik-Control-Topic. Es zeigt Betriebszustand, Fortschritt,
-Vorhersagen, Konfidenzen, Modulcounter, Modellprofil und Fehler. Einstellbar
-sind Testszenario, eines der zwei freigegebenen virtuellen Modellprofile, Seed
-und vier Modulbasiszeiten. Beliebige lokale Modellkandidaten, Broker und
-physische Freigabe bleiben bewusst ausserhalb des HMI.
+Ein Zustand wird genau einmal auf `log/logging/state` freigegeben, wenn:
 
-Das Paket `@flowfuse/node-red-dashboard` ist exakt gepinnt und image-lokal
-installiert. `settings.js` registriert das explizite `nodesDir`, sodass ein
-persistentes `/data`-Volume das Paket nicht verdeckt.
+- jedes Modul einen neuen Command erhalten hat;
+- fuer alle Module `sent_count == accepted_count` gilt;
+- kein Fault aktiv ist;
+- der aktuelle Tracezustand noch nicht freigegeben wurde.
 
-## Flowstruktur
+Erst die Freigabe erhoeht den Traceindex. Nach dem letzten Zustand wartet der
+Semaphor auf dessen vollstaendiges Command-Set und publiziert dann
+`state=completed`.
 
-Die virtuelle Laufzeit ist in fuenf Funktions-Tabs gegliedert:
+### `40 NN-Pipeline`
 
-- `00 Initialisierung`: Startvertrag, Trace-`file in`, Reset, vier Idle-Zweige;
-- `10 Zustandserfassung`: 50-ms-Tick und virtuelles Rohzustandstopic;
-- `20 Virtuelle Module`: VGR, HBW, MPO und SLD als getrennte Gruppen;
-- `30 Semaphor`: atomarer Jobcountervergleich, Watchdog und Live-Freigabe;
-- `40 NN-Pipeline`: Contract-Gate, Storage, zwei Rolling Windows und Reporting.
+1. Modellvertraege, Profil, Features, Klassen und Command-Mappings pruefen.
+2. Storage-Request publizieren.
+3. Storage-Klasse in `empty_storage_0..9` codieren.
+4. VGR- und HBW-Fenster mit Laenge 10 aktualisieren.
+5. Bei neuer Quelle neun interne Idle-Eintraege ergaenzen.
+6. VGR- und HBW-Requests parallel publizieren.
+7. Responses nur fuer Beobachtung und Reports korrelieren.
 
-MQTT, Routing, Serialisierung, Dateizugriff, Reporting, HMI und
-Laufzeitverzoegerungen werden mit Core-Nodes umgesetzt. Wiederholte Ablaufe
-sind als dokumentierte Subflows sichtbar: vier Instanzen von `Virtuelles
-Modul`, zwei Instanzen von `LSTM-Fenster W=10` und zwei Instanzen von
-`NN-Response pruefen`.
+Die Korrelation ist keine Command-Barriere.
 
-Im gesamten Flow bleiben exakt vier Function-Nodes:
+## Modellprofile
 
-- `Laufzeit berechnen`: reproduzierbarer Faktor fuer den Core-Delay;
-- `Semaphor atomar entscheiden`: Counter und Traceindex gemeinsam aendern;
-- `Dynamischen Modellvertrag pruefen`: austauschbare Feature-/Klassenvertraege;
-- `LSTM-Fenster fortschreiben`: quell- und modellbezogenes Rolling Window.
+- `deployment-current`: aktueller Modellstand
+- `historical-full-storage-error`: historisches VGR-/HBW-Paar fuer die
+  Vollspeicherfehler-Demonstration
 
-Jede Ausnahme besitzt im Node-RED-Editor die Hilfebereiche Aufgabe, Eingang,
-Zustand, Ausgang und Begruendung. Initialisierung, Responsepruefung, One-hot,
-Timeout, Reporting und HMI enthalten keine Function-Nodes. `settings.js`
-importiert keine Laufzeitbibliotheken oder Katalogdateien. Nur die drei
-versionierten Trace-Dateien werden gelesen; Reportdateien werden weiterhin
-ausschliesslich geschrieben.
+Das Profil wird beim Start festgelegt, an jeden VGR-/HBW-Request weitergegeben
+und in Status und Reports gespeichert. Nach einem Profilwechsel beginnt das
+Windowing mit neuem Bootstrap.
 
-Jeder Funktionstab besitzt gezielte `catch`- und MQTT-`status`-Pfade. Kompakte
-Debug-Ausgaben zeigen nur IDs, Topic, Klasse, Laufzeit und Counter. Vollstaendige
-Rohpayloads und LSTM-Fenster werden nicht im Debug-Panel ausgegeben.
+## Low-Code-Struktur
 
-## Fehlerverhalten
+Routing, Validierung, Serialisierung, Reporting, HMI und Verzoegerungen
+verwenden Node-RED-Core-Nodes. Wiederholte Ablaeufe sind als Subflows sichtbar.
 
-Ungueltiger Payload, Timeout, Modellfehler, unbekannte Klasse oder
-Publish-Fehler fuehren zu `fault_latched`. Fehlende Commands werden nicht durch
-Idle ersetzt. Weitere Zustaende bleiben bis zum manuellen Reset blockiert.
+Exakt vier begrenzte Function-Nodes bleiben:
+
+- deterministische Modullaufzeit berechnen
+- Semaphorentscheidung und Traceindex atomar aktualisieren
+- dynamischen Modellvertrag pruefen
+- LSTM-Fenster quell- und modellbezogen fortschreiben
+
+Jede Function besitzt im Editor Hilfe zu Aufgabe, Eingang, Zustand, Ausgang
+und Begruendung. JSONata bleibt auf kurze Feldabbildungen begrenzt.
+
+## Dashboard Und Fehler
+
+Das Dashboard unter `/dashboard/betrieb` zeigt Laufstatus, Fortschritt,
+Vorhersagen, Konfidenzen, Modulcounter, Semaphorstatus und Fehler. Einstellbar
+sind Szenario, Modellprofil, Seed und vier Modulbasiszeiten.
+
+Gezielte `catch`- und MQTT-`status`-Pfade behandeln unter anderem:
+
+- ungueltige Startkonfiguration
+- fehlenden oder inkompatiblen Modellvertrag
+- ungueltigen Payload
+- Inferenz- oder Command-Timeout
+- doppelten Command
+- blockierten Semaphor
+- MQTT- oder Reportfehler
+
+Ein kritischer Fehler setzt `fault_latched`. Weitere Zustaende bleiben bis zum
+Reset blockiert. Debug-Nodes zeigen nur IDs, Topic, Klasse, Laufzeit und
+Counter, keine vollstaendigen Rohpayloads oder LSTM-Fenster.
 
 ## Persistenz Und Reports
 
-Flows, Settings, eingebettete Topics/Seeds/Kataloge und Traces sind versioniert. Docker-Volumes
-persistieren Node-RED- und Mosquitto-Daten. Rolling Windows, offene Requests
-und Timer werden nach Neustart bewusst neu initialisiert.
+Docker-Volumes persistieren Node-RED- und Mosquitto-Daten. Rolling Windows,
+offene Requests und Timer werden nach Neustart bewusst neu initialisiert.
 
 Reports:
 
@@ -155,18 +147,13 @@ reports/orchestration_simulation/<run_id>/summary.csv
 reports/orchestration_simulation/<run_id>/run_summary.json
 ```
 
-Ein einzelner KI-Zyklus aktualisiert die Run-Summary mit `completed=false`.
-Erst der retained Fabrikstatus `completed` mit passender `simulation_run_id`
-schliesst den Gesamtlauf ab und ergaenzt die finalen Modulzaehler. Ein Reset
-schliesst einen offenen Report als gestoppt und trennt den folgenden Lauf in
-einen neuen Reportordner.
+Erst der finale Fabrikstatus mit passender `simulation_run_id` setzt
+`completed=true`. Ein Reset schliesst einen offenen Report mit
+`stop_reason=reset` und beginnt den naechsten Lauf in einem neuen Ordner.
 
-Flowupdates erfolgen kontrolliert:
+Flowupdate:
 
 ```bash
 ./tools/manage_nodered_runtime_backup.sh backup ./backup
 ./tools/run_nodered_orchestration.sh flow-update
 ```
-
-Die importierbare KI-Referenz wird mit
-`python3 tools/export_nodered_ai_flow.py --check` gegen den Gesamtflow geprueft.

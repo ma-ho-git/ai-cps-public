@@ -1,4 +1,4 @@
-"""Contract tests for the AI-assisted development handover documents."""
+"""Contract tests for the virtual-simulation documentation."""
 
 from __future__ import annotations
 
@@ -33,7 +33,8 @@ class AiDevelopmentDocsTests(unittest.TestCase):
         self.assertIn("docs/AI_DEVELOPMENT_HANDOVER.md", agents)
         self.assertIn("@AGENTS.md", claude)
         self.assertIn("@docs/AI_DEVELOPMENT_HANDOVER.md", claude)
-        self.assertIn("docs/AI_DEVELOPMENT_HANDOVER.md", readme)
+        self.assertIn("docs/VIRTUAL_SCENARIOS.md", readme)
+        self.assertIn("docs/OPERATION_AND_MIGRATION_GUIDE.md", readme)
 
     def test_handover_contains_required_protocols_and_sources(self) -> None:
         handover = HANDOVER.read_text(encoding="utf-8")
@@ -51,6 +52,7 @@ class AiDevelopmentDocsTests(unittest.TestCase):
 
         for source in (
             "AGENTS.md",
+            "VIRTUAL_SCENARIOS.md",
             "OPERATION_AND_MIGRATION_GUIDE.md",
             "NODERED_MQTT_ORCHESTRATION.md",
             "PROJECT_KNOWLEDGE.md",
@@ -58,13 +60,19 @@ class AiDevelopmentDocsTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertIn(source, handover)
 
-    def test_versioned_latest_and_local_candidates_are_distinguished(self) -> None:
-        agents = self.read("AGENTS.md")
-        handover = HANDOVER.read_text(encoding="utf-8")
-        for content in (agents, handover):
-            self.assertIn("model_registry/<domain>/latest", content)
-            self.assertIn("versioniert", content)
-            self.assertIn("candidates/", content)
+    def test_virtual_scenarios_and_model_profiles_are_documented(self) -> None:
+        readme = self.read("README.md")
+        scenarios = self.read("docs/VIRTUAL_SCENARIOS.md")
+        for content in (readme, scenarios):
+            for identifier in (
+                "standard",
+                "full-storage-attempt",
+                "full-storage-process-guard",
+                "deployment-current",
+                "historical-full-storage-error",
+            ):
+                with self.subTest(identifier=identifier):
+                    self.assertIn(identifier, content)
 
     def test_local_markdown_links_in_handover_exist(self) -> None:
         handover = HANDOVER.read_text(encoding="utf-8")
@@ -80,7 +88,13 @@ class AiDevelopmentDocsTests(unittest.TestCase):
                 self.assertTrue(resolved.is_file())
 
     def test_all_local_markdown_links_exist(self) -> None:
-        markdown_files = [PROJECT_ROOT / "README.md"]
+        markdown_files = [
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / "AGENTS.md",
+            PROJECT_ROOT / "CONTRIBUTING.md",
+            PROJECT_ROOT / "SECURITY.md",
+            PROJECT_ROOT / "THIRD_PARTY_NOTICES.md",
+        ]
         markdown_files.extend(sorted((PROJECT_ROOT / "docs").glob("*.md")))
         for document in markdown_files:
             content = document.read_text(encoding="utf-8")
@@ -95,12 +109,51 @@ class AiDevelopmentDocsTests(unittest.TestCase):
     def test_pull_request_template_covers_handover_and_artifact_safety(self) -> None:
         template = self.read(".github/pull_request_template.md")
         for text in (
-            "Wissenschaftliche Und Vertragliche Auswirkungen",
+            "Runtimevertraege",
             "Dokumentation Und Uebergabe",
             "git diff --check",
             "Keine `.env`",
         ):
             self.assertIn(text, template)
+
+    def test_visible_docs_focus_on_virtual_simulation(self) -> None:
+        visible_files = [
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / "AGENTS.md",
+            PROJECT_ROOT / "CONTRIBUTING.md",
+            PROJECT_ROOT / "SECURITY.md",
+            PROJECT_ROOT / "CITATION.cff",
+        ]
+        visible_files.extend(sorted((PROJECT_ROOT / "docs").glob("*.md")))
+        forbidden = (
+            "entwicklungsarchiv",
+            "forschungsnotebook",
+            "forschungsstand",
+            "masterthesis",
+            "physischer betrieb",
+            "physisches live-system",
+            "hybride fischertechnik",
+        )
+
+        for document in visible_files:
+            content = document.read_text(encoding="utf-8").lower()
+            for term in forbidden:
+                with self.subTest(document=document.name, term=term):
+                    self.assertNotIn(term, content)
+
+    def test_origin_attribution_is_limited_to_legal_notice(self) -> None:
+        allowed = PROJECT_ROOT / "THIRD_PARTY_NOTICES.md"
+        documents = [PROJECT_ROOT / "README.md", PROJECT_ROOT / "CITATION.cff"]
+        documents.extend(sorted((PROJECT_ROOT / "docs").glob("*.md")))
+
+        for document in documents:
+            content = document.read_text(encoding="utf-8")
+            with self.subTest(document=document.name):
+                self.assertNotRegex(content, r"(?i)Grum|MarcusGrum")
+
+        legal_notice = allowed.read_text(encoding="utf-8")
+        self.assertRegex(legal_notice, r"Marcus Grum")
+        self.assertIn("https://github.com/MarcusGrum/AI-CPS", legal_notice)
 
 
 if __name__ == "__main__":

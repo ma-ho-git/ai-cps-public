@@ -1,16 +1,15 @@
 # Oeffentliche Release-Prozedur
 
-Diese Prozedur veroeffentlicht einen geprueften Stand im bestehenden
-Repository `ma-ho-git/ai-cps-public`. Private Entwicklungshistorie,
-Standortkonfiguration und Laufzeitartefakte gehoeren nicht in den Release.
+Dieses interne Wartungsdokument beschreibt die Veroeffentlichung eines
+geprueften Stands in `ma-ho-git/ai-cps-public`.
 
-## 1. Release Vorbereiten
+## 1. Vorbereiten
 
-1. Releasekennung in `configs/runtime_release.json`, HMI, Dokumentation und
-   `CITATION.cff` angleichen.
-2. Modell-, Datensatz- und Trace-Hashes vor der Abnahme erfassen.
-3. Vollstaendige Tests und die betroffenen Runtime-Szenarien ausfuehren.
-4. Den oeffentlichen Baum hart pruefen:
+1. Releasekennung in `configs/runtime_release.json`, Dashboard,
+   Dokumentation und `CITATION.cff` angleichen.
+2. Modell-, Trace- und Flowhashes erfassen.
+3. Vollstaendige Tests und betroffene virtuelle Szenarien ausfuehren.
+4. Releasebaum pruefen:
 
    ```bash
    python3 tools/check_public_release_readiness.py --require-approved
@@ -23,16 +22,15 @@ Standortkonfiguration und Laufzeitartefakte gehoeren nicht in den Release.
 
 ## 2. Pull Request Nach Main
 
-1. Feature-Branch zu `origin` pushen und Pull Request gegen `main` oeffnen.
-2. Runtime-CI, vier Image-Builds und erforderliche Review abwarten.
+1. Feature-Branch pushen und Pull Request gegen `main` oeffnen.
+2. Runtime-CI, Image-Builds und erforderliche Review abwarten.
 3. Nur einen konfliktfreien, vollstaendig geprueften Stand mergen.
-4. Main-CI vollstaendig abwarten. Die vier `latest-validated`-Images werden
-   aus dem neuen Main-Commit erzeugt.
+4. Main-CI vollstaendig abwarten.
 
-Bei fehlgeschlagener CI erfolgt kein Tag. Korrekturen werden als neuer Commit
-ueber einen Pull Request eingespielt; kein Force-Push nach `main`.
+Bei fehlgeschlagener CI erfolgt kein Tag. Korrekturen werden ueber einen neuen
+Commit und Pull Request eingespielt; kein Force-Push nach `main`.
 
-## 3. Unveraenderlichen Tag Veroeffentlichen
+## 3. Tag Veroeffentlichen
 
 Erst nach erfolgreicher Main-CI:
 
@@ -43,19 +41,17 @@ git tag -a runtime-v1.3.0 -m "AI-CPS Public V1.3.0"
 git push origin runtime-v1.3.0
 ```
 
-Der Tag wird niemals verschoben oder ueberschrieben. Der Tag-Workflow erzeugt:
-
-- vier `linux/amd64`-Images mit Release- und SHA-Tag;
-- `runtime-manifest.json` mit Image-, Modell-, Trace- und Flowhashes;
-- Source-SBOM und `SHA256SUMS`;
-- Lizenzhinweise und `CITATION.cff`.
+Ein Release-Tag wird niemals verschoben. Der Tag-Workflow erzeugt Images,
+`runtime-manifest.json`, Source-SBOM, `SHA256SUMS`, Lizenzhinweise und
+`CITATION.cff`.
 
 ## 4. Release Abnehmen
 
-1. Release-Artefakte und Images ohne GitHub-Anmeldung abrufen.
+1. Release-Artefakte und Images ohne Anmeldung abrufen.
 2. Tag mit `--depth 1` in ein leeres Verzeichnis klonen.
-3. Setup, Preflight, Dashboard und einen vollstaendigen Standardlauf pruefen.
-4. Modell-IDs, Commands, Reportabschluss und Modulcounter kontrollieren.
-5. Stack ohne `down -v` stoppen und Testergebnis dokumentieren.
+3. Setup, Preflight und Dashboard pruefen.
+4. Vollstaendigen `standard`-Lauf mit `deployment-current` ausfuehren.
+5. Modell-IDs, Commands, Reportabschluss und Modulcounter kontrollieren.
+6. Stack ohne `down -v` stoppen.
 
 Fruehere Release-Tags bleiben als unveraenderliche Rueckfallstaende erhalten.

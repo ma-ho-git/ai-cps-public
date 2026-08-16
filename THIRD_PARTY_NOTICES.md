@@ -1,33 +1,18 @@
-# Third-Party Notices And Project Origin
+# Third-Party Notices
 
-## AI-CPS Origin
+## Legal Origin Notice
 
-This project is a domain-specific continuation of concepts and deployment
-structures from **AI-CPS**, originally developed by Dr.-Ing. Marcus Grum:
+Parts of this software were derived or adapted from **AI-CPS** by Marcus Grum:
+<https://github.com/MarcusGrum/AI-CPS>. The upstream work is licensed under
+the GNU Affero General Public License v3.0. Adapted portions and this project
+are distributed under `AGPL-3.0-only`.
 
-- Repository: <https://github.com/MarcusGrum/AI-CPS>
-- Upstream license: GNU Affero General Public License v3.0
-- Author: Marcus Grum
+This notice records the legally required attribution only. It does not define
+the purpose or usage of AI-CPS Public.
 
-Early versions of this project adapted the upstream separation of knowledge,
-activation and code bases as well as its container-oriented scenario layout.
-The current MQTT inference services, Node-RED simulation, training workflows
-and fischertechnik-specific models were subsequently developed for this
-project. The adapted work and this repository are distributed under
-`AGPL-3.0-only`.
+## Dependencies
 
-The scientific design also refers to:
-
-> Marcus Grum (2024), "Researching Multi-Site Artificial Neural Networks'
-> Activation Rates and Activation Cycles".
-
-The complete paper is not redistributed in this runtime repository. It is
-cited as a scientific source only.
-
-## Runtime Dependencies
-
-The project includes or uses third-party software under its respective
-licenses. Important direct components include:
+Important direct third-party components include:
 
 - Node-RED: Apache License 2.0
 - FlowFuse Dashboard: Apache License 2.0
@@ -35,9 +20,8 @@ licenses. Important direct components include:
 - Eclipse Mosquitto and Paho MQTT: EPL-2.0 and/or EDL-1.0
 - Python: Python Software Foundation License
 - NumPy, pandas and scikit-learn: BSD-style licenses
-- Docker base images and transitive packages: their respective upstream
-  licenses
+- Docker base images and transitive packages: their respective licenses
 
-Lock files and container SBOM attestations identify the exact dependency
-versions used by a release. Those components are not relicensed by this
-repository's AGPL license.
+Lock files and container SBOM attestations identify the dependency versions
+used by a release. These components are not relicensed by this repository's
+AGPL license.

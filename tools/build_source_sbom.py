@@ -91,7 +91,7 @@ def build_sbom(root: Path = PROJECT_ROOT) -> dict[str, Any]:
         "metadata": {
             "component": {
                 "type": "application",
-                "name": "ai-cps-runtime",
+                "name": "ai-cps-public",
                 "version": str(config["release"]).removeprefix("runtime-v"),
                 "licenses": [{"license": {"id": "AGPL-3.0-only"}}],
                 "externalReferences": [

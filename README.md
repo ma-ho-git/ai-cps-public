@@ -1,4 +1,4 @@
-# AI-CPS Runtime
+# AI-CPS Public
 
 Portables `linux/amd64`-Projekt fuer eine hybride Steuerung der
 Fischertechnik-Fabrik. Drei austauschbare neuronale Netze kommunizieren ueber
@@ -23,11 +23,11 @@ Docker Engine oder Docker Desktop im Linux-Container-Modus, Compose und
 Python 3.12. Betriebsrechner verwenden den freigegebenen Release:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.3.0-rc.3 \
-  https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
+git clone --depth 1 --branch runtime-v1.3.0 \
+  https://github.com/ma-ho-git/ai-cps-public.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.3 \
+  --mode virtual --release runtime-v1.3.0 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -39,13 +39,17 @@ Physischer Schnellstart:
 
 ```bash
 python3 tools/setup_portable_runtime.py init --mode physical \
-  --release runtime-v1.3.0-rc.3 --mqtt-host 192.168.0.5
+  --release runtime-v1.3.0 --mqtt-host 192.168.0.5
 ./tools/run_nodered_orchestration.sh physical-up --images
 ```
 
 Details: [Betriebs- und Migrationsanleitung](docs/OPERATION_AND_MIGRATION_GUIDE.md)
 und [Umgebungseinrichtung](docs/ENVIRONMENT_SETUP.md). Der lokale Source-Build
 bleibt als Entwicklungsweg erhalten und wird ohne `--images` gestartet.
+
+Die bestehenden GHCR-Paketnamen beginnen aus Kompatibilitaetsgruenden
+weiterhin mit `ai-cps-runtime-`. Repository-Name, Quelllinks und OCI-Metadaten
+verwenden dagegen die kanonische Bezeichnung `AI-CPS Public`.
 
 ## 2. Virtuelle Simulation
 

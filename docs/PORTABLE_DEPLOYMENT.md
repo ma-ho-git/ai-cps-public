@@ -21,11 +21,11 @@ sind der Betriebsstandard; lokale Builds bleiben der Entwicklungsweg.
 Empfohlen:
 
 ```bash
-git clone --depth 1 --branch runtime-v1.3.0-rc.3 \
-  https://github.com/ma-ho-git/ai-cps-runtime.git AI-CPS
+git clone --depth 1 --branch runtime-v1.3.0 \
+  https://github.com/ma-ho-git/ai-cps-public.git AI-CPS
 cd AI-CPS
 python3 tools/setup_portable_runtime.py init \
-  --mode virtual --release runtime-v1.3.0-rc.3 \
+  --mode virtual --release runtime-v1.3.0 \
   --compose-project ai-cps-nn-runtime \
   --report-root "$PWD/reports"
 ./tools/run_nodered_orchestration.sh virtual-hmi --images
@@ -48,6 +48,10 @@ linux/amd64-Image-Digests, Modell-IDs/-Hashes, Trace-/Flow-Hashes,
 Node-RED-Runtimeversion sowie IDs und Hashes der historischen
 Demonstrationsmodelle. Der Assistent uebernimmt diese Referenzen in `.env`.
 Manuelle `*_IMAGE`-Aenderungen liegen ausserhalb dieses Release-Locks.
+
+Die vier vorhandenen GHCR-Pakete behalten aus Kompatibilitaetsgruenden ihre
+Namen `ai-cps-runtime-*-infer` beziehungsweise `ai-cps-runtime-node-red`.
+Ihre OCI-Quellreferenz zeigt auf `ma-ho-git/ai-cps-public`.
 
 ## Persistenz
 

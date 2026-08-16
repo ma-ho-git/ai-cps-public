@@ -7,7 +7,7 @@ Only the latest tagged `runtime-v1.*` release is supported.
 ## Reporting A Vulnerability
 
 Use GitHub's private vulnerability reporting or open a private Security
-Advisory in `ma-ho-git/ai-cps-runtime`. Do not publish credentials, broker
+Advisory in `ma-ho-git/ai-cps-public`. Do not publish credentials, broker
 addresses or exploitable details in a public issue.
 
 ## Safety Boundary

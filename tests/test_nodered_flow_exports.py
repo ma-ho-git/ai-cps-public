@@ -248,7 +248,8 @@ class NodeRedFlowExportTests(unittest.TestCase):
         self.assertEqual(form["formValue"]["model_profile"], "deployment-current")
         self.assertIn("reproduziert Vollspeicherfehler", str(form["dropdownOptions"]))
         source_meta = nodes["ui-hmi-source-meta"]["format"]
-        self.assertIn("runtime-v1.3.0-rc.3", source_meta)
+        self.assertIn("runtime-v1.3.0", source_meta)
+        self.assertIn("ma-ho-git/ai-cps-public", source_meta)
         self.assertIn("AGPL-3.0", source_meta)
         self.assertIn("flex-wrap:wrap", source_meta)
         self.assertEqual(nodes["ui-hmi-source-meta"]["className"], "hmi-source-meta")
